@@ -13,8 +13,8 @@ IPAddress server_addr(192,168,1,xx); // IP of the MySQL server here
 char user[] = "Enter MySQL Uname"; // MySQL user login username
 char pass[] = "Enter MySQL Password"; // MySQL user login password
 
-//Query to insert readings into MySQL, update value 1 for name of sensor
-char INSERT_SQL_FORMAT[] = "INSERT INTO SoilSensors.Readings (sensor, reading) VALUES ('Sector01', %f)";
+//Query to insert readings into MySQL, update value 1 to sensor id
+char INSERT_SQL_FORMAT[] = "INSERT INTO SoilSensors.Readings (sensor_id, reading) VALUES (1, %f)";
 char query[128];
 MySQL_Connection conn((Client *)&client);
  
@@ -96,7 +96,7 @@ void loop() {
   // Delete the cursor
   delete cur_mem;
 
-  // run again in 4 hours
-  delay(14400000UL);
+  // run again in 2 hours
+  delay(7200000);
   
 }

@@ -1,12 +1,24 @@
 #Create Database
 CREATE DATABASE SoilSensors;
 
+#Switch to new DB
+USE SoilSensors;
+
+CREATE TABLE Sensors (
+ id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY
+,sensor VARCHAR(30) NOT NULL
+,inserted TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP 
+);
+
 #Create table to store readings
 CREATE TABLE Readings (
  id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY
-,sensor VARCHAR(30) NOT NULL
+,sensor_id INT(6) UNSIGNED NOT NULL
 ,reading INT(6) NOT NULL
 ,inserted TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP 
+,CONSTRAINT fk_sensor
+FOREIGN KEY (sensor_id) 
+   REFERENCES Sensors(id) ON DELETE CASCADE
 );
 
 #Create account used to load readings, replace USERNAME and Password
