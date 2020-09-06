@@ -96,7 +96,7 @@ void loop() {
   // Delete the cursor
   delete cur_mem;
 
-  // run again in 2 hours
-  delay(7200000);
+  // run again in 1 hour
+  delay(60*60*1000UL);
   
 }
