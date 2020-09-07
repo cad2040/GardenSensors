@@ -65,8 +65,8 @@ void loop() {
 
   // Calculate mean average reading
   values_avg = values_avg/reading_count;
-  // map soil conductivity reading between 0 - 100.
-  moisture = map(values_avg,0,400,0,100);
+  // invert and map soil conductivity reading between 0 - 100.
+  moisture = map(values_avg,732,270,0,100);
   
   // Create cursor to execute SQL query
   MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
