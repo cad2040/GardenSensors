@@ -73,7 +73,7 @@ def main():
     files.append(dirc+fname)
     df=Data[Data.sensor == sensor]
     plot=plotLine(df,'inserted','reading','Moisture',\
-                  fname,'Datetime','Moisture Reading',dirc,'blue')
+                  fname,'Datetime','Moisture Pct',dirc,'blue')
     WritetoHTML(plot,fname,dirc)
     
     """connect to HASS Pi to upload plot via FTP"""
