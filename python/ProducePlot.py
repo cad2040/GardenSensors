@@ -49,15 +49,15 @@ def plotLine(dataframe,x,y,title,fname,xlabel,ylabel,direc, color):
 def main():
   """Declare variables"""
   db='SoilSensors'
-  server='192.168.1.222'
-  uname='SoilSensors';pwd='PurpleStinkyPunch1512'
-  FTPAdr='192.168.1.210'
-  FTPUn='pi';FTPpwd='Purpleg0at-987'
+  server='SQL DB IP'
+  uname='SQLDB USERNAME';pwd='SQLDB PASSWORD'
+  FTPAdr='FTP IP'
+  FTPUn='FTP Uname';FTPpwd='FTP Pass'
   querySensors="SELECT sensor FROM SoilSensors.Sensors"
   queryReadings="SELECT Sensors.sensor, Readings.reading, Readings.inserted \
   FROM SoilSensors.Readings INNER JOIN SoilSensors.Sensors \
   ON Readings.sensor_id = Sensors.id;"
-  dirc=os.path.join('//home','callum','GitHub','GardenSensors//')
+  dirc=os.path.join('save dirc path')
   UploadPath=os.path.join('//files//')
   
   """connect to Datasources to gather data"""
