@@ -30,10 +30,6 @@ void setup() {
   // start serial communication at 115200 bits per second:
   Serial.begin(115200);
   delay(10);
- Serial.println();
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
 
   // connect to WiFi
   WiFi.begin(ssid, password);
@@ -43,15 +39,9 @@ void setup() {
     Serial.print(".");
   
 }
-  Serial.println("");
-  Serial.println("WiFi connected");  
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
   delay(2000);
 
   // open connection to MySQL DB
-  Serial.println("DB - Connecting...");
-  
   while (conn.connect(server_addr, 3306, user, pass) != true) {
     delay(500);
     Serial.print ( "." );
@@ -66,26 +56,17 @@ void loop() {
   
   // read the input on analog pin 0:
   for( counter = 0; counter < reading_count; counter++){
-    Serial.println("Reading sensor value...:");
     analogVals[reading_count] = analogRead(A0);
     delay(100);
 
-    // Add reading to total value
+    // Add reading to running total
     values_avg = (values_avg + analogVals[reading_count]);
-    Serial.println(analogVals[reading_count]);
-    Serial.print("Total Readings value...:");
-    Serial.println(values_avg);
   }
 
-  // Calculate mean reading
+  // Calculate mean average reading
   values_avg = values_avg/reading_count;
-  Serial.print("Average Readings value...:");
-  Serial.println(values_avg);
-  // scale moisture value if moisture > 80 = wet, <40 = dry, goldielocks >40 && <80
+  // map soil conductivity reading between 0 - 100.
   moisture = map(values_avg,0,400,0,100);
-  // print out the sensor reading:
-  Serial.print("Average moisture value...:");
-  Serial.println(moisture);
   
   // Create cursor to execute SQL query
   MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
