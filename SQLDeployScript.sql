@@ -28,3 +28,24 @@ CREATE USER 'USERNAME'@'%' IDENTIFIED BY 'PASSWORD';
 GRANT ALL PRIVILEGES ON SoilSensors.* TO 'USERNAME'@'%';
 
 FLUSH PRIVILEGES;
+
+# Create dim table to hold plant data
+CREATE TABLE DimPlants (id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY
+    ,plant VARCHAR(255) NOT NULL
+    ,minSoilMoisture INT(6) NOT NULL
+    ,maxSoilMoisture INT(6) NOT NULL
+    );
+    
+#Create table to store plant facts E.g. which plant is attached to which sensor
+CREATE TABLE FactPlants (
+ id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY
+,sensor_id INT(6) UNSIGNED NOT NULL
+,plant_id INT(6) UNSIGNED NOT NULL
+,lastWatered TIMESTAMP 
+,CONSTRAINT fk_sensor2
+FOREIGN KEY (sensor_id) 
+   REFERENCES Sensors(id) ON DELETE CASCADE
+,CONSTRAINT fk_plant
+FOREIGN KEY (plant_id) 
+   REFERENCES DimPlants(id) ON DELETE CASCADE
+);
