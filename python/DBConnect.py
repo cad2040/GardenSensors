@@ -60,5 +60,4 @@ class CFSQLConnect(object):
           # wait for 2 seconds before trying again
           sleep(2) 
           pass
-    return df
     
