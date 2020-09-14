@@ -37,4 +37,28 @@ class CFSQLConnect(object):
           sleep(2) 
           pass
     return df
+  
+  def ExecuteMySQL(self, query):
+    """initiate connection and execute query"""
+    errorCount=0
+    errorLog={}
+    for x in range(0, 10):
+      try:
+        cnxn=mysql.connector.connect(user=self.username,password=self.pwd,\
+                                     host=self.server,database=self.DB)
+        cursor=cnxn.cursor()
+        cursor.execute(query)
+        cnxn.close()
+        str_error = None
+      except Exception as str_error:
+        if errorCount == 9:
+          print(errorLog)
+          sys.exit()
+        else:
+          errorLog[errorCount]=str(str_error)
+          errorCount+=1
+          # wait for 2 seconds before trying again
+          sleep(2) 
+          pass
+    return df
     
