@@ -13,6 +13,7 @@ from bokeh.embed import file_html
 import os
 from math import pi
 import FTPConnectMod as FTPConnt
+from datetime import datetime
 
 
 def WritetoHTML(plot, name, direc):
@@ -86,10 +87,13 @@ def main():
 
 
 if __name__ == "__main__":
-    errorLog={}
-    try:
-      main()
-    except Exception as str_error: 
-      #Alter to print to datestamped error log
-      errorLog[0]=str(str_error)
-      print(errorLog[0])
+  errorLog={}
+  try:
+    main()
+  except Exception as str_error: 
+    errorLog[0]=str(str_error)
+    now=datetime.now()
+    date_time=now.strftime("%m/%d/%Y, %H:%M:%S")
+    with open('/var/log/ProducePlot.log', 'a') as f:
+      f.write('At '+date_time+' '+errorLog[0])
+      f.close()
