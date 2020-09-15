@@ -27,7 +27,7 @@ def main():
   queryReadings="SELECT Readings.reading, Readings.inserted \
   FROM SoilSensors.Readings INNER JOIN SoilSensors.Sensors \
   ON Readings.sensor_id = Sensors.id \
-  WHERE Sensors.sensor_id = %s \
+  WHERE Sensors.id = %s \
   ORDER BY Readings.inserted DESC limit 1;"
   queryPlantFacts="SELECT lastWatered, plant_id from SoilSensors.FactPlants \
   WHERE sensor_id = %s"
