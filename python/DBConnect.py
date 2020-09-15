@@ -48,6 +48,8 @@ class CFSQLConnect(object):
                                      host=self.server,database=self.DB)
         cursor=cnxn.cursor()
         cursor.execute(query)
+        cnxn.commit()
+        cursor.close()
         cnxn.close()
         str_error = None
       except Exception as str_error:
