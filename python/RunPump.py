@@ -13,11 +13,6 @@ import sys
 from datetime import datetime
 
 
-def Relay(pin,active_high):
-  """create connection to power relay"""
-  Relay=gpio.LED(pin,active_high=active_high)
-  
-
 def main():
   """Declare variables"""
   db='SoilSensors'
@@ -34,14 +29,14 @@ def main():
   queryPlants="SELECT minSoilMoisture, maxSoilMoisture \
   from SoilSensors.DimPlants WHERE id = %s"
   updateQuery="UPDATE SoilSensors.FactPlants SET lastWatered = NOW() \
-  WHERE sensor_id = %s, plant_id = %s"
+  WHERE sensor_id = %s AND plant_id = %s;"
   
   
   """connect to Datasources to gather data"""
   cnx=conct.CFSQLConnect(db,uname,pwd,server) 
   sensors=cnx.queryMySQL(querySensors)
   sensors=list(sensors.sensor_id)
-  relay=Relay(12,False)
+  relay=gpio.LED(12,active_high=False)
   
   """Check each Sensors last moisture reading"""
   for sensor in sensors:
