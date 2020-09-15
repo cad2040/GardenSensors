@@ -55,9 +55,9 @@ def main():
     minMoisture=moistureMinMax.minSoilMoisture.iloc[0]
     maxMoisture=moistureMinMax.maxSoilMoisture.iloc[0]
     if lastReading > lastWatered:
-      if (moisture <= minMoisture) and (moisture < maxMoisture):
+      if (moisture <= minMoisture):
         relay.on()
-        time.sleep(10)
+        time.sleep(5)
         relay.off()
         cnx.ExecuteMySQL(updateQuery % (sensor, plant_id))
         
