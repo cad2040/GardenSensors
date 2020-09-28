@@ -49,3 +49,14 @@ FOREIGN KEY (sensor_id)
 FOREIGN KEY (plant_id) 
    REFERENCES DimPlants(id) ON DELETE CASCADE
 );
+
+#Create table to store plot URLs
+CREATE TABLE Plots (
+ id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY
+,sensor_id INT(6) UNSIGNED NOT NULL
+,sensor VARCHAR(255) NOT NULL
+,URL VARCHAR(255) NOT NULL
+,CONSTRAINT fk_sensor3
+FOREIGN KEY (sensor_id) 
+   REFERENCES Sensors(id) ON DELETE CASCADE
+);
