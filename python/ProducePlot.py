@@ -56,6 +56,7 @@ def main():
   FTPUn='FTP Uname';FTPpwd='FTP Pass'
   querySensors="SELECT sensor FROM SoilSensors.Sensors"
   queryReadings="SELECT Sensors.sensor, Readings.reading, Readings.inserted \
+  Readings.sensor_id \
   FROM SoilSensors.Readings INNER JOIN SoilSensors.Sensors \
   ON Readings.sensor_id = Sensors.id;"
   dirc=os.path.join('save dirc path')
@@ -65,10 +66,12 @@ def main():
   cnx=conct.CFSQLConnect(db,uname,pwd,server) 
   Data=cnx.queryMySQL(queryReadings)
   sensors=cnx.queryMySQL(querySensors)
-  sensors=list(sensors.sensor)
+  sensors=list(sensors.sensor.unique())
   
   """Produce plot and save to HTML file to display in HASS"""
   files=[]
+  truncate="TRUNCATE TABLE SoilSensors.Plots;"
+  cnx.ExecuteMySQL(truncate)
   for sensor in sensors:
     fname='Sensor'+str(sensor)+'Plot.html'
     files.append(dirc+fname)
@@ -76,6 +79,14 @@ def main():
     plot=plotLine(df,'inserted','reading','Moisture',\
                   fname,'Datetime','Moisture Pct',dirc,'blue')
     WritetoHTML(plot,fname,dirc)
+    
+    """Add URL to DB Table"""
+    sensor_id=Data[Data.sensor == sensor]
+    sensor_id=sensor_id.sensor_id.iloc[0]
+    URL="http://HOST/"+fname
+    queryInsertURL="INSERT INTO SoilSensors.Plots (sensor_id, sensor, URL) \
+    VALUES (%s, '%s', '%s')"
+    cnx.ExecuteMySQL(queryInsertURL % (sensor_id, sensor, URL))
     
     """connect to HASS Pi to upload plot via FTP"""
     FTPObj=FTPConnt.FTPConnectMod(FTPAdr,FTPUn,FTPpwd)

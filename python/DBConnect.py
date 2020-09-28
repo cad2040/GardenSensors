@@ -26,6 +26,7 @@ class CFSQLConnect(object):
         df=pd.read_sql(query, cnxn)
         cnxn.close()
         str_error = None
+        break
       except Exception as str_error:
         if errorCount == 9:
           print(errorLog)
@@ -50,6 +51,7 @@ class CFSQLConnect(object):
         cursor.execute(query)
         cnxn.close()
         str_error = None
+        break
       except Exception as str_error:
         if errorCount == 9:
           print(errorLog)
