@@ -60,18 +60,24 @@
       <div class="tab">
         <button class="tablinks" onclick="openDash(event, 'Dashboard')"
                 id="defaultOpen">Dashboard</button>
+        <button class="tablinks" onclick="openDash(event, 'Show Sensors')">
+        Show Sensors</button>
         <button class="tablinks" onclick="openDash(event, 'Add Sensor')">
         Add Sensor</button>
+        <button class="tablinks" onclick="openDash(event, 'Show Plant Data')">
+        Show Plant Data</button>
         <button class="tablinks" onclick="openDash(event, 'Add Plant')">
         Add Plant</button>
+        <button class="tablinks" onclick="openDash(event, 'Update Plant Data')">
+        Update Plant Data</button>
         <button class="tablinks" onclick="openDash(event, 'Assign Sensor')">
         Assign Sensor</button>
       </div>
 
       <?php
-        $url="MYSQL IP:3306";
-        $username="MYSQL UNAME";
-        $password="MYSQL PASS";
+        $url="MYSQLHOSTIP:3306";
+        $username="SoilSensors";
+        $password="MYSQLPWORD";
         $conn=mysqli_connect($url,$username,$password,"SoilSensors");
         if(!$conn){
         die('Could not Connect My Sql:' .mysql_error());
@@ -81,6 +87,7 @@
       <div id="Dashboard" class="tabcontent">        
       <div class="w3-col s8 w3-left">
       <div class="table-title">
+      <br>
       <?php
         $query="SELECT * FROM SoilSensors.Plots";
         if ($result = mysqli_query($conn, $query)) {
@@ -106,15 +113,53 @@
       </div>
 
 
+      <div id="Show Sensors" class="tabcontent">
+      <div class="w3-col s8 w3-left">
+      <div class="table-title">
+        <br><br>
+        Current Sensor Assignments
+      <div id="grid-1-2">
+      <div>
+      <br>
+      <?php
+        $ShowAssignments="SELECT S.sensor, DP.plant FROM SoilSensors.Sensors S 
+                                        JOIN SoilSensors.FactPlants FP ON S.id = FP.sensor_id
+                                        JOIN SoilSensors.DimPlants DP ON FP.plant_id = DP.id";
+        if ($result = mysqli_query($conn, $ShowAssignments)) {
+         echo "<table border='1'>
+                  <tr>
+                  <th>Sensor</th>
+                  <th>Assigned Plant</th>
+                  </tr>";
+          while ($row = mysqli_fetch_row($result)) {
+          echo "<tr>";
+          echo "<td>" . $row[0] . "</td>";
+          echo "<td>" . $row[1] . "</td>";
+          echo "</tr>";
+          }
+          mysqli_free_result($result);
+          }
+          echo "</table>";
+      ?>
+      </div>
+      </div>
+      </div>
+      </div>
+      </div>
+
 
       <div id="Add Sensor" class="tabcontent">
       <div class="w3-col s8 w3-left">
       <div class="table-title">
-        Plot
+        <br><br>
+        Add a new sensor to database
       <div id="grid-1-2">
       <div>
-      
-
+      <br>
+      <form action="insertSensor.php" method="post">
+        Sensor name: <input type="text" name="sname" /><br><br>
+        <input type="submit" />
+      </form>
       </div>
       </div>
       </div>
@@ -122,16 +167,55 @@
       </div>
 
 
+      <div id="Show Plant Data" class="tabcontent">
+      <div class="w3-col s8 w3-left">
+      <div class="table-title">
+        <br><br>
+        Current Plant settings
+      <div id="grid-1-2">
+      <div>
+      <br>
+      <?php
+        $ShowPlantData="SELECT plant, minSoilMoisture, maxSoilMoisture FROM SoilSensors.DimPlants";
+        if ($result = mysqli_query($conn, $ShowPlantData)) {
+         echo "<table border='1'>
+                  <tr>
+                  <th>Plant</th>
+                  <th>min Soil Moisture</th>
+                  <th>max Soil Moisture</th>
+                  </tr>";
+          while ($row = mysqli_fetch_row($result)) {
+          echo "<tr>";
+          echo "<td>" . $row[0] . "</td>";
+          echo "<td>" . $row[1] . "</td>";
+          echo "<td>" . $row[2] . "</td>";
+          echo "</tr>";
+          }
+          mysqli_free_result($result);
+          }
+          echo "</table>";
+      ?>
+      </div>
+      </div>
+      </div>
+      </div>
+      </div>
 
 
       <div id="Add Plant" class="tabcontent">
       <div class="w3-col s8 w3-left">
       <div class="table-title">
-        Plot
+        <br><br>
+        Add new plant to database
       <div id="grid-1-2">
       <div>
-      
-
+      <br>
+      <form action="insertPlant.php" method="post">
+        Plant Name: <input type="text" name="pname" /><br><br>
+        Min Soil Moisture: <input type="text" name="soilmin" /><br><br>
+        Max Soil Moisture: <input type="text" name="soilmax" /><br><br>
+        <input type="submit" />
+      </form>
       </div>
       </div>
       </div>
@@ -139,22 +223,79 @@
       </div>
 
 
-
+      <div id="Update Plant Data" class="tabcontent">
+      <div class="w3-col s8 w3-left">
+      <div class="table-title">
+        <br><br>
+        update plant min/max soil moisture
+      <div id="grid-1-2">
+      <div>
+      <br><br>
+      <form action="updatePlant.php" method="post">
+      <?php
+        $sqlPlants2="SELECT plant FROM SoilSensors.DimPlants";
+      ?>
+        <select name="plantsup" id="plantsup">
+        <?php
+          if ($result = mysqli_query($conn, $sqlPlants2)) {
+          while ($row = mysqli_fetch_row($result)) {
+          echo "<option value='" . $row[0] . "'>" . $row[0] . "</option>";
+          }
+          mysqli_free_result($result);
+          }
+        ?>
+        </select> <br><br>
+        Min Soil Moisture: <input type="text" name="soilminup" /><br><br>
+        Max Soil Moisture: <input type="text" name="soilmaxup" /><br><br>
+        <input type="submit" />
+      </form>
+      </div>
+      </div>
+      </div>
+      </div>
+      </div>
 
 
       <div id="Assign Sensor" class="tabcontent">
       <div class="w3-col s8 w3-left">
       <div class="table-title">
-        Plot
+      <br><br>
+        Assign plant type to sensor
       <div id="grid-1-2">
       <div>
-      
+      <?php
+        $sqlPlants="SELECT plant FROM SoilSensors.DimPlants";
+        $sqlSensors="SELECT sensor FROM SoilSensors.Sensors";
+      ?>
+      <form action="assignSensor.php"method="POST">
+        <select name="plants" id="plants">
+          <?php
+          if ($result = mysqli_query($conn, $sqlPlants)) {
+          while ($row = mysqli_fetch_row($result)) {
+          echo "<option value='" . $row[0] . "'>" . $row[0] . "</option>";
+          }
+          mysqli_free_result($result);
+          }
+          ?>
+        </select>
+        <select name="sensors" id="sensors">
+          <?php
+          if ($result = mysqli_query($conn, $sqlSensors)) {
+          while ($row = mysqli_fetch_row($result)) {
+          echo "<option value='" . $row[0] . "'>" . $row[0] . "</option>";
+          }
+          mysqli_free_result($result);
+          }
+          ?>
+        </select>
+        <input type="submit" />
+      <?form>
+      </div>
+      </div>
+      </div>
+      </div>
+      </div>
 
-      </div>
-      </div>
-      </div>
-      </div>
-      </div>
 
       <script>
         // Javascript function to show only selected tab contents
