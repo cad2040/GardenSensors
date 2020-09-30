@@ -75,9 +75,9 @@
       </div>
 
       <?php
-        $url="MYSQLHOSTIP:3306";
+        $url="MYSQLHOST:3306";
         $username="SoilSensors";
-        $password="MYSQLPWORD";
+        $password="MYSQLPASS";
         $conn=mysqli_connect($url,$username,$password,"SoilSensors");
         if(!$conn){
         die('Could not Connect My Sql:' .mysql_error());
@@ -107,6 +107,7 @@
         }
         mysqli_free_result($result);
         }
+        mysqli_close($conn)
       ?>
       </div>
       </div>
@@ -122,6 +123,10 @@
       <div>
       <br>
       <?php
+        $conn=mysqli_connect($url,$username,$password,"SoilSensors");
+        if(!$conn){
+        die('Could not Connect My Sql:' .mysql_error());
+        }
         $ShowAssignments="SELECT S.sensor, DP.plant FROM SoilSensors.Sensors S 
                                         JOIN SoilSensors.FactPlants FP ON S.id = FP.sensor_id
                                         JOIN SoilSensors.DimPlants DP ON FP.plant_id = DP.id";
@@ -140,6 +145,7 @@
           mysqli_free_result($result);
           }
           echo "</table>";
+          mysqli_close($conn)
       ?>
       </div>
       </div>
@@ -176,6 +182,10 @@
       <div>
       <br>
       <?php
+        $conn=mysqli_connect($url,$username,$password,"SoilSensors");
+        if(!$conn){
+        die('Could not Connect My Sql:' .mysql_error());
+        }
         $ShowPlantData="SELECT plant, minSoilMoisture, maxSoilMoisture FROM SoilSensors.DimPlants";
         if ($result = mysqli_query($conn, $ShowPlantData)) {
          echo "<table border='1'>
@@ -194,6 +204,7 @@
           mysqli_free_result($result);
           }
           echo "</table>";
+          mysqli_close($conn)
       ?>
       </div>
       </div>
@@ -230,11 +241,16 @@
         update plant min/max soil moisture
       <div id="grid-1-2">
       <div>
-      <br><br>
+      <br>
       <form action="updatePlant.php" method="post">
       <?php
+        $conn=mysqli_connect($url,$username,$password,"SoilSensors");
+        if(!$conn){
+        die('Could not Connect My Sql:' .mysql_error());
+        }
         $sqlPlants2="SELECT plant FROM SoilSensors.DimPlants";
       ?>
+        <label for="plantsup">Select plant</label>
         <select name="plantsup" id="plantsup">
         <?php
           if ($result = mysqli_query($conn, $sqlPlants2)) {
@@ -243,6 +259,7 @@
           }
           mysqli_free_result($result);
           }
+          mysqli_close($conn)
         ?>
         </select> <br><br>
         Min Soil Moisture: <input type="text" name="soilminup" /><br><br>
@@ -266,6 +283,10 @@
       <?php
         $sqlPlants="SELECT plant FROM SoilSensors.DimPlants";
         $sqlSensors="SELECT sensor FROM SoilSensors.Sensors";
+        $conn=mysqli_connect($url,$username,$password,"SoilSensors");
+        if(!$conn){
+        die('Could not Connect My Sql:' .mysql_error());
+        }
       ?>
       <form action="assignSensor.php"method="POST">
         <select name="plants" id="plants">
@@ -286,6 +307,7 @@
           }
           mysqli_free_result($result);
           }
+          mysqli_close($conn)
           ?>
         </select>
         <input type="submit" />
