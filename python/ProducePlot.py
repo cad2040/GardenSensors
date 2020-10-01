@@ -95,6 +95,11 @@ def main():
   for file in files:
     if os.path.exists(file):
       os.remove(file)
+  
+  """Remove readings older then a month"""
+  query="DELETE FROM SoilSensors.Readings WHERE \
+         inserted <  (NOW() - INTERVAL 30 DAY);"
+  cnx.ExecuteMySQL(query)
 
 
 if __name__ == "__main__":
