@@ -70,3 +70,9 @@ CREATE TABLE SoilSensors.Pins (
 FOREIGN KEY (sensor_id) 
    REFERENCES Sensors(id) ON DELETE CASCADE
 );
+
+#Create table to store possible gpio pins for assignment
+CREATE TABLE SoilSensors.DimPins (
+ id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY
+,pin INT(6) UNSIGNED NOT NULL
+);
