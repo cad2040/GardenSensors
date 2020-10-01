@@ -111,5 +111,5 @@ if __name__ == "__main__":
     now=datetime.now()
     date_time=now.strftime("%m/%d/%Y, %H:%M:%S")
     with open('/home/pi/GardenSensors/python/ProducePlot.log', 'a') as f:
-      f.write('At '+date_time+' '+errorLog[0])
+      f.write("\n At "+date_time+" "+errorLog[0])
       f.close()
