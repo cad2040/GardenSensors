@@ -97,13 +97,13 @@
       ?>
       <div id=>
       <div>
-      <iframe id = <?php echo $sensor ?> width="100%" height="450px" 
+      <iframe id = <?php echo $sensor; ?> width="100%" height="450px" 
       frameborder="0" scrolling="yes" 
       src= <?php echo $row[3];?>>
       </iframe>
       </div>
         <script type = "text/javascript">
-          var iframe = document.getElementById(<?php echo $sensor ?>);
+          var iframe = document.getElementById(<?php echo $sensor; ?>);
           iframe.src = iframe.src;
         </script>
       </div>
