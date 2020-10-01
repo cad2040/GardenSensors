@@ -30,13 +30,13 @@ def main():
   from SoilSensors.DimPlants WHERE id = %s"
   updateQuery="UPDATE SoilSensors.FactPlants SET lastWatered = NOW() \
   WHERE sensor_id = %s AND plant_id = %s;"
+  PinQuery="SELECT * FROM SoilSensors.Pins WHERE sensor_id = %s;"
   
   
   """connect to Datasources to gather data"""
   cnx=conct.CFSQLConnect(db,uname,pwd,server) 
   sensors=cnx.queryMySQL(querySensors)
   sensors=list(sensors.sensor_id)
-  relay=gpio.LED(12,active_high=False)
   
   """Check each Sensors last moisture reading"""
   for sensor in sensors:
@@ -49,6 +49,10 @@ def main():
     moistureMinMax=cnx.queryMySQL(queryPlants % (plant_id))
     minMoisture=moistureMinMax.minSoilMoisture.iloc[0]
     maxMoisture=moistureMinMax.maxSoilMoisture.iloc[0]
+    pin=cnx.queryMySQL(PinQuery % (sensor))
+    pin=pin.pin.iloc[0]
+    pin=int(pin)
+    relay=gpio.LED(pin,active_high=False)
     if lastReading > lastWatered:
       if (moisture <= minMoisture):
         relay.on()
@@ -69,5 +73,5 @@ if __name__ == "__main__":
     now=datetime.now()
     date_time=now.strftime("%m/%d/%Y, %H:%M:%S")
     with open('/home/pi/GardenSensors/python/RunPump.log', 'a') as f:
-      f.write('At '+date_time+' '+errorLog[0])
+      f.write("\n At "+date_time+" "+errorLog[0])
       f.close()
