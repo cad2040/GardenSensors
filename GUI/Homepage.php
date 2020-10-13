@@ -97,7 +97,7 @@
         $sensor=$row[2];
         echo $sensor;
       ?>
-      <div id=>
+      <div id="grid-1-1">
       <div>
       <iframe id = <?php echo $sensor; ?> width="100%" height="450px" 
       frameborder="0" scrolling="yes" 
@@ -117,8 +117,8 @@
       ?>
       </div>
       </div>
-          
-      <div class="w3-col s8 w3-left">
+
+      <div class="w3-col s4 w3-left">
       <div class="table-title">
         <br><br>
         Last 5 readings
@@ -135,7 +135,7 @@
                                         INNER JOIN SoilSensors.Sensors ON sensor_id = Sensors.id
                                         INNER JOIN SoilSensors.FactPlants ON FactPlants.sensor_id = Sensors.id
                                         INNER JOIN SoilSensors.DimPlants ON FactPlants.plant_id = DimPlants.id
-                                        WHERE Sensors.sensor = ".$sensor."
+                                        WHERE Sensors.sensor = '".$sensor."'
                                         ORDER BY inserted DESC
                                         LIMIT 5";
         if ($result = mysqli_query($conn, $ShowLastReadings)) {
