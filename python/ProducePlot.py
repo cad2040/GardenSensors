@@ -95,6 +95,11 @@ def main():
   for file in files:
     if os.path.exists(file):
       os.remove(file)
+  
+  """Remove readings older then a month"""
+  query="DELETE FROM SoilSensors.Readings WHERE \
+         inserted <  (NOW() - INTERVAL 30 DAY);"
+  cnx.ExecuteMySQL(query)
 
 
 if __name__ == "__main__":
@@ -106,5 +111,5 @@ if __name__ == "__main__":
     now=datetime.now()
     date_time=now.strftime("%m/%d/%Y, %H:%M:%S")
     with open('/home/pi/GardenSensors/python/ProducePlot.log', 'a') as f:
-      f.write('At '+date_time+' '+errorLog[0])
+      f.write("\n At "+date_time+" "+errorLog[0])
       f.close()
