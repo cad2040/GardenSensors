@@ -414,6 +414,42 @@
       </div>
       </div>
       </div>
+              
+      <div class="w3-col s4 w3-left">
+      <div class="table-title">
+        <br><br>
+        Pin Assignments
+      <div id="grid-1-2">
+      <div>
+      <br>
+      <?php
+        $conn=mysqli_connect($url,$username,$password,"SoilSensors");
+        if(!$conn){
+        die('Could not Connect My Sql:' .mysql_error());
+        }
+        $ShowPinAssigns="SELECT Sensors.sensor, Pins.pin FROM SoilSensors.Pins
+                                    INNER JOIN SoilSensors.Sensors ON Sensors.id = Pins.sensor_id";
+        if ($result = mysqli_query($conn, $ShowPinAssigns)) {
+         echo "<table border='1'>
+                  <tr>
+                  <th>Sensor</th>
+                  <th>Pin</th>
+                  </tr>";
+          while ($row = mysqli_fetch_row($result)) {
+          echo "<tr>";
+          echo "<td>" . $row[0] . "</td>";
+          echo "<td>" . $row[1] . "</td>";
+          echo "</tr>";
+          }
+          mysqli_free_result($result);
+          }
+          echo "</table>";
+          mysqli_close($conn)
+      ?>
+      </div>
+      </div>
+      </div>
+      </div>
       </div>
               
 
