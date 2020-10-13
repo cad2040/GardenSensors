@@ -72,6 +72,8 @@
         Update Plant Data</button>
         <button class="tablinks" onclick="openDash(event, 'Assign Sensor')">
         Assign Sensor</button>
+        <button class="tablinks" onclick="openDash(event, 'Assign Pin')">
+        Assign Pin</button>
       </div>
 
       <?php
@@ -113,6 +115,52 @@
         }
         mysqli_close($conn)
       ?>
+      </div>
+      </div>
+          
+      <div class="w3-col s8 w3-left">
+      <div class="table-title">
+        <br><br>
+        Last 5 readings
+      <div id="grid-1-2">
+      <div>
+      <br>
+      <?php
+        $conn=mysqli_connect($url,$username,$password,"SoilSensors");
+        if(!$conn){
+        die('Could not Connect My Sql:' .mysql_error());
+        }
+        $ShowLastReadings="SELECT Sensors.sensor, DimPlants.plant, Readings.reading, Readings.inserted 
+                                        FROM SoilSensors.Readings 
+                                        INNER JOIN SoilSensors.Sensors ON sensor_id = Sensors.id
+                                        INNER JOIN SoilSensors.FactPlants ON FactPlants.sensor_id = Sensors.id
+                                        INNER JOIN SoilSensors.DimPlants ON FactPlants.plant_id = DimPlants.id
+                                        WHERE Sensors.sensor = ".$sensor."
+                                        ORDER BY inserted DESC
+                                        LIMIT 5";
+        if ($result = mysqli_query($conn, $ShowLastReadings)) {
+         echo "<table border='1'>
+                  <tr>
+                  <th>Sensor</th>
+                  <th>Plant</th>
+                  <th>Mositure Pct</th>
+                  <th>Timestamp</th>
+                  </tr>";
+          while ($row = mysqli_fetch_row($result)) {
+          echo "<tr>";
+          echo "<td>" . $row[0] . "</td>";
+          echo "<td>" . $row[1] . "</td>";
+          echo "<td>" . $row[2] . "</td>";
+          echo "<td>" . $row[3] . "</td>";
+          echo "</tr>";
+          }
+          mysqli_free_result($result);
+          }
+          echo "</table>";
+          mysqli_close($conn)
+      ?>
+      </div>
+      </div>
       </div>
       </div>
       </div>
@@ -322,6 +370,52 @@
       </div>
       </div>
 
+              
+      <div id="Assign Pin" class="tabcontent">
+      <div class="w3-col s8 w3-left">
+      <div class="table-title">
+      <br><br>
+        Assign gpio pin to sensor
+      <div id="grid-1-2">
+      <div>
+      <?php
+        $sqlPins="SELECT pin FROM SoilSensors.DimPins";
+        $sqlSensors="SELECT sensor FROM SoilSensors.Sensors";
+        $conn=mysqli_connect($url,$username,$password,"SoilSensors");
+        if(!$conn){
+        die('Could not Connect My Sql:' .mysql_error());
+        }
+      ?>
+      <form action="assignPin.php"method="POST">
+        <select name="pin" id="pin">
+          <?php
+          if ($result = mysqli_query($conn, $sqlPins)) {
+          while ($row = mysqli_fetch_row($result)) {
+          echo "<option value='" . $row[0] . "'>" . $row[0] . "</option>";
+          }
+          mysqli_free_result($result);
+          }
+          ?>
+        </select>
+        <select name="sensors" id="sensors">
+          <?php
+          if ($result = mysqli_query($conn, $sqlSensors)) {
+          while ($row = mysqli_fetch_row($result)) {
+          echo "<option value='" . $row[0] . "'>" . $row[0] . "</option>";
+          }
+          mysqli_free_result($result);
+          }
+          mysqli_close($conn)
+          ?>
+        </select>
+        <input type="submit" />
+      <?form>
+      </div>
+      </div>
+      </div>
+      </div>
+      </div>
+              
 
       <script>
         // Javascript function to show only selected tab contents
