@@ -51,9 +51,9 @@ and open the template in the editor.
     </head>
     <body>
         <?php
-        $url="192.168.1.222:3306";
+        $url="MYSQLHOST:3306";
         $username="SoilSensors";
-        $password="PurpleStinkyPunch1512";
+        $password="MYSQLPASS";
         $conn=mysqli_connect($url,$username,$password,"SoilSensors");
         if(!$conn){
         die('Could not Connect My Sql:' .mysql_error());
