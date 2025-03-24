@@ -1,5 +1,3 @@
-
-
 #include <ESP8266WiFi.h>
 #include <MySQL_Connection.h>
 #include <MySQL_Cursor.h>
@@ -26,26 +24,71 @@ unsigned int analogVals[reading_count];
 unsigned int counter = 0;
 unsigned int values_avg = 0;
 
+// Configuration structure
+struct Config {
+  const char* ssid;
+  const char* password;
+  IPAddress server_addr;
+  char mysql_user[32];
+  char mysql_pass[32];
+  const char* host;
+  unsigned int reading_delay_ms;
+  unsigned int reading_count;
+  unsigned int moisture_min;
+  unsigned int moisture_max;
+};
+
+// Default configuration
+Config config = {
+  "Enter Network Name",
+  "Enter Network Password",
+  IPAddress(192,168,1,xx),
+  "Enter MySQL Uname",
+  "Enter MySQL Password",
+  "Sector01Sensor",
+  100,  // reading_delay_ms
+  10,   // reading_count
+  270,  // moisture_min (dry soil)
+  732   // moisture_max (wet soil)
+};
+
 void setup() {
   // start serial communication at 115200 bits per second:
   Serial.begin(115200);
   delay(10);
 
   // connect to WiFi
-  WiFi.begin(ssid, password);
+  WiFi.begin(config.ssid, config.password);
+  
+  // Connect to WiFi with timeout
+  unsigned long startAttemptTime = millis();
   
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-  
-}
+    
+    // Timeout after 30 seconds
+    if (millis() - startAttemptTime > 30000) {
+      Serial.println("\nFailed to connect to WiFi. Restarting...");
+      ESP.restart();
+    }
+  }
+  Serial.println("\nWiFi connected");
   delay(2000);
 
   // open connection to MySQL DB
-  while (conn.connect(server_addr, 3306, user, pass) != true) {
+  unsigned long dbStartAttemptTime = millis();
+  while (conn.connect(config.server_addr, 3306, config.mysql_user, config.mysql_pass) != true) {
     delay(500);
     Serial.print ( "." );
-}
+    
+    // Timeout after 30 seconds
+    if (millis() - dbStartAttemptTime > 30000) {
+      Serial.println("\nFailed to connect to MySQL. Restarting...");
+      ESP.restart();
+    }
+  }
+  Serial.println("\nMySQL connected");
 }
 
 void loop() {
@@ -54,30 +97,31 @@ void loop() {
   moisture = 0;
   counter = 0;
   
-  // read the input on analog pin 0:
-  for( counter = 0; counter < reading_count; counter++){
-    analogVals[reading_count] = analogRead(A0);
-    delay(100);
-
-    // Add reading to running total
-    values_avg = (values_avg + analogVals[reading_count]);
+  // Take multiple readings for averaging
+  for(counter = 0; counter < config.reading_count; counter++) {
+    analogVals[counter] = analogRead(A0);
+    delay(config.reading_delay_ms);
+    values_avg += analogVals[counter];
   }
 
   // Calculate mean average reading
-  values_avg = values_avg/reading_count;
-  // invert and map soil conductivity reading between 0 - 100.
-  moisture = map(values_avg,732,270,0,100);
+  values_avg = values_avg / config.reading_count;
+  
+  // Map soil conductivity reading between 0-100%
+  // Note: 732 is typical reading for wet soil, 270 for dry soil
+  moisture = map(values_avg, config.moisture_min, config.moisture_max, 0, 100);
   
   // Create cursor to execute SQL query
   MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
-  // Parse query to insert into SQL Table
+  
+  // Parse and execute query with error handling
   sprintf(query, INSERT_SQL_FORMAT, moisture);
-  // Execute the query
-  cur_mem->execute(query);
-  // Delete the cursor
+  if (!cur_mem->execute(query)) {
+    Serial.println("Failed to execute query");
+  }
+  
   delete cur_mem;
 
-  // run again in 1 hour
+  // Run again in 1 hour
   delay(60*60*1000UL);
-  
 }

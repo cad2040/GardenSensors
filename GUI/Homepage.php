@@ -1,11 +1,31 @@
+<?php
+session_start();
+require_once 'config.php';
+require_once 'includes/functions.php';
+require_once 'includes/db.php';
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit();
+}
+
+// Initialize database connection
+$db = new Database();
+$conn = $db->getConnection();
+
+// Handle tab switching
+$activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
+?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-        <meta name="Garden Sensors Dashboard" content="" />
+        <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Garden Sensors Dashboard</title>
         <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+        <link rel="stylesheet" href="css/style.css">
         <style>
           /* Style the stats tabs */
           div.tab {
