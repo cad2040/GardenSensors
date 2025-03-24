@@ -1,214 +1,196 @@
 <?php
-require_once 'config.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
+require_once 'includes/config.php';
+require_once 'includes/api_controller.php';
 
-// Start session
-session_start();
+class SensorController extends ApiController {
+    public function __construct() {
+        parent::__construct();
+        $this->requireAuth();
+        $this->checkRateLimit('manage_sensor');
+    }
 
-// Check if user is logged in
-if (!isset($_SESSION['user_id'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-    exit;
+    public function handleRequest() {
+        $action = $_POST['action'] ?? '';
+        $sensorId = $_POST['sensor_id'] ?? null;
+
+        try {
+            $this->db->beginTransaction();
+
+            switch ($action) {
+                case 'add':
+                    $this->addSensor();
+                    break;
+                case 'edit':
+                    $this->editSensor($sensorId);
+                    break;
+                case 'delete':
+                    $this->deleteSensor($sensorId);
+                    break;
+                case 'calibrate':
+                    $this->calibrateSensor($sensorId);
+                    break;
+                default:
+                    $this->sendError('Invalid action');
+            }
+
+            $this->db->commit();
+            $this->logAction($action, ['sensor_id' => $sensorId]);
+            $this->sendResponse(['message' => ucfirst($action) . ' successful']);
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            $this->logger->error('Sensor operation failed', [
+                'action' => $action,
+                'error' => $e->getMessage(),
+                'sensor_id' => $sensorId
+            ]);
+            $this->sendError('Operation failed: ' . $e->getMessage());
+        }
+    }
+
+    private function addSensor() {
+        $this->validateInput($_POST, [
+            'name' => 'required|max:100',
+            'plant_id' => 'required|numeric',
+            'type' => 'required|max:50',
+            'location' => 'required|max:100',
+            'battery_level' => 'numeric',
+            'last_reading' => 'numeric',
+            'status' => 'required|max:20',
+            'notes' => 'max:500'
+        ]);
+
+        // Verify plant exists and belongs to user
+        $sql = "SELECT id FROM plants WHERE id = ? AND user_id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$_POST['plant_id'], $this->userId]);
+        
+        if ($stmt->rowCount() === 0) {
+            $this->sendError('Invalid plant ID');
+        }
+
+        $sql = "INSERT INTO sensors (user_id, plant_id, name, type, location, battery_level, last_reading, status, notes, created_at, updated_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            $this->userId,
+            $_POST['plant_id'],
+            $_POST['name'],
+            $_POST['type'],
+            $_POST['location'],
+            $_POST['battery_level'] ?? null,
+            $_POST['last_reading'] ?? null,
+            $_POST['status'],
+            $_POST['notes'] ?? null
+        ]);
+
+        if ($stmt->rowCount() === 0) {
+            throw new Exception('Failed to add sensor');
+        }
+
+        // Clear cache
+        $this->cache->delete("sensors:{$this->userId}");
+    }
+
+    private function editSensor($sensorId) {
+        if (!$sensorId) {
+            $this->sendError('Sensor ID is required');
+        }
+
+        $this->validateInput($_POST, [
+            'name' => 'required|max:100',
+            'plant_id' => 'required|numeric',
+            'type' => 'required|max:50',
+            'location' => 'required|max:100',
+            'battery_level' => 'numeric',
+            'last_reading' => 'numeric',
+            'status' => 'required|max:20',
+            'notes' => 'max:500'
+        ]);
+
+        // Verify plant exists and belongs to user
+        $sql = "SELECT id FROM plants WHERE id = ? AND user_id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$_POST['plant_id'], $this->userId]);
+        
+        if ($stmt->rowCount() === 0) {
+            $this->sendError('Invalid plant ID');
+        }
+
+        $sql = "UPDATE sensors 
+                SET name = ?, plant_id = ?, type = ?, location = ?, battery_level = ?, last_reading = ?, status = ?, notes = ?, updated_at = NOW() 
+                WHERE id = ? AND user_id = ?";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            $_POST['name'],
+            $_POST['plant_id'],
+            $_POST['type'],
+            $_POST['location'],
+            $_POST['battery_level'] ?? null,
+            $_POST['last_reading'] ?? null,
+            $_POST['status'],
+            $_POST['notes'] ?? null,
+            $sensorId,
+            $this->userId
+        ]);
+
+        if ($stmt->rowCount() === 0) {
+            throw new Exception('Sensor not found or unauthorized');
+        }
+
+        // Clear cache
+        $this->cache->delete("sensors:{$this->userId}");
+    }
+
+    private function deleteSensor($sensorId) {
+        if (!$sensorId) {
+            $this->sendError('Sensor ID is required');
+        }
+
+        $sql = "DELETE FROM sensors WHERE id = ? AND user_id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$sensorId, $this->userId]);
+
+        if ($stmt->rowCount() === 0) {
+            throw new Exception('Sensor not found or unauthorized');
+        }
+
+        // Clear cache
+        $this->cache->delete("sensors:{$this->userId}");
+    }
+
+    private function calibrateSensor($sensorId) {
+        if (!$sensorId) {
+            $this->sendError('Sensor ID is required');
+        }
+
+        $this->validateInput($_POST, [
+            'calibration_value' => 'required|numeric',
+            'calibration_type' => 'required|max:20'
+        ]);
+
+        $sql = "UPDATE sensors 
+                SET calibration_value = ?, calibration_type = ?, last_calibration = NOW(), updated_at = NOW() 
+                WHERE id = ? AND user_id = ?";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            $_POST['calibration_value'],
+            $_POST['calibration_type'],
+            $sensorId,
+            $this->userId
+        ]);
+
+        if ($stmt->rowCount() === 0) {
+            throw new Exception('Sensor not found or unauthorized');
+        }
+
+        // Clear cache
+        $this->cache->delete("sensors:{$this->userId}");
+    }
 }
 
-// Validate CSRF token
-if (!isset($_POST['csrf_token']) || !validateCSRFToken($_POST['csrf_token'])) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Invalid CSRF token']);
-    exit;
-}
-
-// Get action from POST data
-$action = $_POST['action'] ?? '';
-$sensorId = isset($_POST['id']) ? (int)$_POST['id'] : null;
-
-try {
-    $db = new Database();
-    $conn = $db->getConnection();
-    
-    // Begin transaction
-    $conn->beginTransaction();
-    
-    switch ($action) {
-        case 'add':
-            // Validate required fields
-            $requiredFields = ['name', 'type', 'pin'];
-            foreach ($requiredFields as $field) {
-                if (!isset($_POST[$field]) || empty($_POST[$field])) {
-                    throw new Exception("Missing required field: {$field}");
-                }
-            }
-            
-            // Validate sensor type
-            $validTypes = ['moisture', 'temperature', 'humidity'];
-            if (!in_array($_POST['type'], $validTypes)) {
-                throw new Exception('Invalid sensor type');
-            }
-            
-            // Validate pin number
-            $pin = (int)$_POST['pin'];
-            if ($pin < 0 || $pin > 13) { // Assuming Arduino Uno with 14 digital pins
-                throw new Exception('Invalid pin number');
-            }
-            
-            // Check if pin is already in use
-            $query = "SELECT id FROM Sensors WHERE pin = :pin AND user_id = :user_id";
-            $stmt = $conn->prepare($query);
-            $stmt->execute([':pin' => $pin, ':user_id' => $_SESSION['user_id']]);
-            if ($stmt->fetch()) {
-                throw new Exception('Pin is already in use');
-            }
-            
-            // Insert new sensor
-            $query = "
-                INSERT INTO Sensors (
-                    user_id,
-                    name,
-                    type,
-                    pin,
-                    plant_id,
-                    status
-                ) VALUES (
-                    :user_id,
-                    :name,
-                    :type,
-                    :pin,
-                    :plant_id,
-                    'inactive'
-                )
-            ";
-            
-            $stmt = $conn->prepare($query);
-            $stmt->execute([
-                ':user_id' => $_SESSION['user_id'],
-                ':name' => sanitizeInput($_POST['name']),
-                ':type' => $_POST['type'],
-                ':pin' => $pin,
-                ':plant_id' => !empty($_POST['plant_id']) ? (int)$_POST['plant_id'] : null
-            ]);
-            
-            $sensorId = $conn->lastInsertId();
-            $message = 'Sensor added successfully';
-            break;
-            
-        case 'edit':
-            if (!$sensorId) {
-                throw new Exception('Sensor ID is required for editing');
-            }
-            
-            // Validate required fields
-            $requiredFields = ['name', 'type', 'pin'];
-            foreach ($requiredFields as $field) {
-                if (!isset($_POST[$field]) || empty($_POST[$field])) {
-                    throw new Exception("Missing required field: {$field}");
-                }
-            }
-            
-            // Validate sensor type
-            $validTypes = ['moisture', 'temperature', 'humidity'];
-            if (!in_array($_POST['type'], $validTypes)) {
-                throw new Exception('Invalid sensor type');
-            }
-            
-            // Validate pin number
-            $pin = (int)$_POST['pin'];
-            if ($pin < 0 || $pin > 13) {
-                throw new Exception('Invalid pin number');
-            }
-            
-            // Check if pin is already in use by another sensor
-            $query = "SELECT id FROM Sensors WHERE pin = :pin AND user_id = :user_id AND id != :sensor_id";
-            $stmt = $conn->prepare($query);
-            $stmt->execute([
-                ':pin' => $pin,
-                ':user_id' => $_SESSION['user_id'],
-                ':sensor_id' => $sensorId
-            ]);
-            if ($stmt->fetch()) {
-                throw new Exception('Pin is already in use');
-            }
-            
-            // Update sensor
-            $query = "
-                UPDATE Sensors
-                SET 
-                    name = :name,
-                    type = :type,
-                    pin = :pin,
-                    plant_id = :plant_id,
-                    updated_at = NOW()
-                WHERE id = :sensor_id AND user_id = :user_id
-            ";
-            
-            $stmt = $conn->prepare($query);
-            $stmt->execute([
-                ':sensor_id' => $sensorId,
-                ':user_id' => $_SESSION['user_id'],
-                ':name' => sanitizeInput($_POST['name']),
-                ':type' => $_POST['type'],
-                ':pin' => $pin,
-                ':plant_id' => !empty($_POST['plant_id']) ? (int)$_POST['plant_id'] : null
-            ]);
-            
-            if ($stmt->rowCount() === 0) {
-                throw new Exception('Sensor not found or unauthorized');
-            }
-            
-            $message = 'Sensor updated successfully';
-            break;
-            
-        case 'delete':
-            if (!$sensorId) {
-                throw new Exception('Sensor ID is required for deletion');
-            }
-            
-            // Delete sensor and its readings
-            $query = "DELETE FROM Sensors WHERE id = :sensor_id AND user_id = :user_id";
-            $stmt = $conn->prepare($query);
-            $stmt->execute([
-                ':sensor_id' => $sensorId,
-                ':user_id' => $_SESSION['user_id']
-            ]);
-            
-            if ($stmt->rowCount() === 0) {
-                throw new Exception('Sensor not found or unauthorized');
-            }
-            
-            $message = 'Sensor deleted successfully';
-            break;
-            
-        default:
-            throw new Exception('Invalid action');
-    }
-    
-    // Commit transaction
-    $conn->commit();
-    
-    // Log the action
-    logSystemEvent(
-        $_SESSION['user_id'],
-        "sensor_{$action}",
-        "Sensor {$action}: " . ($sensorId ? "ID={$sensorId}" : "new")
-    );
-    
-    echo json_encode([
-        'success' => true,
-        'message' => $message,
-        'sensor_id' => $sensorId
-    ]);
-    
-} catch (Exception $e) {
-    // Rollback transaction on error
-    if ($conn->inTransaction()) {
-        $conn->rollBack();
-    }
-    
-    logError('Error in manage_sensor.php: ' . $e->getMessage());
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'message' => $e->getMessage()
-    ]);
-} 
+// Handle the request
+$controller = new SensorController();
+$controller->handleRequest(); 
