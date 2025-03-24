@@ -1,0 +1,25 @@
+{
+    "name": "garden-sensors/garden-sensors",
+    "description": "A comprehensive system for monitoring and managing garden sensors",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "ext-pdo": "*",
+        "ext-json": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5",
+        "mockery/mockery": "^1.4",
+        "php-mock/php-mock-phpunit": "^2.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "GardenSensors\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "GardenSensors\\Tests\\": "tests/"
+        }
+    }
+} 
