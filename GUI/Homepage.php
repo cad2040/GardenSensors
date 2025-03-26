@@ -23,46 +23,9 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Garden Sensors Dashboard</title>
-        <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
         <link rel="stylesheet" href="css/style.css">
-        <style>
-          /* Style the stats tabs */
-          div.tab {
-          overflow: hidden;
-          border: 1px solid #ccc;
-          background-color: #f1f1f1;
-          }
-
-          /* Style the buttons inside the tab */
-          div.tab button {
-          background-color: inherit;
-          float: left;
-          border: none;
-          outline: none;
-          cursor: pointer;
-          padding: 14px 16px;
-          transition: 0.3s; 
-          }
-
-          /* Change background color of buttons on hover */
-          div.tab button:hover {
-          background-color: #ddd;
-          }
-
-          /* Create an active/current tablink class */
-          div.tab button.active {
-          background-color: #ccc;
-          }
-
-          /* Style the tab content */
-          .tabcontent {
-          display: none;
-          padding: 6px 12px;
-          border: 1px solid #ccc;
-          border-top: none;
-          }
-        </style>
     </head>
 
     <body class = "application">
@@ -78,23 +41,31 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
       </div>
 
       <!---Create Tab Buttons--->
-      <div class="tab">
-        <button class="tablinks" onclick="openDash(event, 'Dashboard')"
-                id="defaultOpen">Dashboard</button>
+      <div class="tabs">
+        <button class="tablinks active" onclick="openDash(event, 'Dashboard')" id="defaultOpen">
+          <i class="fas fa-home"></i> Dashboard
+        </button>
         <button class="tablinks" onclick="openDash(event, 'Show Sensors')">
-        Show Sensors</button>
+          <i class="fas fa-microchip"></i> Show Sensors
+        </button>
         <button class="tablinks" onclick="openDash(event, 'Add Sensor')">
-        Add Sensor</button>
+          <i class="fas fa-plus"></i> Add Sensor
+        </button>
         <button class="tablinks" onclick="openDash(event, 'Show Plant Data')">
-        Show Plant Data</button>
+          <i class="fas fa-leaf"></i> Show Plant Data
+        </button>
         <button class="tablinks" onclick="openDash(event, 'Add Plant')">
-        Add Plant</button>
+          <i class="fas fa-seedling"></i> Add Plant
+        </button>
         <button class="tablinks" onclick="openDash(event, 'Update Plant Data')">
-        Update Plant Data</button>
+          <i class="fas fa-edit"></i> Update Plant Data
+        </button>
         <button class="tablinks" onclick="openDash(event, 'Assign Sensor')">
-        Assign Sensor</button>
+          <i class="fas fa-link"></i> Assign Sensor
+        </button>
         <button class="tablinks" onclick="openDash(event, 'Assign Pin')">
-        Assign Pin</button>
+          <i class="fas fa-plug"></i> Assign Pin
+        </button>
       </div>
 
       <?php
@@ -107,7 +78,7 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
         }
       ?>
 
-      <div id="Dashboard" class="tabcontent">        
+      <div id="Dashboard" class="tabcontent active">        
       <div class="w3-col s8 w3-left">
       <div class="table-title">
       <br>
@@ -476,18 +447,17 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
 
       <script>
         // Javascript function to show only selected tab contents
-        function openDash(evt, dashName) {
+        function openDash(evt, tabName) {
             var i, tabcontent, tablinks;
             tabcontent = document.getElementsByClassName("tabcontent");
             for (i = 0; i < tabcontent.length; i++) {
-            tabcontent[i].style.display = "none";
+                tabcontent[i].style.display = "none";
             }
             tablinks = document.getElementsByClassName("tablinks");
             for (i = 0; i < tablinks.length; i++) {
-            tablinks[i].className = tablinks[i].className
-                    .replace(" active", "");
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
             }
-            document.getElementById(dashName).style.display = "block";
+            document.getElementById(tabName).style.display = "block";
             evt.currentTarget.className += " active";
         }
       </script>
