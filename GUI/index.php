@@ -10,13 +10,16 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-// Initialize database connection
-$db = new Database();
-$conn = $db->getConnection();
-
 // Get user information
 $user_id = $_SESSION['user_id'];
-$user = getUserById($conn, $user_id);
+$user = getUserById($user_id);
+
+if (!$user) {
+    // If user not found, log out
+    session_destroy();
+    header('Location: login.php');
+    exit();
+}
 
 // Handle tab switching
 $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
