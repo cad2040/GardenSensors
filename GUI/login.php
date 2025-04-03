@@ -1,110 +1,98 @@
 <?php
 require_once 'config.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
 
-// Start session
-session_start();
-
-// Check if user is already logged in
-if (isset($_SESSION['user_id'])) {
+// Redirect if already logged in
+if (isLoggedIn()) {
     header('Location: index.php');
     exit;
 }
 
 // Generate CSRF token
-$csrfToken = generateCSRFToken();
+$csrf_token = generateCSRFToken();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Garden Sensors Dashboard</title>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <title>Login - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <div class="auth-container">
-            <h1>Garden Sensors Dashboard</h1>
+        <div class="login-container">
+            <h1><?php echo APP_NAME; ?></h1>
             
-            <div class="auth-tabs">
-                <button class="tablinks active" data-tab="login">Login</button>
-                <button class="tablinks" data-tab="register">Register</button>
-                <button class="tablinks" data-tab="forgot-password">Forgot Password</button>
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <button class="tab-btn active" data-tab="login">Login</button>
+                <button class="tab-btn" data-tab="register">Register</button>
+                <button class="tab-btn" data-tab="forgot">Forgot Password</button>
             </div>
             
             <!-- Login Form -->
-            <div id="login" class="tabcontent active">
-                <form id="login-form" class="auth-form" action="auth.php" method="POST">
+            <div class="tab-content active" id="login">
+                <form id="loginForm" method="post" action="auth.php">
                     <input type="hidden" name="action" value="login">
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                     
                     <div class="form-group">
-                        <label class="form-label" for="login-email">Email</label>
-                        <input type="email" 
-                               class="form-control" 
-                               id="login-email" 
-                               name="email" 
-                               required>
+                        <label for="email">Email</label>
+                        <div class="input-group">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" id="email" name="email" required>
+                        </div>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="login-password">Password</label>
-                        <input type="password" 
-                               class="form-control" 
-                               id="login-password" 
-                               name="password" 
-                               required>
+                        <label for="password">Password</label>
+                        <div class="input-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="password" name="password" required>
+                        </div>
                     </div>
                     
                     <button type="submit" class="btn btn-primary">Login</button>
                 </form>
-                <div id="login-error" class="alert alert-danger" style="display: none;"></div>
             </div>
             
             <!-- Register Form -->
-            <div id="register" class="tabcontent">
-                <form id="register-form" class="auth-form">
+            <div class="tab-content" id="register">
+                <form id="registerForm" method="post" action="auth.php">
                     <input type="hidden" name="action" value="register">
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                     
                     <div class="form-group">
-                        <label class="form-label" for="register-name">Name</label>
-                        <input type="text" 
-                               class="form-control" 
-                               id="register-name" 
-                               name="name" 
-                               required>
+                        <label for="name">Name</label>
+                        <div class="input-group">
+                            <i class="fas fa-user"></i>
+                            <input type="text" id="name" name="name" required>
+                        </div>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="register-email">Email</label>
-                        <input type="email" 
-                               class="form-control" 
-                               id="register-email" 
-                               name="email" 
-                               required>
+                        <label for="register_email">Email</label>
+                        <div class="input-group">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" id="register_email" name="email" required>
+                        </div>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="register-password">Password</label>
-                        <input type="password" 
-                               class="form-control" 
-                               id="register-password" 
-                               name="password" 
-                               required>
+                        <label for="register_password">Password</label>
+                        <div class="input-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="register_password" name="password" required>
+                        </div>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="register-confirm-password">Confirm Password</label>
-                        <input type="password" 
-                               class="form-control" 
-                               id="register-confirm-password" 
-                               name="confirm_password" 
-                               required>
+                        <label for="confirm_password">Confirm Password</label>
+                        <div class="input-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="confirm_password" name="confirm_password" required>
+                        </div>
                     </div>
                     
                     <button type="submit" class="btn btn-primary">Register</button>
@@ -112,18 +100,17 @@ $csrfToken = generateCSRFToken();
             </div>
             
             <!-- Forgot Password Form -->
-            <div id="forgot-password" class="tabcontent">
-                <form id="forgot-password-form" class="auth-form">
+            <div class="tab-content" id="forgot">
+                <form id="forgotForm" method="post" action="auth.php">
                     <input type="hidden" name="action" value="forgot_password">
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                     
                     <div class="form-group">
-                        <label class="form-label" for="forgot-email">Email</label>
-                        <input type="email" 
-                               class="form-control" 
-                               id="forgot-email" 
-                               name="email" 
-                               required>
+                        <label for="forgot_email">Email</label>
+                        <div class="input-group">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" id="forgot_email" name="email" required>
+                        </div>
                     </div>
                     
                     <button type="submit" class="btn btn-primary">Reset Password</button>
@@ -132,66 +119,46 @@ $csrfToken = generateCSRFToken();
         </div>
     </div>
     
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="js/main.js"></script>
     <script>
-        // Initialize auth tabs
-        document.addEventListener('DOMContentLoaded', function() {
-            const tabButtons = document.querySelectorAll('.auth-tabs .tablinks');
-            const tabContents = document.querySelectorAll('.tabcontent');
-            
-            tabButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const tabId = this.getAttribute('data-tab');
-                    
-                    // Update active tab button
-                    tabButtons.forEach(btn => btn.classList.remove('active'));
-                    this.classList.add('active');
-                    
-                    // Show selected tab content
-                    tabContents.forEach(content => {
-                        content.classList.remove('active');
-                        if (content.id === tabId) {
-                            content.classList.add('active');
-                        }
-                    });
-                });
+        $(document).ready(function() {
+            // Tab switching
+            $('.tab-btn').click(function() {
+                $('.tab-btn').removeClass('active');
+                $(this).addClass('active');
+                
+                const tabId = $(this).data('tab');
+                $('.tab-content').removeClass('active');
+                $(`#${tabId}`).addClass('active');
             });
             
-            // Handle form submissions
-            const forms = document.querySelectorAll('.auth-form');
-            forms.forEach(form => {
-                form.addEventListener('submit', async function(e) {
-                    e.preventDefault();
-                    
-                    try {
-                        const formData = new FormData(this);
-                        console.log('Form data:', Object.fromEntries(formData));
-                        
-                        const response = await fetch(this.action, {
-                            method: 'POST',
-                            body: formData
-                        });
-                        
-                        console.log('Response:', response);
-                        const result = await response.json();
-                        console.log('Result:', result);
-                        
-                        if (result.success) {
-                            displayAlert(result.message, 'success');
-                            if (this.id === 'login-form') {
-                                window.location.href = 'index.php';
+            // Form submissions
+            $('#loginForm, #registerForm, #forgotForm').submit(function(e) {
+                e.preventDefault();
+                
+                const form = $(this);
+                const formData = form.serialize();
+                
+                $.ajax({
+                    url: form.attr('action'),
+                    type: 'POST',
+                    data: formData,
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            displayAlert(response.message, 'success');
+                            if (response.redirect) {
+                                setTimeout(function() {
+                                    window.location.href = response.redirect;
+                                }, 1500);
                             }
                         } else {
-                            const errorDiv = document.getElementById('login-error');
-                            errorDiv.textContent = result.message;
-                            errorDiv.style.display = 'block';
-                            displayAlert(result.message, 'error');
+                            displayAlert(response.message, 'error');
                         }
-                    } catch (error) {
-                        console.error('Form submission error:', error);
-                        const errorDiv = document.getElementById('login-error');
-                        errorDiv.textContent = 'An error occurred. Please try again.';
-                        errorDiv.style.display = 'block';
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error:', error);
                         displayAlert('An error occurred. Please try again.', 'error');
                     }
                 });

@@ -158,4 +158,95 @@ function convertToUserTimezone($timestamp) {
     $date = new DateTime($timestamp, new DateTimeZone('UTC'));
     $date->setTimezone(new DateTimeZone($userTimezone));
     return $date->format('Y-m-d H:i:s');
+}
+
+/**
+ * User functions
+ */
+
+/**
+ * Get user by ID
+ */
+function getUserById($userId) {
+    try {
+        $db = new Database();
+        $conn = $db->getConnection();
+        
+        $query = "SELECT * FROM users WHERE user_id = :user_id";
+        $stmt = $conn->prepare($query);
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        logError("Error getting user: " . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Get user by email
+ */
+function getUserByEmail($email) {
+    try {
+        $db = new Database();
+        $conn = $db->getConnection();
+        
+        $query = "SELECT * FROM users WHERE email = :email";
+        $stmt = $conn->prepare($query);
+        $stmt->execute([':email' => $email]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        logError("Error getting user by email: " . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Check if user is logged in
+ */
+function isLoggedIn() {
+    return isset($_SESSION['user_id']);
+}
+
+/**
+ * Require user to be logged in
+ */
+function requireLogin() {
+    if (!isLoggedIn()) {
+        header('Location: ' . APP_URL . '/login.php');
+        exit;
+    }
+}
+
+/**
+ * Check if user is admin
+ */
+function isAdmin() {
+    return isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
+}
+
+/**
+ * Require user to be admin
+ */
+function requireAdmin() {
+    if (!isAdmin()) {
+        header('Location: ' . APP_URL . '/index.php');
+        exit;
+    }
+}
+
+/**
+ * Response helpers
+ */
+
+/**
+ * Send JSON response
+ */
+function sendJsonResponse($success, $message = '', $data = null) {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => $success,
+        'message' => $message,
+        'data' => $data
+    ]);
+    exit;
 } 
