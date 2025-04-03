@@ -15,8 +15,14 @@ class Sensor extends Model {
         'battery_level',
         'firmware_version',
         'created_at',
-        'updated_at'
+        'updated_at',
+        'pin',
+        'min_value',
+        'max_value',
+        'alert_threshold',
+        'reading_interval'
     ];
+    protected static $hidden = ['created_at', 'updated_at'];
 
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
@@ -183,5 +189,76 @@ class Sensor extends Model {
             self::STATUS_MAINTENANCE,
             self::STATUS_ERROR
         ];
+    }
+
+    public function getReadings(int $limit = 100, string $startDate = null, string $endDate = null): array
+    {
+        $sql = "SELECT * FROM readings WHERE sensor_id = ?";
+        $params = [$this->id];
+
+        if ($startDate) {
+            $sql .= " AND timestamp >= ?";
+            $params[] = $startDate;
+        }
+
+        if ($endDate) {
+            $sql .= " AND timestamp <= ?";
+            $params[] = $endDate;
+        }
+
+        $sql .= " ORDER BY timestamp DESC LIMIT ?";
+        $params[] = $limit;
+
+        return $this->query($sql, $params);
+    }
+
+    public function getLatestReading()
+    {
+        $sql = "SELECT * FROM readings WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 1";
+        $result = $this->query($sql, [$this->id]);
+        return $result[0] ?? null;
+    }
+
+    public function getAverageReading(string $startDate = null, string $endDate = null)
+    {
+        $sql = "SELECT AVG(value) as average FROM readings WHERE sensor_id = ?";
+        $params = [$this->id];
+
+        if ($startDate) {
+            $sql .= " AND timestamp >= ?";
+            $params[] = $startDate;
+        }
+
+        if ($endDate) {
+            $sql .= " AND timestamp <= ?";
+            $params[] = $endDate;
+        }
+
+        $result = $this->query($sql, $params);
+        return $result[0]['average'] ?? null;
+    }
+
+    public function addReading(float $value, string $timestamp = null): array
+    {
+        $timestamp = $timestamp ?? date('Y-m-d H:i:s');
+        
+        $sql = "INSERT INTO readings (sensor_id, value, timestamp) VALUES (?, ?, ?)";
+        $this->execute($sql, [$this->id, $value, $timestamp]);
+        
+        return [
+            'sensor_id' => $this->id,
+            'value' => $value,
+            'timestamp' => $timestamp
+        ];
+    }
+
+    public function isInRange(float $value): bool
+    {
+        return $value >= $this->min_value && $value <= $this->max_value;
+    }
+
+    public function needsAlert(float $value): bool
+    {
+        return abs($value - $this->alert_threshold) >= $this->alert_threshold;
     }
 } 

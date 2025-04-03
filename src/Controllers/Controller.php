@@ -5,14 +5,35 @@ use App\Utils\Request;
 use App\Utils\Response;
 use App\Utils\Session;
 use App\Utils\Validator;
+use Exception;
+use PDO;
 
 abstract class Controller {
     protected $request;
     protected $session;
+    protected PDO $db;
+    protected array $config;
 
     public function __construct() {
         $this->request = new Request();
         $this->session = Session::getInstance();
+        global $config;
+        $this->config = $config;
+
+        try {
+            $this->db = new PDO(
+                "mysql:host={$config['database']['host']};dbname={$config['database']['database']};charset={$config['database']['charset']}",
+                $config['database']['username'],
+                $config['database']['password'],
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false
+                ]
+            );
+        } catch (Exception $e) {
+            throw new Exception('Database connection failed: ' . $e->getMessage());
+        }
     }
 
     protected function view(string $template, array $data = []): void {
@@ -40,7 +61,9 @@ abstract class Controller {
     }
 
     protected function json($data, int $status = 200): void {
-        Response::json_response($data, $status);
+        http_response_code($status);
+        header('Content-Type: application/json');
+        echo json_encode($data);
     }
 
     protected function redirect(string $url, int $status = 302): void {
@@ -56,19 +79,17 @@ abstract class Controller {
     }
 
     protected function requireAuth(): void {
-        if (!$this->isAuthenticated()) {
-            $this->session->flash('error', 'Please login to access this page');
-            $this->redirect('/login');
+        if (!isset($_SESSION['user_id'])) {
+            $this->error('Unauthorized', 401);
+            exit;
         }
     }
 
     protected function requireAdmin(): void {
         $this->requireAuth();
-        
-        $user = $this->session->getUser();
-        if (!$user || $user['role'] !== 'admin') {
-            $this->session->flash('error', 'Access denied');
-            $this->redirect('/dashboard');
+        if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
+            $this->error('Forbidden', 403);
+            exit;
         }
     }
 
@@ -148,5 +169,84 @@ abstract class Controller {
 
     public function __call(string $name, array $arguments) {
         Response::notFound('Action not found');
+    }
+
+    protected function error(string $message, int $status = 400): void {
+        $this->json(['error' => true, 'message' => $message], $status);
+    }
+
+    protected function success($data = null, string $message = ''): void {
+        $response = ['success' => true];
+        if ($data !== null) {
+            $response['data'] = $data;
+        }
+        if ($message) {
+            $response['message'] = $message;
+        }
+        $this->json($response);
+    }
+
+    protected function validateRequired(array $data, array $fields): bool {
+        foreach ($fields as $field) {
+            if (!isset($data[$field]) || empty($data[$field])) {
+                $this->error("Field '$field' is required");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    protected function validateNumeric(array $data, array $fields): bool {
+        foreach ($fields as $field) {
+            if (isset($data[$field]) && !is_numeric($data[$field])) {
+                $this->error("Field '$field' must be numeric");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    protected function validateEmail(string $email): bool {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->error('Invalid email address');
+            return false;
+        }
+        return true;
+    }
+
+    protected function validateDate(string $date, string $format = 'Y-m-d'): bool {
+        $d = \DateTime::createFromFormat($format, $date);
+        if (!$d || $d->format($format) !== $date) {
+            $this->error('Invalid date format');
+            return false;
+        }
+        return true;
+    }
+
+    protected function getRequestData(): array {
+        $data = [];
+        
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $data = $_GET;
+        } else {
+            $input = file_get_contents('php://input');
+            if (!empty($input)) {
+                $data = json_decode($input, true) ?? [];
+            }
+            $data = array_merge($data, $_POST);
+        }
+
+        return array_map(function($value) {
+            return is_string($value) ? trim($value) : $value;
+        }, $data);
+    }
+
+    protected function validateApiKey(): bool {
+        $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? null;
+        if (!$apiKey || $apiKey !== $this->config['api']['key']) {
+            $this->error('Invalid API key', 401);
+            return false;
+        }
+        return true;
     }
 } 

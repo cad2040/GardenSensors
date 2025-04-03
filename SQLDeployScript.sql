@@ -6,12 +6,24 @@
 SET SQL_MODE = 'STRICT_ALL_TABLES';
 
 -- Create database if not exists
-CREATE DATABASE IF NOT EXISTS SoilSensors
+CREATE DATABASE IF NOT EXISTS garden_sensors
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 
 -- Switch to the database
-USE SoilSensors;
+USE garden_sensors;
+
+-- Create Users table
+CREATE TABLE IF NOT EXISTS Users (
+    id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    email VARCHAR(100),
+    role ENUM('admin', 'user') DEFAULT 'user',
+    last_login TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
 
 -- Create Sensors table
 CREATE TABLE IF NOT EXISTS Sensors (
@@ -134,14 +146,14 @@ CREATE INDEX idx_pins_sensor_id ON Pins(sensor_id);
 CREATE USER IF NOT EXISTS 'garden_user'@'%' IDENTIFIED BY 'CHANGE_THIS_PASSWORD';
 
 -- Grant specific privileges instead of ALL
-GRANT SELECT, INSERT, UPDATE ON SoilSensors.Readings TO 'garden_user'@'%';
-GRANT SELECT ON SoilSensors.Sensors TO 'garden_user'@'%';
-GRANT SELECT ON SoilSensors.DimPlants TO 'garden_user'@'%';
-GRANT SELECT ON SoilSensors.FactPlants TO 'garden_user'@'%';
-GRANT SELECT ON SoilSensors.Pins TO 'garden_user'@'%';
-GRANT SELECT ON SoilSensors.DimPins TO 'garden_user'@'%';
-GRANT SELECT, INSERT, UPDATE ON SoilSensors.Plots TO 'garden_user'@'%';
-GRANT SELECT, INSERT ON SoilSensors.SystemLog TO 'garden_user'@'%';
+GRANT SELECT, INSERT, UPDATE ON garden_sensors.Readings TO 'garden_user'@'%';
+GRANT SELECT ON garden_sensors.Sensors TO 'garden_user'@'%';
+GRANT SELECT ON garden_sensors.DimPlants TO 'garden_user'@'%';
+GRANT SELECT ON garden_sensors.FactPlants TO 'garden_user'@'%';
+GRANT SELECT ON garden_sensors.Pins TO 'garden_user'@'%';
+GRANT SELECT ON garden_sensors.DimPins TO 'garden_user'@'%';
+GRANT SELECT, INSERT, UPDATE ON garden_sensors.Plots TO 'garden_user'@'%';
+GRANT SELECT, INSERT ON garden_sensors.SystemLog TO 'garden_user'@'%';
 
 FLUSH PRIVILEGES;
 

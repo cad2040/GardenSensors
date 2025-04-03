@@ -1,53 +1,24 @@
 <?php
-return [
-    // Application settings
-    'name' => 'Garden Sensors',
-    'version' => '1.0.0',
-    'debug' => getenv('APP_DEBUG') === 'true',
-    'timezone' => 'UTC',
-    'url' => getenv('APP_URL'),
+// Database settings
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'SoilSensors');
+define('DB_USER', 'SoilSensors');
+define('DB_PASS', 'SoilSensors123');
 
-    // Session configuration
-    'session' => [
-        'lifetime' => 120, // minutes
-        'secure' => true,
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ],
+// FTP settings
+define('FTP_HOST', 'your_ftp_host');
+define('FTP_USER', 'your_ftp_user');
+define('FTP_PASS', 'your_ftp_pass');
+define('FTP_PATH', '/public_html/plots/');
 
-    // Logging configuration
-    'log' => [
-        'level' => getenv('LOG_LEVEL') ?: 'debug',
-        'path' => __DIR__ . '/../logs/app.log',
-    ],
+// Email settings
+define('SMTP_HOST', 'smtp.gmail.com');
+define('SMTP_PORT', 587);
+define('SMTP_USER', 'your_email@gmail.com');
+define('SMTP_PASS', 'your_app_password');
+define('ALERT_EMAIL', 'alerts@yourdomain.com');
 
-    // Cache configuration
-    'cache' => [
-        'driver' => 'file',
-        'path' => __DIR__ . '/../storage/cache',
-    ],
-
-    // Security settings
-    'security' => [
-        'password_algo' => PASSWORD_DEFAULT,
-        'password_options' => [
-            'cost' => 12
-        ],
-    ],
-
-    // Rate limiting
-    'rate_limit' => [
-        'enabled' => true,
-        'max_attempts' => 5,
-        'decay_minutes' => 1,
-    ],
-
-    // Notification settings
-    'notifications' => [
-        'email' => [
-            'enabled' => true,
-            'from_address' => getenv('MAIL_FROM_ADDRESS'),
-            'from_name' => getenv('MAIL_FROM_NAME'),
-        ],
-    ],
-]; 
+// Application settings
+define('DATA_RETENTION_DAYS', 30);
+define('ALERT_THRESHOLD', 20);
+define('REFRESH_INTERVAL', 300);
