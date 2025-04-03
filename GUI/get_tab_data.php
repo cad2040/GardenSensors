@@ -1,14 +1,16 @@
 <?php
-require_once 'config.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/functions.php';
 
-// Start session
-session_start();
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    sendJsonResponse(false, 'User not authenticated');
+    sendJsonResponse(['success' => false, 'message' => 'Please log in to access this page']);
     exit;
 }
 
