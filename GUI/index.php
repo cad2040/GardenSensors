@@ -29,11 +29,11 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo APP_NAME; ?></title>
+    <title>Dashboard - <?php echo APP_NAME; ?></title>
     
     <!-- Fonts and Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
@@ -41,98 +41,99 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="images/favicon.png">
 </head>
-<body class="dashboard-body">
-    <!-- Navigation Bar -->
-    <nav class="navbar">
-        <div class="navbar-brand">
-            <i class="fas fa-leaf"></i>
-            <span><?php echo APP_NAME; ?></span>
-        </div>
-        <div class="navbar-menu">
-            <div class="navbar-user">
-                <span>Welcome, <?php echo htmlspecialchars($user['username']); ?></span>
-                <a href="logout.php" class="logout-btn">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
-            </div>
+<body>
+    <!-- Main Navigation -->
+    <nav class="main-nav">
+        <div class="nav-links">
+            <a href="#" class="active"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="#"><i class="fas fa-microchip"></i> Sensors</a>
+            <a href="#"><i class="fas fa-leaf"></i> Plants</a>
+            <a href="#"><i class="fas fa-cog"></i> Settings</a>
         </div>
     </nav>
 
-    <!-- Main Content -->
+    <!-- Dashboard Container -->
     <div class="dashboard-container">
-        <!-- Sidebar Navigation -->
-        <div class="sidebar">
-            <div class="sidebar-menu">
-                <a href="#" class="menu-item <?php echo $activeTab === 'Dashboard' ? 'active' : ''; ?>" data-tab="Dashboard">
-                    <i class="fas fa-home"></i> Dashboard
-                </a>
-                <a href="#" class="menu-item <?php echo $activeTab === 'Sensors' ? 'active' : ''; ?>" data-tab="Sensors">
-                    <i class="fas fa-microchip"></i> Sensors
-                </a>
-                <a href="#" class="menu-item <?php echo $activeTab === 'Plants' ? 'active' : ''; ?>" data-tab="Plants">
-                    <i class="fas fa-seedling"></i> Plants
-                </a>
-                <a href="#" class="menu-item <?php echo $activeTab === 'Settings' ? 'active' : ''; ?>" data-tab="Settings">
-                    <i class="fas fa-cog"></i> Settings
-                </a>
+        <!-- Dashboard Header -->
+        <div class="dashboard-header">
+            <div class="welcome-message">
+                Welcome, <?php echo htmlspecialchars($user['name']); ?>
+                <a href="logout.php" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </div>
         </div>
 
-        <!-- Content Area -->
-        <div class="content-area">
-            <!-- Dashboard Tab -->
-            <div class="tab-content <?php echo $activeTab === 'Dashboard' ? 'active' : ''; ?>" id="Dashboard">
-                <h2>Dashboard Overview</h2>
-                <div class="dashboard-grid">
-                    <!-- Sensor Status Cards -->
-                    <div class="card sensor-status">
-                        <h3><i class="fas fa-microchip"></i> Sensor Status</h3>
-                        <div class="card-content" id="sensor-status">
-                            Loading...
-                        </div>
-                    </div>
-
-                    <!-- Plant Health Cards -->
-                    <div class="card plant-health">
-                        <h3><i class="fas fa-leaf"></i> Plant Health</h3>
-                        <div class="card-content" id="plant-health">
-                            Loading...
-                        </div>
-                    </div>
-
-                    <!-- Recent Readings -->
-                    <div class="card recent-readings">
-                        <h3><i class="fas fa-chart-line"></i> Recent Readings</h3>
-                        <div class="card-content" id="recent-readings">
-                            Loading...
-                        </div>
-                    </div>
-
-                    <!-- Alerts -->
-                    <div class="card alerts">
-                        <h3><i class="fas fa-bell"></i> Alerts</h3>
-                        <div class="card-content" id="alerts">
-                            Loading...
-                        </div>
-                    </div>
+        <!-- Dashboard Overview -->
+        <div class="dashboard-overview">
+            <!-- Sensor Status -->
+            <div class="overview-card">
+                <h2><i class="fas fa-microchip"></i> Sensor Status</h2>
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div>Loading sensor status...</div>
                 </div>
             </div>
 
-            <!-- Other tabs will be loaded dynamically -->
-            <div class="tab-content <?php echo $activeTab === 'Sensors' ? 'active' : ''; ?>" id="Sensors"></div>
-            <div class="tab-content <?php echo $activeTab === 'Plants' ? 'active' : ''; ?>" id="Plants"></div>
-            <div class="tab-content <?php echo $activeTab === 'Settings' ? 'active' : ''; ?>" id="Settings"></div>
+            <!-- Plant Health -->
+            <div class="overview-card">
+                <h2><i class="fas fa-leaf"></i> Plant Health</h2>
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div>Loading plant health data...</div>
+                </div>
+            </div>
+
+            <!-- Recent Readings -->
+            <div class="overview-card">
+                <h2><i class="fas fa-chart-line"></i> Recent Readings</h2>
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div>Loading recent readings...</div>
+                </div>
+            </div>
+
+            <!-- Alerts -->
+            <div class="overview-card">
+                <h2><i class="fas fa-bell"></i> Alerts</h2>
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div>Loading alerts...</div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Loading Overlay -->
-    <div class="loading-overlay">
-        <div class="spinner"></div>
-    </div>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Load dashboard data
+            function loadDashboardData() {
+                // Load sensor status
+                $.get('get_tab_data.php?tab=sensor_status', function(data) {
+                    $('#sensor-status').html(data);
+                });
 
-    <!-- JavaScript -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="js/main.js"></script>
+                // Load plant health
+                $.get('get_tab_data.php?tab=plant_health', function(data) {
+                    $('#plant-health').html(data);
+                });
+
+                // Load recent readings
+                $.get('get_tab_data.php?tab=recent_readings', function(data) {
+                    $('#recent-readings').html(data);
+                });
+
+                // Load alerts
+                $.get('get_tab_data.php?tab=alerts', function(data) {
+                    $('#alerts').html(data);
+                });
+            }
+
+            // Initial load
+            loadDashboardData();
+
+            // Refresh every 5 minutes
+            setInterval(loadDashboardData, 300000);
+        });
+    </script>
 </body>
 </html> 

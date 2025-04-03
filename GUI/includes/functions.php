@@ -172,18 +172,48 @@ function convertToUserTimezone($timestamp) {
  * User functions
  */
 
+if (!function_exists('getDbConnection')) {
+    /**
+     * Get database connection
+     */
+    function getDbConnection() {
+        static $conn = null;
+        if ($conn === null) {
+            try {
+                $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+                if ($conn->connect_error) {
+                    throw new Exception("Connection failed: " . $conn->connect_error);
+                }
+                $conn->set_charset("utf8mb4");
+            } catch (Exception $e) {
+                logError("Database connection error: " . $e->getMessage());
+                throw $e;
+            }
+        }
+        return $conn;
+    }
+}
+
 if (!function_exists('getUserById')) {
     /**
      * Get user by ID
      */
     function getUserById($user_id) {
-        global $conn;
-        $user_id = sanitizeInput($user_id);
-        $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
-        $stmt->bind_param("i", $user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        return $result->fetch_assoc();
+        try {
+            $conn = getDbConnection();
+            $user_id = sanitizeInput($user_id);
+            $stmt = $conn->prepare("SELECT * FROM users WHERE user_id = ?");
+            if (!$stmt) {
+                throw new Exception("Prepare failed: " . $conn->error);
+            }
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            return $result->fetch_assoc();
+        } catch (Exception $e) {
+            logError("Error getting user by ID: " . $e->getMessage(), ['user_id' => $user_id]);
+            return null;
+        }
     }
 }
 
@@ -192,13 +222,21 @@ if (!function_exists('getUserByEmail')) {
      * Get user by email
      */
     function getUserByEmail($email) {
-        global $conn;
-        $email = sanitizeInput($email);
-        $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        return $result->fetch_assoc();
+        try {
+            $conn = getDbConnection();
+            $email = sanitizeInput($email);
+            $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
+            if (!$stmt) {
+                throw new Exception("Prepare failed: " . $conn->error);
+            }
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            return $result->fetch_assoc();
+        } catch (Exception $e) {
+            logError("Error getting user by email: " . $e->getMessage(), ['email' => $email]);
+            return null;
+        }
     }
 }
 

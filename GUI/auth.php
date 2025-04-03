@@ -1,6 +1,5 @@
 <?php
 require_once 'config.php';
-require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
 // Enable error reporting for debugging
@@ -35,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             break;
             
         default:
-            sendJsonResponse(false, 'Invalid action');
+            sendJsonResponse(['success' => false, 'message' => 'Invalid action']);
     }
 }
 
@@ -53,13 +52,16 @@ function handleLogin() {
         }
         
         // Get user from database
-        $db = new Database();
-        $conn = $db->getConnection();
+        $conn = getDbConnection();
         
-        $query = "SELECT * FROM users WHERE email = :email";
-        $stmt = $conn->prepare($query);
-        $stmt->execute([':email' => $email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
         
         // Log user data (without password)
         $logUser = $user;
@@ -76,9 +78,12 @@ function handleLogin() {
         }
         
         // Update last login
-        $updateQuery = "UPDATE users SET last_login = NOW() WHERE user_id = :user_id";
-        $updateStmt = $conn->prepare($updateQuery);
-        $updateStmt->execute([':user_id' => $user['user_id']]);
+        $updateStmt = $conn->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
+        if (!$updateStmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        $updateStmt->bind_param("i", $user['user_id']);
+        $updateStmt->execute();
         
         // Set session variables
         $_SESSION['user_id'] = $user['user_id'];
@@ -89,16 +94,19 @@ function handleLogin() {
         error_log("Session data: " . print_r($_SESSION, true));
         
         // Log successful login
-        $logQuery = "INSERT INTO systemlog (action, details, user_id) VALUES ('login', 'User logged in successfully', :user_id)";
-        $logStmt = $conn->prepare($logQuery);
-        $logStmt->execute([':user_id' => $user['user_id']]);
+        $logStmt = $conn->prepare("INSERT INTO systemlog (action, details, user_id) VALUES ('login', 'User logged in successfully', ?)");
+        if (!$logStmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        $logStmt->bind_param("i", $user['user_id']);
+        $logStmt->execute();
         
-        sendJsonResponse(true, 'Login successful', ['redirect' => 'index.php']);
+        sendJsonResponse(['success' => true, 'message' => 'Login successful', 'redirect' => 'index.php']);
         
     } catch (Exception $e) {
         error_log("Login error: " . $e->getMessage());
         logError('Login error: ' . $e->getMessage());
-        sendJsonResponse(false, $e->getMessage());
+        sendJsonResponse(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 
@@ -123,14 +131,17 @@ function handleRegister() {
         }
         
         // Check if email already exists
-        $db = new Database();
-        $conn = $db->getConnection();
+        $conn = getDbConnection();
         
-        $checkQuery = "SELECT user_id FROM users WHERE email = :email";
-        $checkStmt = $conn->prepare($checkQuery);
-        $checkStmt->execute([':email' => $email]);
+        $checkStmt = $conn->prepare("SELECT user_id FROM users WHERE email = ?");
+        if (!$checkStmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        $checkStmt->bind_param("s", $email);
+        $checkStmt->execute();
+        $result = $checkStmt->get_result();
         
-        if ($checkStmt->fetch()) {
+        if ($result->num_rows > 0) {
             throw new Exception('Email already registered');
         }
         
@@ -141,10 +152,15 @@ function handleRegister() {
         $baseUsername = $username;
         $counter = 1;
         while (true) {
-            $checkUsernameQuery = "SELECT user_id FROM users WHERE username = :username";
-            $checkUsernameStmt = $conn->prepare($checkUsernameQuery);
-            $checkUsernameStmt->execute([':username' => $username]);
-            if (!$checkUsernameStmt->fetch()) {
+            $checkUsernameStmt = $conn->prepare("SELECT user_id FROM users WHERE username = ?");
+            if (!$checkUsernameStmt) {
+                throw new Exception("Prepare failed: " . $conn->error);
+            }
+            $checkUsernameStmt->bind_param("s", $username);
+            $checkUsernameStmt->execute();
+            $result = $checkUsernameStmt->get_result();
+            
+            if ($result->num_rows === 0) {
                 break;
             }
             $username = $baseUsername . $counter;
@@ -152,28 +168,29 @@ function handleRegister() {
         }
         
         // Insert new user
-        $query = "INSERT INTO users (username, name, email, password, role) 
-                 VALUES (:username, :name, :email, :password, 'user')";
-        $stmt = $conn->prepare($query);
-        $stmt->execute([
-            ':username' => $username,
-            ':name' => $name,
-            ':email' => $email,
-            ':password' => password_hash($password, PASSWORD_DEFAULT)
-        ]);
+        $stmt = $conn->prepare("INSERT INTO users (username, name, email, password, role) VALUES (?, ?, ?, ?, 'user')");
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+        $stmt->bind_param("ssss", $username, $name, $email, $hashedPassword);
+        $stmt->execute();
         
-        $userId = $conn->lastInsertId();
+        $userId = $conn->insert_id;
         
         // Log registration
-        $logQuery = "INSERT INTO systemlog (action, details, user_id) VALUES ('register', 'New user registered', :user_id)";
-        $logStmt = $conn->prepare($logQuery);
-        $logStmt->execute([':user_id' => $userId]);
+        $logStmt = $conn->prepare("INSERT INTO systemlog (action, details, user_id) VALUES ('register', 'New user registered', ?)");
+        if (!$logStmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        $logStmt->bind_param("i", $userId);
+        $logStmt->execute();
         
-        sendJsonResponse(true, 'Registration successful. Your username is: ' . $username);
+        sendJsonResponse(['success' => true, 'message' => 'Registration successful. Your username is: ' . $username]);
         
     } catch (Exception $e) {
         logError('Registration error: ' . $e->getMessage());
-        sendJsonResponse(false, $e->getMessage());
+        sendJsonResponse(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 
@@ -187,13 +204,14 @@ function handleForgotPassword() {
         }
         
         // Get user from database
-        $db = new Database();
-        $conn = $db->getConnection();
+        $conn = getDbConnection();
         
-        $query = "SELECT user_id, name FROM users WHERE email = :email AND status = 'active'";
+        $query = "SELECT user_id, name FROM users WHERE email = ? AND status = 'active'";
         $stmt = $conn->prepare($query);
-        $stmt->execute([':email' => $email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
         
         if (!$user) {
             throw new Exception('No account found with this email address');
@@ -204,13 +222,10 @@ function handleForgotPassword() {
         $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
         
         // Store reset token
-        $updateQuery = "UPDATE users SET reset_token = :token, reset_expires = :expires WHERE user_id = :user_id";
+        $updateQuery = "UPDATE users SET reset_token = ?, reset_expires = ? WHERE user_id = ?";
         $updateStmt = $conn->prepare($updateQuery);
-        $updateStmt->execute([
-            ':token' => $token,
-            ':expires' => $expires,
-            ':user_id' => $user['user_id']
-        ]);
+        $updateStmt->bind_param("sss", $token, $expires, $user['user_id']);
+        $updateStmt->execute();
         
         // Send reset email
         $resetLink = APP_URL . '/reset_password.php?token=' . $token;
@@ -230,15 +245,18 @@ function handleForgotPassword() {
         mail($to, $subject, $message, $headers);
         
         // Log password reset request
-        $logQuery = "INSERT INTO systemlog (action, details, user_id) VALUES ('forgot_password', 'Password reset requested', :user_id)";
-        $logStmt = $conn->prepare($logQuery);
-        $logStmt->execute([':user_id' => $user['user_id']]);
+        $logStmt = $conn->prepare("INSERT INTO systemlog (action, details, user_id) VALUES ('forgot_password', 'Password reset requested', ?)");
+        if (!$logStmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        $logStmt->bind_param("i", $user['user_id']);
+        $logStmt->execute();
         
-        sendJsonResponse(true, 'Password reset instructions sent to your email');
+        sendJsonResponse(['success' => true, 'message' => 'Password reset instructions sent to your email']);
         
     } catch (Exception $e) {
         logError('Forgot password error: ' . $e->getMessage());
-        sendJsonResponse(false, $e->getMessage());
+        sendJsonResponse(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 
@@ -262,46 +280,44 @@ function handleResetPassword() {
         }
         
         // Get user from database
-        $db = new Database();
-        $conn = $db->getConnection();
+        $conn = getDbConnection();
         
-        $query = "SELECT user_id FROM users WHERE reset_token = :token AND reset_expires > NOW() AND status = 'active'";
+        $query = "SELECT user_id FROM users WHERE reset_token = ? AND reset_expires > NOW() AND status = 'active'";
         $stmt = $conn->prepare($query);
-        $stmt->execute([':token' => $token]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->bind_param("s", $token);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
         
         if (!$user) {
             throw new Exception('Invalid or expired reset token');
         }
         
         // Update password
-        $updateQuery = "UPDATE users SET password = :password, reset_token = NULL, reset_expires = NULL WHERE user_id = :user_id";
+        $updateQuery = "UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE user_id = ?";
         $updateStmt = $conn->prepare($updateQuery);
-        $updateStmt->execute([
-            ':password' => password_hash($password, PASSWORD_DEFAULT),
-            ':user_id' => $user['user_id']
-        ]);
+        $updateStmt->bind_param("si", password_hash($password, PASSWORD_DEFAULT), $user['user_id']);
+        $updateStmt->execute();
         
         // Log password reset
-        $logQuery = "INSERT INTO systemlog (action, details, user_id) VALUES ('reset_password', 'Password reset completed', :user_id)";
-        $logStmt = $conn->prepare($logQuery);
-        $logStmt->execute([':user_id' => $user['user_id']]);
+        $logStmt = $conn->prepare("INSERT INTO systemlog (action, details, user_id) VALUES ('reset_password', 'Password reset completed', ?)");
+        if (!$logStmt) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        $logStmt->bind_param("i", $user['user_id']);
+        $logStmt->execute();
         
-        sendJsonResponse(true, 'Password reset successful');
+        sendJsonResponse(['success' => true, 'message' => 'Password reset successful']);
         
     } catch (Exception $e) {
         logError('Reset password error: ' . $e->getMessage());
-        sendJsonResponse(false, $e->getMessage());
+        sendJsonResponse(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 
 // Helper function to send JSON responses
-function sendJsonResponse($success, $message, $data = []) {
+function sendJsonResponse($response) {
     header('Content-Type: application/json');
-    echo json_encode([
-        'success' => $success,
-        'message' => $message,
-        'data' => $data
-    ]);
+    echo json_encode($response);
     exit;
 } 
