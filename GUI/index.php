@@ -137,35 +137,67 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'dashboard';
     </div>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/actions.js"></script>
     <script>
         $(document).ready(function() {
             // Load dashboard data
             function loadDashboardData() {
                 if ('<?php echo $activeTab; ?>' === 'dashboard') {
                     // Load sensor status
-                    $.get('get_tab_data.php?tab=sensor_status', function(data) {
-                        $('#sensor-status').html(data);
+                    $.get('get_tab_data.php?tab=sensors&dashboard=1', function(response) {
+                        if (response.success) {
+                            $('#sensor-status').html(response.content);
+                        } else {
+                            $('#sensor-status').html('<div class="error-message">' + response.message + '</div>');
+                        }
+                    }).fail(function() {
+                        $('#sensor-status').html('<div class="error-message">Failed to load sensor status</div>');
                     });
 
                     // Load plant health
-                    $.get('get_tab_data.php?tab=plant_health', function(data) {
-                        $('#plant-health').html(data);
+                    $.get('get_tab_data.php?tab=plants&dashboard=1', function(response) {
+                        if (response.success) {
+                            $('#plant-health').html(response.content);
+                        } else {
+                            $('#plant-health').html('<div class="error-message">' + response.message + '</div>');
+                        }
+                    }).fail(function() {
+                        $('#plant-health').html('<div class="error-message">Failed to load plant health</div>');
                     });
 
                     // Load recent readings
-                    $.get('get_tab_data.php?tab=recent_readings', function(data) {
-                        $('#recent-readings').html(data);
+                    $.get('get_tab_data.php?tab=readings&dashboard=1', function(response) {
+                        if (response.success) {
+                            $('#recent-readings').html(response.content);
+                        } else {
+                            $('#recent-readings').html('<div class="error-message">' + response.message + '</div>');
+                        }
+                    }).fail(function() {
+                        $('#recent-readings').html('<div class="error-message">Failed to load recent readings</div>');
                     });
 
                     // Load alerts
-                    $.get('get_tab_data.php?tab=alerts', function(data) {
-                        $('#alerts').html(data);
+                    $.get('get_tab_data.php?tab=settings&dashboard=1', function(response) {
+                        if (response.success) {
+                            $('#alerts').html(response.content);
+                        } else {
+                            $('#alerts').html('<div class="error-message">' + response.message + '</div>');
+                        }
+                    }).fail(function() {
+                        $('#alerts').html('<div class="error-message">Failed to load alerts</div>');
                     });
                 } else {
                     // Load content based on active tab
                     const contentId = '<?php echo $activeTab; ?>-content';
-                    $.get(`get_tab_data.php?tab=<?php echo $activeTab; ?>`, function(data) {
-                        $(`#${contentId}`).html(data);
+                    $.get(`get_tab_data.php?tab=<?php echo $activeTab; ?>`, function(response) {
+                        if (response.success) {
+                            $(`#${contentId}`).html(response.content);
+                        } else {
+                            $(`#${contentId}`).html('<div class="error-message">' + response.message + '</div>');
+                        }
+                    }).fail(function() {
+                        $(`#${contentId}`).html('<div class="error-message">Failed to load content</div>');
                     });
                 }
             }

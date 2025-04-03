@@ -14,6 +14,8 @@ if (!isset($_SESSION['user_id'])) {
 
 // Validate input
 $tab = sanitizeInput($_GET['tab'] ?? '');
+$isDashboard = isset($_GET['dashboard']) && $_GET['dashboard'] === '1';
+
 if (empty($tab)) {
     sendJsonResponse(false, 'Invalid tab specified');
     exit;
@@ -27,19 +29,35 @@ try {
     $content = '';
     switch ($tab) {
         case 'sensors':
-            $content = getSensorsContent($conn);
+            if ($isDashboard) {
+                $content = getDashboardSensorsContent($conn);
+            } else {
+                $content = getSensorsContent($conn);
+            }
             break;
             
         case 'plants':
-            $content = getPlantsContent($conn);
+            if ($isDashboard) {
+                $content = getDashboardPlantsContent($conn);
+            } else {
+                $content = getPlantsContent($conn);
+            }
             break;
             
         case 'readings':
-            $content = getReadingsContent($conn);
+            if ($isDashboard) {
+                $content = getDashboardReadingsContent($conn);
+            } else {
+                $content = getReadingsContent($conn);
+            }
             break;
             
         case 'settings':
-            $content = getSettingsContent($conn);
+            if ($isDashboard) {
+                $content = getDashboardAlertsContent($conn);
+            } else {
+                $content = getSettingsContent($conn);
+            }
             break;
             
         default:
@@ -74,7 +92,7 @@ function getSensorsContent($conn) {
                 <div class="sensor-info">
                     <p><strong>Status:</strong> <?php echo htmlspecialchars($sensor['status']); ?></p>
                     <p><strong>Plant:</strong> <?php echo htmlspecialchars($sensor['plant_name'] ?? 'Unassigned'); ?></p>
-                    <p><strong>Last Reading:</strong> <?php echo formatTimestamp($sensor['last_reading']); ?></p>
+                    <p><strong>Last Reading:</strong> <?php echo $sensor['last_reading'] ? date('M j, Y H:i', strtotime($sensor['last_reading'])) : 'No readings'; ?></p>
                 </div>
                 <div class="sensor-actions">
                     <button class="btn btn-primary" onclick="editSensor(<?php echo $sensor['id']; ?>)">Edit</button>
@@ -166,7 +184,7 @@ function getReadingsContent($conn) {
 
 function getSettingsContent($conn) {
     // Get system settings
-    $query = "SELECT * FROM SystemSettings";
+    $query = "SELECT * FROM Settings ORDER BY name";
     $stmt = $conn->prepare($query);
     $stmt->execute();
     $settings = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -178,17 +196,191 @@ function getSettingsContent($conn) {
             <?php foreach ($settings as $setting): ?>
                 <div class="form-group">
                     <label class="form-label" for="<?php echo $setting['key']; ?>">
-                        <?php echo htmlspecialchars($setting['description']); ?>
+                        <?php echo htmlspecialchars($setting['name']); ?>
                     </label>
                     <input type="text" 
                            class="form-control" 
                            id="<?php echo $setting['key']; ?>" 
                            name="<?php echo $setting['key']; ?>" 
                            value="<?php echo htmlspecialchars($setting['value']); ?>">
+                    <small class="form-text text-muted"><?php echo htmlspecialchars($setting['description']); ?></small>
                 </div>
             <?php endforeach; ?>
             <button type="submit" class="btn btn-primary">Save Settings</button>
         </form>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+// Add new functions for dashboard content
+function getDashboardSensorsContent($conn) {
+    $query = "SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive
+              FROM Sensors";
+    
+    $stmt = $conn->prepare($query);
+    $stmt->execute();
+    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    ob_start();
+    ?>
+    <div class="dashboard-stats">
+        <div class="stat-item">
+            <span class="stat-label">Total Sensors</span>
+            <span class="stat-value"><?php echo $stats['total']; ?></span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Active</span>
+            <span class="stat-value stat-success"><?php echo $stats['active']; ?></span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Inactive</span>
+            <span class="stat-value stat-danger"><?php echo $stats['inactive']; ?></span>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+function getDashboardPlantsContent($conn) {
+    $query = "SELECT 
+                p.name,
+                COALESCE(AVG(r.moisture), 0) as avg_moisture,
+                COALESCE(AVG(r.temperature), 0) as avg_temperature,
+                COALESCE(AVG(r.humidity), 0) as avg_humidity
+              FROM Plants p
+              LEFT JOIN Sensors s ON p.id = s.plant_id
+              LEFT JOIN Readings r ON s.id = r.sensor_id
+              WHERE r.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+              GROUP BY p.id, p.name
+              ORDER BY p.name
+              LIMIT 5";
+    
+    $stmt = $conn->prepare($query);
+    $stmt->execute();
+    $plants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    ob_start();
+    ?>
+    <div class="plant-health-list">
+        <?php if (empty($plants)): ?>
+            <p class="no-data">No plant data available</p>
+        <?php else: ?>
+            <?php foreach ($plants as $plant): ?>
+                <div class="plant-health-item">
+                    <h4><?php echo htmlspecialchars($plant['name']); ?></h4>
+                    <div class="health-metrics">
+                        <div class="metric">
+                            <span class="metric-label">Moisture</span>
+                            <span class="metric-value"><?php echo number_format($plant['avg_moisture'], 1); ?>%</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Temperature</span>
+                            <span class="metric-value"><?php echo number_format($plant['avg_temperature'], 1); ?>°C</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Humidity</span>
+                            <span class="metric-value"><?php echo number_format($plant['avg_humidity'], 1); ?>%</span>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+function getDashboardReadingsContent($conn) {
+    $query = "SELECT 
+                r.*,
+                s.name as sensor_name,
+                p.name as plant_name
+              FROM Readings r
+              JOIN Sensors s ON r.sensor_id = s.id
+              LEFT JOIN Plants p ON s.plant_id = p.id
+              ORDER BY r.timestamp DESC
+              LIMIT 5";
+    
+    $stmt = $conn->prepare($query);
+    $stmt->execute();
+    $readings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    ob_start();
+    ?>
+    <div class="recent-readings-list">
+        <?php if (empty($readings)): ?>
+            <p class="no-data">No recent readings available</p>
+        <?php else: ?>
+            <?php foreach ($readings as $reading): ?>
+                <div class="reading-item">
+                    <div class="reading-header">
+                        <span class="sensor-name"><?php echo htmlspecialchars($reading['sensor_name']); ?></span>
+                        <span class="reading-time"><?php echo date('M j, Y H:i', strtotime($reading['timestamp'])); ?></span>
+                    </div>
+                    <div class="reading-metrics">
+                        <div class="metric">
+                            <i class="fas fa-tint"></i>
+                            <span class="metric-value"><?php echo number_format($reading['moisture'], 1); ?>%</span>
+                        </div>
+                        <div class="metric">
+                            <i class="fas fa-thermometer-half"></i>
+                            <span class="metric-value"><?php echo number_format($reading['temperature'], 1); ?>°C</span>
+                        </div>
+                        <div class="metric">
+                            <i class="fas fa-water"></i>
+                            <span class="metric-value"><?php echo number_format($reading['humidity'], 1); ?>%</span>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+function getDashboardAlertsContent($conn) {
+    $query = "SELECT 
+                a.*,
+                s.name as sensor_name,
+                p.name as plant_name
+              FROM Alerts a
+              JOIN Sensors s ON a.sensor_id = s.id
+              LEFT JOIN Plants p ON s.plant_id = p.id
+              WHERE a.status = 'active'
+              ORDER BY a.timestamp DESC
+              LIMIT 5";
+    
+    $stmt = $conn->prepare($query);
+    $stmt->execute();
+    $alerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    ob_start();
+    ?>
+    <div class="alerts-list">
+        <?php if (empty($alerts)): ?>
+            <p class="no-data">No active alerts</p>
+        <?php else: ?>
+            <?php foreach ($alerts as $alert): ?>
+                <div class="alert-item alert-<?php echo htmlspecialchars($alert['severity']); ?>">
+                    <div class="alert-header">
+                        <span class="alert-title"><?php echo htmlspecialchars($alert['title']); ?></span>
+                        <span class="alert-time"><?php echo date('M j, Y H:i', strtotime($alert['timestamp'])); ?></span>
+                    </div>
+                    <p class="alert-message"><?php echo htmlspecialchars($alert['message']); ?></p>
+                    <div class="alert-meta">
+                        <span class="sensor-name"><?php echo htmlspecialchars($alert['sensor_name']); ?></span>
+                        <?php if ($alert['plant_name']): ?>
+                            <span class="plant-name"><?php echo htmlspecialchars($alert['plant_name']); ?></span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </div>
     <?php
     return ob_get_clean();
