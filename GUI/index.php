@@ -22,7 +22,7 @@ if (!$user) {
 }
 
 // Handle tab switching
-$activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
+$activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'dashboard';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -45,10 +45,18 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
     <!-- Main Navigation -->
     <nav class="main-nav">
         <div class="nav-links">
-            <a href="#" class="active"><i class="fas fa-home"></i> Dashboard</a>
-            <a href="#"><i class="fas fa-microchip"></i> Sensors</a>
-            <a href="#"><i class="fas fa-leaf"></i> Plants</a>
-            <a href="#"><i class="fas fa-cog"></i> Settings</a>
+            <a href="index.php?tab=dashboard" class="<?php echo $activeTab === 'dashboard' ? 'active' : ''; ?>">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
+            <a href="index.php?tab=sensors" class="<?php echo $activeTab === 'sensors' ? 'active' : ''; ?>">
+                <i class="fas fa-microchip"></i> Sensors
+            </a>
+            <a href="index.php?tab=plants" class="<?php echo $activeTab === 'plants' ? 'active' : ''; ?>">
+                <i class="fas fa-leaf"></i> Plants
+            </a>
+            <a href="index.php?tab=settings" class="<?php echo $activeTab === 'settings' ? 'active' : ''; ?>">
+                <i class="fas fa-cog"></i> Settings
+            </a>
         </div>
     </nav>
 
@@ -62,12 +70,13 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
             </div>
         </div>
 
+        <?php if ($activeTab === 'dashboard'): ?>
         <!-- Dashboard Overview -->
         <div class="dashboard-overview">
             <!-- Sensor Status -->
             <div class="overview-card">
                 <h2><i class="fas fa-microchip"></i> Sensor Status</h2>
-                <div class="loading-container">
+                <div id="sensor-status" class="loading-container">
                     <div class="loading-spinner"></div>
                     <div>Loading sensor status...</div>
                 </div>
@@ -76,7 +85,7 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
             <!-- Plant Health -->
             <div class="overview-card">
                 <h2><i class="fas fa-leaf"></i> Plant Health</h2>
-                <div class="loading-container">
+                <div id="plant-health" class="loading-container">
                     <div class="loading-spinner"></div>
                     <div>Loading plant health data...</div>
                 </div>
@@ -85,7 +94,7 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
             <!-- Recent Readings -->
             <div class="overview-card">
                 <h2><i class="fas fa-chart-line"></i> Recent Readings</h2>
-                <div class="loading-container">
+                <div id="recent-readings" class="loading-container">
                     <div class="loading-spinner"></div>
                     <div>Loading recent readings...</div>
                 </div>
@@ -94,12 +103,37 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
             <!-- Alerts -->
             <div class="overview-card">
                 <h2><i class="fas fa-bell"></i> Alerts</h2>
-                <div class="loading-container">
+                <div id="alerts" class="loading-container">
                     <div class="loading-spinner"></div>
                     <div>Loading alerts...</div>
                 </div>
             </div>
         </div>
+        <?php elseif ($activeTab === 'sensors'): ?>
+        <div id="sensors-content">
+            <h2><i class="fas fa-microchip"></i> Sensors Management</h2>
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <div>Loading sensors...</div>
+            </div>
+        </div>
+        <?php elseif ($activeTab === 'plants'): ?>
+        <div id="plants-content">
+            <h2><i class="fas fa-leaf"></i> Plants Management</h2>
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <div>Loading plants...</div>
+            </div>
+        </div>
+        <?php elseif ($activeTab === 'settings'): ?>
+        <div id="settings-content">
+            <h2><i class="fas fa-cog"></i> Settings</h2>
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <div>Loading settings...</div>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -107,25 +141,33 @@ $activeTab = isset($_GET['tab']) ? sanitizeInput($_GET['tab']) : 'Dashboard';
         $(document).ready(function() {
             // Load dashboard data
             function loadDashboardData() {
-                // Load sensor status
-                $.get('get_tab_data.php?tab=sensor_status', function(data) {
-                    $('#sensor-status').html(data);
-                });
+                if ('<?php echo $activeTab; ?>' === 'dashboard') {
+                    // Load sensor status
+                    $.get('get_tab_data.php?tab=sensor_status', function(data) {
+                        $('#sensor-status').html(data);
+                    });
 
-                // Load plant health
-                $.get('get_tab_data.php?tab=plant_health', function(data) {
-                    $('#plant-health').html(data);
-                });
+                    // Load plant health
+                    $.get('get_tab_data.php?tab=plant_health', function(data) {
+                        $('#plant-health').html(data);
+                    });
 
-                // Load recent readings
-                $.get('get_tab_data.php?tab=recent_readings', function(data) {
-                    $('#recent-readings').html(data);
-                });
+                    // Load recent readings
+                    $.get('get_tab_data.php?tab=recent_readings', function(data) {
+                        $('#recent-readings').html(data);
+                    });
 
-                // Load alerts
-                $.get('get_tab_data.php?tab=alerts', function(data) {
-                    $('#alerts').html(data);
-                });
+                    // Load alerts
+                    $.get('get_tab_data.php?tab=alerts', function(data) {
+                        $('#alerts').html(data);
+                    });
+                } else {
+                    // Load content based on active tab
+                    const contentId = '<?php echo $activeTab; ?>-content';
+                    $.get(`get_tab_data.php?tab=<?php echo $activeTab; ?>`, function(data) {
+                        $(`#${contentId}`).html(data);
+                    });
+                }
             }
 
             // Initial load
