@@ -490,7 +490,7 @@ body {
     }
 }
 
-/* Notification System */
+/* Notifications */
 #notification-container {
     position: fixed;
     top: 20px;
@@ -499,86 +499,89 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    max-width: 400px;
 }
 
 .notification {
     background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    padding: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    transform: translateX(120%);
-    transition: transform 0.3s ease-in-out;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    padding: 1rem;
+    min-width: 300px;
+    max-width: 400px;
     opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease-in-out;
+    border-left: 4px solid var(--primary-color);
 }
 
 .notification.show {
-    transform: translateX(0);
     opacity: 1;
+    transform: translateX(0);
 }
 
 .notification-content {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.75rem;
 }
 
 .notification-icon {
-    font-size: 20px;
+    font-size: 1.25rem;
 }
 
 .notification-message {
-    font-size: 14px;
-    color: #333;
+    flex: 1;
+    font-size: 0.875rem;
+    color: var(--text-color);
 }
 
 .notification-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
     background: none;
     border: none;
-    color: #666;
+    font-size: 1.25rem;
+    color: var(--text-light);
     cursor: pointer;
-    font-size: 18px;
-    padding: 4px;
-    margin-left: 12px;
+    padding: 0.25rem;
+    line-height: 1;
 }
 
 .notification-close:hover {
-    color: #333;
+    color: var(--text-color);
 }
 
 .notification-success {
-    border-left: 4px solid #4CAF50;
+    border-left-color: var(--success-color);
 }
 
 .notification-success .notification-icon {
-    color: #4CAF50;
+    color: var(--success-color);
 }
 
 .notification-error {
-    border-left: 4px solid #f44336;
+    border-left-color: var(--danger-color);
 }
 
 .notification-error .notification-icon {
-    color: #f44336;
+    color: var(--danger-color);
 }
 
 .notification-warning {
-    border-left: 4px solid #ff9800;
+    border-left-color: var(--warning-color);
 }
 
 .notification-warning .notification-icon {
-    color: #ff9800;
+    color: var(--warning-color);
 }
 
 .notification-info {
-    border-left: 4px solid #2196F3;
+    border-left-color: var(--primary-color);
 }
 
 .notification-info .notification-icon {
-    color: #2196F3;
+    color: var(--primary-color);
 }
 
 /* Form Validation */

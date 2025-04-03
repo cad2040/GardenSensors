@@ -21,6 +21,7 @@ $csrfToken = generateCSRFToken();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Garden Sensors Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -36,7 +37,7 @@ $csrfToken = generateCSRFToken();
             
             <!-- Login Form -->
             <div id="login" class="tabcontent active">
-                <form id="login-form" class="auth-form">
+                <form id="login-form" class="auth-form" action="auth.php" method="POST">
                     <input type="hidden" name="action" value="login">
                     <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
                     
@@ -60,6 +61,7 @@ $csrfToken = generateCSRFToken();
                     
                     <button type="submit" class="btn btn-primary">Login</button>
                 </form>
+                <div id="login-error" class="alert alert-danger" style="display: none;"></div>
             </div>
             
             <!-- Register Form -->
@@ -162,12 +164,16 @@ $csrfToken = generateCSRFToken();
                     
                     try {
                         const formData = new FormData(this);
-                        const response = await fetch('auth.php', {
+                        console.log('Form data:', Object.fromEntries(formData));
+                        
+                        const response = await fetch(this.action, {
                             method: 'POST',
                             body: formData
                         });
                         
+                        console.log('Response:', response);
                         const result = await response.json();
+                        console.log('Result:', result);
                         
                         if (result.success) {
                             displayAlert(result.message, 'success');
@@ -175,11 +181,17 @@ $csrfToken = generateCSRFToken();
                                 window.location.href = 'index.php';
                             }
                         } else {
+                            const errorDiv = document.getElementById('login-error');
+                            errorDiv.textContent = result.message;
+                            errorDiv.style.display = 'block';
                             displayAlert(result.message, 'error');
                         }
                     } catch (error) {
-                        displayAlert('An error occurred. Please try again.', 'error');
                         console.error('Form submission error:', error);
+                        const errorDiv = document.getElementById('login-error');
+                        errorDiv.textContent = 'An error occurred. Please try again.';
+                        errorDiv.style.display = 'block';
+                        displayAlert('An error occurred. Please try again.', 'error');
                     }
                 });
             });

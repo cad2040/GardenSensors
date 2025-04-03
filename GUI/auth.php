@@ -6,6 +6,10 @@ require_once 'includes/functions.php';
 // Start session
 session_start();
 
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // Check if user is already logged in
 if (isset($_SESSION['user_id']) && basename($_SERVER['PHP_SELF']) !== 'logout.php') {
     header('Location: index.php');
@@ -40,6 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 function handleLogin() {
     try {
+        // Log request data
+        error_log("Login attempt - POST data: " . print_r($_POST, true));
+        
         // Validate input
         $email = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
         $password = $_POST['password'] ?? '';
@@ -57,6 +64,11 @@ function handleLogin() {
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
+        // Log user data (without password)
+        $logUser = $user;
+        unset($logUser['password']);
+        error_log("User data: " . print_r($logUser, true));
+        
         if (!$user || !password_verify($password, $user['password'])) {
             throw new Exception('Invalid email or password');
         }
@@ -66,10 +78,13 @@ function handleLogin() {
         $updateStmt = $conn->prepare($updateQuery);
         $updateStmt->execute([':user_id' => $user['user_id']]);
         
-        // Set session
+        // Set session variables
         $_SESSION['user_id'] = $user['user_id'];
-        $_SESSION['user_name'] = $user['name'];
+        $_SESSION['user_name'] = $user['name'] ?? $user['username'];
         $_SESSION['user_role'] = $user['role'];
+        
+        // Log session data
+        error_log("Session data: " . print_r($_SESSION, true));
         
         // Log successful login
         $logQuery = "INSERT INTO systemlog (action, details, user_id) VALUES ('login', 'User logged in successfully', :user_id)";
@@ -79,6 +94,7 @@ function handleLogin() {
         sendJsonResponse(true, 'Login successful');
         
     } catch (Exception $e) {
+        error_log("Login error: " . $e->getMessage());
         logError('Login error: ' . $e->getMessage());
         sendJsonResponse(false, $e->getMessage());
     }

@@ -126,6 +126,23 @@ function showNotification(message, type = 'info', duration = 5000) {
     return id;
 }
 
+// Display alert message
+function displayAlert(message, type = 'info') {
+    switch (type) {
+        case 'success':
+            showSuccess(message);
+            break;
+        case 'error':
+            showError(message);
+            break;
+        case 'warning':
+            showWarning(message);
+            break;
+        default:
+            showInfo(message);
+    }
+}
+
 // Close notification
 function closeNotification(id) {
     const notification = $(`#${id}`);

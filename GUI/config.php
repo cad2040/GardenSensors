@@ -8,7 +8,7 @@ define('DB_PASS', 'SoilSensors123');
 // Application settings
 define('APP_NAME', 'Garden Sensors Dashboard');
 define('APP_VERSION', '1.0.0');
-define('DEBUG_MODE', false);
+define('DEBUG_MODE', true); // Enable debug mode temporarily
 define('TIMEZONE', 'UTC');
 
 // Security settings
@@ -66,11 +66,11 @@ if (DEBUG_MODE) {
 // Session configuration
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_secure', 1);
+ini_set('session.cookie_secure', 0);
 
 // Error reporting
 ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/logs/error.log');
+ini_set('error_log', ROOT_PATH . '/logs/error.log');
 
 // Security
 define('CSRF_TOKEN_NAME', 'csrf_token');
