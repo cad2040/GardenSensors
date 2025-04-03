@@ -3,9 +3,6 @@ require_once 'config.php';
 require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
-// Start session
-session_start();
-
 // Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -59,7 +56,7 @@ function handleLogin() {
         $db = new Database();
         $conn = $db->getConnection();
         
-        $query = "SELECT * FROM users WHERE email = :email AND status = 'active'";
+        $query = "SELECT * FROM users WHERE email = :email";
         $stmt = $conn->prepare($query);
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -69,7 +66,12 @@ function handleLogin() {
         unset($logUser['password']);
         error_log("User data: " . print_r($logUser, true));
         
-        if (!$user || !password_verify($password, $user['password'])) {
+        if (!$user) {
+            throw new Exception('Invalid email or password');
+        }
+        
+        if (!password_verify($password, $user['password'])) {
+            error_log("Password verification failed for user: " . $email);
             throw new Exception('Invalid email or password');
         }
         
@@ -91,7 +93,7 @@ function handleLogin() {
         $logStmt = $conn->prepare($logQuery);
         $logStmt->execute([':user_id' => $user['user_id']]);
         
-        sendJsonResponse(true, 'Login successful');
+        sendJsonResponse(true, 'Login successful', ['redirect' => 'index.php']);
         
     } catch (Exception $e) {
         error_log("Login error: " . $e->getMessage());
@@ -294,11 +296,12 @@ function handleResetPassword() {
 }
 
 // Helper function to send JSON responses
-function sendJsonResponse($success, $message) {
+function sendJsonResponse($success, $message, $data = []) {
     header('Content-Type: application/json');
     echo json_encode([
         'success' => $success,
-        'message' => $message
+        'message' => $message,
+        'data' => $data
     ]);
     exit;
 } 

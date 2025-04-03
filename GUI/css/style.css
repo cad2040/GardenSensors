@@ -32,13 +32,139 @@ body {
     color: var(--text-color);
     background-color: var(--light-color);
     -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Container */
 .container {
-    max-width: 1280px;
+    width: 100%;
+    max-width: 480px;
     margin: 0 auto;
-    padding: 0 1.5rem;
+    padding: 2rem;
+}
+
+/* Login Container */
+.login-container {
+    background: white;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 2rem;
+}
+
+.login-container h1 {
+    text-align: center;
+    color: var(--dark-color);
+    margin-bottom: 2rem;
+    font-size: 1.75rem;
+}
+
+/* Tab Navigation */
+.tab-nav {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: var(--transition);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+}
+
+.tab-btn:hover {
+    color: var(--primary-color);
+    background-color: rgba(37, 99, 235, 0.05);
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    font-weight: 600;
+    background-color: rgba(37, 99, 235, 0.1);
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Form Groups */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.input-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-group i {
+    position: absolute;
+    left: 1rem;
+    color: var(--text-light);
+}
+
+.input-group input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-align: center;
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+    cursor: pointer;
+    border: none;
+    width: 100%;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-dark);
 }
 
 /* Navigation */
@@ -490,7 +616,7 @@ body {
     }
 }
 
-/* Notifications */
+/* Notification Container */
 #notification-container {
     position: fixed;
     top: 20px;
@@ -501,6 +627,7 @@ body {
     gap: 10px;
 }
 
+/* Notification */
 .notification {
     background: white;
     border-radius: var(--radius-md);
@@ -508,15 +635,14 @@ body {
     padding: 1rem;
     min-width: 300px;
     max-width: 400px;
+    transform: translateX(120%);
     opacity: 0;
-    transform: translateX(100%);
     transition: all 0.3s ease-in-out;
-    border-left: 4px solid var(--primary-color);
 }
 
 .notification.show {
-    opacity: 1;
     transform: translateX(0);
+    opacity: 1;
 }
 
 .notification-content {
@@ -535,25 +661,9 @@ body {
     color: var(--text-color);
 }
 
-.notification-close {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    background: none;
-    border: none;
-    font-size: 1.25rem;
-    color: var(--text-light);
-    cursor: pointer;
-    padding: 0.25rem;
-    line-height: 1;
-}
-
-.notification-close:hover {
-    color: var(--text-color);
-}
-
+/* Notification Types */
 .notification-success {
-    border-left-color: var(--success-color);
+    border-left: 4px solid var(--success-color);
 }
 
 .notification-success .notification-icon {
@@ -561,7 +671,7 @@ body {
 }
 
 .notification-error {
-    border-left-color: var(--danger-color);
+    border-left: 4px solid var(--danger-color);
 }
 
 .notification-error .notification-icon {
@@ -569,7 +679,7 @@ body {
 }
 
 .notification-warning {
-    border-left-color: var(--warning-color);
+    border-left: 4px solid var(--warning-color);
 }
 
 .notification-warning .notification-icon {
@@ -577,7 +687,7 @@ body {
 }
 
 .notification-info {
-    border-left-color: var(--primary-color);
+    border-left: 4px solid var(--primary-color);
 }
 
 .notification-info .notification-icon {
@@ -724,4 +834,5 @@ body {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+} 
 } 

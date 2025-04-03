@@ -3,43 +3,51 @@
  * Utility functions for the Garden Sensors Dashboard
  */
 
-/**
- * Sanitize user input
- */
-function sanitizeInput($data) {
-    $data = trim($data);
-    $data = stripslashes($data);
-    $data = htmlspecialchars($data);
-    return $data;
-}
-
-/**
- * Generate CSRF token
- */
-function generateCSRFToken() {
-    if (empty($_SESSION[CSRF_TOKEN_NAME])) {
-        $_SESSION[CSRF_TOKEN_NAME] = bin2hex(random_bytes(CSRF_TOKEN_LENGTH));
+// Check if functions are already defined to prevent redeclaration
+if (!function_exists('sanitizeInput')) {
+    /**
+     * Sanitize user input
+     */
+    function sanitizeInput($data) {
+        $data = trim($data);
+        $data = stripslashes($data);
+        $data = htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
+        return $data;
     }
-    return $_SESSION[CSRF_TOKEN_NAME];
 }
 
-/**
- * Validate CSRF token
- */
-function validateCSRFToken($token) {
-    if (!isset($_SESSION[CSRF_TOKEN_NAME]) || $token !== $_SESSION[CSRF_TOKEN_NAME]) {
-        throw new Exception('Invalid CSRF token');
+if (!function_exists('generateCSRFToken')) {
+    /**
+     * Generate CSRF token
+     */
+    function generateCSRFToken() {
+        if (empty($_SESSION[CSRF_TOKEN_NAME])) {
+            $_SESSION[CSRF_TOKEN_NAME] = bin2hex(random_bytes(CSRF_TOKEN_LENGTH));
+        }
+        return $_SESSION[CSRF_TOKEN_NAME];
     }
-    return true;
 }
 
-/**
- * Log errors
- */
-function logError($message) {
-    $timestamp = date('Y-m-d H:i:s');
-    $logMessage = "[{$timestamp}] {$message}\n";
-    error_log($logMessage, 3, __DIR__ . '/../logs/error.log');
+if (!function_exists('validateCSRFToken')) {
+    /**
+     * Validate CSRF token
+     */
+    function validateCSRFToken($token) {
+        return !empty($_SESSION[CSRF_TOKEN_NAME]) && 
+               hash_equals($_SESSION[CSRF_TOKEN_NAME], $token);
+    }
+}
+
+if (!function_exists('logError')) {
+    /**
+     * Log errors
+     */
+    function logError($message, $context = []) {
+        $timestamp = date('Y-m-d H:i:s');
+        $contextStr = !empty($context) ? json_encode($context) : '';
+        $logMessage = "[$timestamp] ERROR: $message $contextStr\n";
+        error_log($logMessage, 3, LOGS_PATH . '/error.log');
+    }
 }
 
 /**
@@ -164,73 +172,77 @@ function convertToUserTimezone($timestamp) {
  * User functions
  */
 
-/**
- * Get user by ID
- */
-function getUserById($userId) {
-    try {
-        $db = new Database();
-        $conn = $db->getConnection();
-        
-        $query = "SELECT * FROM users WHERE user_id = :user_id";
-        $stmt = $conn->prepare($query);
-        $stmt->execute([':user_id' => $userId]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        logError("Error getting user: " . $e->getMessage());
-        return null;
+if (!function_exists('getUserById')) {
+    /**
+     * Get user by ID
+     */
+    function getUserById($user_id) {
+        global $conn;
+        $user_id = sanitizeInput($user_id);
+        $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_assoc();
     }
 }
 
-/**
- * Get user by email
- */
-function getUserByEmail($email) {
-    try {
-        $db = new Database();
-        $conn = $db->getConnection();
-        
-        $query = "SELECT * FROM users WHERE email = :email";
-        $stmt = $conn->prepare($query);
-        $stmt->execute([':email' => $email]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        logError("Error getting user by email: " . $e->getMessage());
-        return null;
+if (!function_exists('getUserByEmail')) {
+    /**
+     * Get user by email
+     */
+    function getUserByEmail($email) {
+        global $conn;
+        $email = sanitizeInput($email);
+        $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_assoc();
     }
 }
 
-/**
- * Check if user is logged in
- */
-function isLoggedIn() {
-    return isset($_SESSION['user_id']);
-}
-
-/**
- * Require user to be logged in
- */
-function requireLogin() {
-    if (!isLoggedIn()) {
-        header('Location: ' . APP_URL . '/login.php');
-        exit;
+if (!function_exists('isLoggedIn')) {
+    /**
+     * Check if user is logged in
+     */
+    function isLoggedIn() {
+        return isset($_SESSION['user_id']);
     }
 }
 
-/**
- * Check if user is admin
- */
-function isAdmin() {
-    return isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
+if (!function_exists('requireLogin')) {
+    /**
+     * Require user to be logged in
+     */
+    function requireLogin() {
+        if (!isLoggedIn()) {
+            header('Location: ' . APP_URL . '/login.php');
+            exit();
+        }
+    }
 }
 
-/**
- * Require user to be admin
- */
-function requireAdmin() {
-    if (!isAdmin()) {
-        header('Location: ' . APP_URL . '/index.php');
-        exit;
+if (!function_exists('isAdmin')) {
+    /**
+     * Check if user is admin
+     */
+    function isAdmin() {
+        if (!isLoggedIn()) return false;
+        $user = getUserById($_SESSION['user_id']);
+        return $user && $user['role'] === 'admin';
+    }
+}
+
+if (!function_exists('requireAdmin')) {
+    /**
+     * Require user to be admin
+     */
+    function requireAdmin() {
+        if (!isAdmin()) {
+            header('Location: ' . APP_URL . '/index.php');
+            exit();
+        }
     }
 }
 
@@ -238,15 +250,14 @@ function requireAdmin() {
  * Response helpers
  */
 
-/**
- * Send JSON response
- */
-function sendJsonResponse($success, $message = '', $data = null) {
-    header('Content-Type: application/json');
-    echo json_encode([
-        'success' => $success,
-        'message' => $message,
-        'data' => $data
-    ]);
-    exit;
+if (!function_exists('sendJsonResponse')) {
+    /**
+     * Send JSON response
+     */
+    function sendJsonResponse($data, $status = 200) {
+        header('Content-Type: application/json');
+        http_response_code($status);
+        echo json_encode($data);
+        exit();
+    }
 } 

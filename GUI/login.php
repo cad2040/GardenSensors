@@ -120,7 +120,6 @@ $csrf_token = generateCSRFToken();
     </div>
     
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="js/main.js"></script>
     <script>
         $(document).ready(function() {
             // Tab switching
@@ -134,35 +133,92 @@ $csrf_token = generateCSRFToken();
             });
             
             // Form submissions
-            $('#loginForm, #registerForm, #forgotForm').submit(function(e) {
+            $('#loginForm, #registerForm, #forgotForm').on('submit', function(e) {
                 e.preventDefault();
                 
                 const form = $(this);
-                const formData = form.serialize();
+                const submitButton = form.find('button[type="submit"]');
+                
+                // Disable submit button
+                submitButton.prop('disabled', true);
                 
                 $.ajax({
                     url: form.attr('action'),
                     type: 'POST',
-                    data: formData,
+                    data: form.serialize(),
                     dataType: 'json',
                     success: function(response) {
                         if (response.success) {
-                            displayAlert(response.message, 'success');
-                            if (response.redirect) {
-                                setTimeout(function() {
-                                    window.location.href = response.redirect;
-                                }, 1500);
+                            // Show success message
+                            showNotification(response.message, 'success');
+                            
+                            // For login, redirect to index page
+                            if (form.attr('id') === 'loginForm') {
+                                window.location.href = 'index.php';
+                            } else {
+                                // Reset form for register and forgot password
+                                form[0].reset();
                             }
                         } else {
-                            displayAlert(response.message, 'error');
+                            // Show error message
+                            showNotification(response.message, 'error');
                         }
                     },
                     error: function(xhr, status, error) {
+                        // Show error message
+                        showNotification('An error occurred. Please try again.', 'error');
                         console.error('Error:', error);
-                        displayAlert('An error occurred. Please try again.', 'error');
+                    },
+                    complete: function() {
+                        // Re-enable submit button
+                        submitButton.prop('disabled', false);
                     }
                 });
             });
+            
+            // Notification system
+            function showNotification(message, type) {
+                // Create notification element
+                const notification = $(`
+                    <div class="notification notification-${type}">
+                        <div class="notification-content">
+                            <i class="notification-icon ${getNotificationIcon(type)}"></i>
+                            <span class="notification-message">${message}</span>
+                        </div>
+                    </div>
+                `);
+                
+                // Add to container (create if doesn't exist)
+                let container = $('#notification-container');
+                if (container.length === 0) {
+                    container = $('<div id="notification-container"></div>');
+                    $('body').append(container);
+                }
+                
+                container.append(notification);
+                
+                // Show with animation
+                setTimeout(() => notification.addClass('show'), 10);
+                
+                // Auto hide after 5 seconds
+                setTimeout(() => {
+                    notification.removeClass('show');
+                    setTimeout(() => notification.remove(), 300);
+                }, 5000);
+            }
+            
+            function getNotificationIcon(type) {
+                switch (type) {
+                    case 'success':
+                        return 'fas fa-check-circle';
+                    case 'error':
+                        return 'fas fa-exclamation-circle';
+                    case 'warning':
+                        return 'fas fa-exclamation-triangle';
+                    default:
+                        return 'fas fa-info-circle';
+                }
+            }
         });
     </script>
 </body>
