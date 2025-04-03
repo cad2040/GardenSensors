@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: garden_sensors_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.0'
+        extensions: mbstring, dom, fileinfo, mysql
+        coverage: xdebug
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+
+    - name: Install PHP dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Copy environment file
+      run: cp config/environment/.env.example config/environment/.env.test
+
+    - name: Run PHP tests
+      run: vendor/bin/phpunit --coverage-clover=coverage.xml
+      env:
+        DB_CONNECTION: mysql
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_DATABASE: garden_sensors_test
+        DB_USERNAME: root
+        DB_PASSWORD: root
+
+    - name: Run Python tests
+      run: pytest --cov=python --cov-report=xml
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v2
+      with:
+        files: ./coverage.xml,./python/.coverage
+        fail_ci_if_error: true
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.0'
+        tools: phpcs
+
+    - name: Install PHP dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Run PHP CS
+      run: vendor/bin/phpcs --standard=PSR12 src/ tests/
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.0'
+        tools: composer
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Run security check
+      run: composer audit 
