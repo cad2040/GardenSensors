@@ -23,7 +23,7 @@ try {
             update_interval,
             alert_threshold,
             email_notifications
-        FROM UserSettings
+        FROM usersettings
         WHERE user_id = :user_id
     ";
     
@@ -34,26 +34,31 @@ try {
     // If no settings exist, create default settings
     if (!$settings) {
         $query = "
-            INSERT INTO UserSettings (
+            INSERT INTO usersettings (
                 user_id,
                 update_interval,
                 alert_threshold,
                 email_notifications
             ) VALUES (
                 :user_id,
-                15,
-                20,
-                1
+                :update_interval,
+                :alert_threshold,
+                :email_notifications
             )
         ";
         
         $stmt = $conn->prepare($query);
-        $stmt->execute([':user_id' => $_SESSION['user_id']]);
+        $stmt->execute([
+            ':user_id' => $_SESSION['user_id'],
+            ':update_interval' => DEFAULT_UPDATE_INTERVAL,
+            ':alert_threshold' => DEFAULT_ALERT_THRESHOLD,
+            ':email_notifications' => true
+        ]);
         
         $settings = [
-            'update_interval' => 15,
-            'alert_threshold' => 20,
-            'email_notifications' => 1
+            'update_interval' => DEFAULT_UPDATE_INTERVAL,
+            'alert_threshold' => DEFAULT_ALERT_THRESHOLD,
+            'email_notifications' => true
         ];
     }
     

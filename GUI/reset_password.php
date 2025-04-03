@@ -24,7 +24,7 @@ try {
     $conn = $db->getConnection();
     
     // Check if token is valid and not expired
-    $query = "SELECT id FROM Users WHERE reset_token = :token AND reset_expires > NOW() AND status = 'active'";
+    $query = "SELECT user_id FROM users WHERE reset_token = :token AND reset_expires > NOW() AND status = 'active'";
     $stmt = $conn->prepare($query);
     $stmt->execute([':token' => $token]);
     

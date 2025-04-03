@@ -1,562 +1,706 @@
 // Global variables
-let currentTab = 'sensors';
-let loadingOverlay = null;
-let refreshInterval = null;
+let charts = {};
+let refreshInterval;
+const REFRESH_INTERVAL = 30000; // 30 seconds
+let notifications = [];
+let notificationTimeout;
 
-// DOM Elements
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize loading overlay
-    loadingOverlay = document.getElementById('loading-overlay');
+// Document ready
+$(document).ready(function() {
+    // Initialize the dashboard
+    initializeDashboard();
     
-    // Initialize tabs
-    initializeTabs();
+    // Set up event listeners
+    setupEventListeners();
     
-    // Initialize forms
-    initializeForms();
+    // Load initial data
+    loadDashboardData();
     
     // Start auto-refresh
     startAutoRefresh();
+    
+    // Initialize tooltips
+    initializeTooltips();
+    
+    // Initialize notification container
+    initializeNotifications();
 });
 
-// Tab Management
-function initializeTabs() {
-    const tabButtons = document.querySelectorAll('.tablinks');
-    tabButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            // Remove active class from all buttons and content
-            document.querySelectorAll('.tablinks').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tabcontent').forEach(content => content.classList.remove('active'));
-            
-            // Add active class to clicked button and corresponding content
-            this.classList.add('active');
-            document.getElementById(this.dataset.tab).classList.add('active');
-            
-            // Refresh data for the selected tab
-            refreshTabData(this.dataset.tab);
+// Initialize dashboard
+function initializeDashboard() {
+    // Show loading overlay
+    showLoading();
+    
+    // Initialize charts
+    initializeCharts();
+    
+    // Initialize interactive elements
+    initializeInteractiveElements();
+    
+    // Hide loading overlay
+    hideLoading();
+}
+
+// Set up event listeners
+function setupEventListeners() {
+    // Tab switching
+    $('.menu-item').on('click', function(e) {
+        e.preventDefault();
+        const tab = $(this).data('tab');
+        switchTab(tab);
+    });
+    
+    // Form submissions with validation
+    $(document).on('submit', 'form', handleFormSubmission);
+    
+    // Refresh button
+    $('.refresh-btn').on('click', function() {
+        loadDashboardData();
+    });
+    
+    // Real-time form validation
+    $(document).on('input', 'input, select, textarea', function() {
+        validateField($(this));
+    });
+    
+    // Interactive elements
+    setupInteractiveElements();
+}
+
+// Initialize tooltips
+function initializeTooltips() {
+    $('[data-tooltip]').each(function() {
+        const tooltip = $(this).data('tooltip');
+        $(this).attr('title', tooltip);
+        $(this).tooltip({
+            position: { my: "left+15 center", at: "right center" },
+            classes: { "ui-tooltip": "custom-tooltip" }
         });
     });
 }
 
-function switchTab(tabId) {
-    // Update active tab button
-    document.querySelectorAll('.tablinks').forEach(button => {
-        button.classList.remove('active');
-        if (button.getAttribute('data-tab') === tabId) {
-            button.classList.add('active');
-        }
-    });
-    
-    // Show selected tab content
-    document.querySelectorAll('.tabcontent').forEach(content => {
-        content.style.display = 'none';
-        if (content.id === tabId) {
-            content.style.display = 'block';
-        }
-    });
-    
-    currentTab = tabId;
-    
-    // Refresh data for the selected tab
-    refreshTabData();
-}
-
-// Form Management
-function initializeForms() {
-    const forms = document.querySelectorAll('form');
-    forms.forEach(form => {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            handleFormSubmit(this);
-        });
-    });
-}
-
-async function handleFormSubmit(form) {
-    try {
-        showLoading();
-        
-        const formData = new FormData(form);
-        const response = await fetch(form.action, {
-            method: form.method,
-            body: formData
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            displayAlert(result.message, 'success');
-            form.reset();
-            refreshTabData();
-        } else {
-            displayAlert(result.message, 'error');
-        }
-    } catch (error) {
-        displayAlert('An error occurred while processing your request.', 'error');
-        console.error('Form submission error:', error);
-    } finally {
-        hideLoading();
+// Initialize notifications
+function initializeNotifications() {
+    // Create notification container if it doesn't exist
+    if ($('#notification-container').length === 0) {
+        $('body').append('<div id="notification-container"></div>');
     }
 }
 
-// Data Refresh
-function startAutoRefresh() {
-    // Refresh data every 5 minutes
-    refreshInterval = setInterval(refreshTabData, 300000);
-}
-
-function stopAutoRefresh() {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-        refreshInterval = null;
-    }
-}
-
-async function refreshTabData(tab = null) {
-    const tabs = tab ? [tab] : ['sensors', 'plants', 'readings', 'settings'];
+// Show notification
+function showNotification(message, type = 'info', duration = 5000) {
+    const id = 'notification-' + Date.now();
+    const notification = $(`
+        <div id="${id}" class="notification notification-${type}">
+            <div class="notification-content">
+                <i class="notification-icon ${getNotificationIcon(type)}"></i>
+                <span class="notification-message">${message}</span>
+            </div>
+            <button class="notification-close">&times;</button>
+        </div>
+    `);
     
-    for (const tabName of tabs) {
-        try {
-            switch (tabName) {
-                case 'sensors':
-                    await loadSensors();
-                    break;
-                case 'plants':
-                    await loadPlants();
-                    break;
-                case 'readings':
-                    await loadReadings();
-                    break;
-                case 'settings':
-                    await loadSettings();
-                    break;
-            }
-        } catch (error) {
-            console.error(`Error refreshing ${tabName} tab:`, error);
-            displayAlert(`Error loading ${tabName} data. Please try again.`, 'error');
-        }
-    }
-}
-
-function updateTabContent(content) {
-    const tabContent = document.getElementById(currentTab);
-    if (tabContent) {
-        tabContent.innerHTML = content;
-    }
-}
-
-// Loading Overlay
-function showLoading() {
-    if (loadingOverlay) {
-        loadingOverlay.style.display = 'flex';
-    }
-}
-
-function hideLoading() {
-    if (loadingOverlay) {
-        loadingOverlay.style.display = 'none';
-    }
-}
-
-// Alert Management
-function displayAlert(message, type = 'info') {
-    const alertContainer = document.createElement('div');
-    alertContainer.className = `alert alert-${type}`;
-    alertContainer.textContent = message;
+    // Add to container
+    $('#notification-container').append(notification);
     
-    const container = document.querySelector('.container');
-    container.insertBefore(alertContainer, container.firstChild);
+    // Add to notifications array
+    notifications.push(id);
     
-    // Auto-remove alert after 5 seconds
+    // Show with animation
     setTimeout(() => {
-        alertContainer.remove();
-    }, 5000);
+        notification.addClass('show');
+    }, 10);
+    
+    // Setup close button
+    notification.find('.notification-close').on('click', function() {
+        closeNotification(id);
+    });
+    
+    // Auto close after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            closeNotification(id);
+        }, duration);
+    }
+    
+    return id;
 }
 
-// Plot Management
-function initializePlots() {
-    const plots = document.querySelectorAll('.plot-frame');
-    plots.forEach(plot => {
-        // Add any plot-specific initialization here
-        // For example, setting up event listeners for plot interactions
+// Close notification
+function closeNotification(id) {
+    const notification = $(`#${id}`);
+    notification.removeClass('show');
+    
+    setTimeout(() => {
+        notification.remove();
+        notifications = notifications.filter(n => n !== id);
+    }, 300);
+}
+
+// Get notification icon
+function getNotificationIcon(type) {
+    switch (type) {
+        case 'success':
+            return 'fas fa-check-circle';
+        case 'error':
+            return 'fas fa-exclamation-circle';
+        case 'warning':
+            return 'fas fa-exclamation-triangle';
+        case 'info':
+        default:
+            return 'fas fa-info-circle';
+    }
+}
+
+// Show success notification
+function showSuccess(message, duration = 5000) {
+    return showNotification(message, 'success', duration);
+}
+
+// Show error notification
+function showError(message, duration = 5000) {
+    return showNotification(message, 'error', duration);
+}
+
+// Show warning notification
+function showWarning(message, duration = 5000) {
+    return showNotification(message, 'warning', duration);
+}
+
+// Show info notification
+function showInfo(message, duration = 5000) {
+    return showNotification(message, 'info', duration);
+}
+
+// Validate field
+function validateField(field) {
+    const value = field.val();
+    const type = field.attr('type');
+    const required = field.prop('required');
+    const min = field.attr('min');
+    const max = field.attr('max');
+    const pattern = field.attr('pattern');
+    
+    let isValid = true;
+    let errorMessage = '';
+    
+    // Required validation
+    if (required && !value) {
+        isValid = false;
+        errorMessage = 'This field is required';
+    }
+    
+    // Type-specific validation
+    if (value && type) {
+        switch (type) {
+            case 'email':
+                if (!isValidEmail(value)) {
+                    isValid = false;
+                    errorMessage = 'Please enter a valid email address';
+                }
+                break;
+            case 'number':
+                if (isNaN(value)) {
+                    isValid = false;
+                    errorMessage = 'Please enter a valid number';
+                } else {
+                    if (min !== undefined && parseFloat(value) < parseFloat(min)) {
+                        isValid = false;
+                        errorMessage = `Value must be at least ${min}`;
+                    }
+                    if (max !== undefined && parseFloat(value) > parseFloat(max)) {
+                        isValid = false;
+                        errorMessage = `Value must be at most ${max}`;
+                    }
+                }
+                break;
+            case 'password':
+                if (value.length < 8) {
+                    isValid = false;
+                    errorMessage = 'Password must be at least 8 characters long';
+                }
+                break;
+        }
+    }
+    
+    // Pattern validation
+    if (pattern && value) {
+        const regex = new RegExp(pattern);
+        if (!regex.test(value)) {
+            isValid = false;
+            errorMessage = field.attr('data-pattern-message') || 'Please enter a valid value';
+        }
+    }
+    
+    // Update field state
+    updateFieldValidationState(field, isValid, errorMessage);
+    
+    return isValid;
+}
+
+// Update field validation state
+function updateFieldValidationState(field, isValid, errorMessage) {
+    const container = field.closest('.form-group');
+    
+    // Remove existing validation classes
+    field.removeClass('is-valid is-invalid');
+    container.find('.invalid-feedback').remove();
+    
+    // Add appropriate class
+    if (isValid) {
+        field.addClass('is-valid');
+    } else {
+        field.addClass('is-invalid');
+        container.append(`<div class="invalid-feedback">${errorMessage}</div>`);
+    }
+}
+
+// Validate email
+function isValidEmail(email) {
+    const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return re.test(String(email).toLowerCase());
+}
+
+// Initialize interactive elements
+function initializeInteractiveElements() {
+    // Initialize sensor cards
+    $('.sensor-card').each(function() {
+        initializeSensorCard($(this));
+    });
+    
+    // Initialize plant cards
+    $('.plant-card').each(function() {
+        initializePlantCard($(this));
+    });
+    
+    // Initialize settings toggles
+    $('.setting-toggle').each(function() {
+        initializeSettingToggle($(this));
     });
 }
 
-// Utility Functions
-function formatDate(date) {
-    return new Date(date).toLocaleString();
-}
-
-function formatNumber(number, decimals = 2) {
-    return Number(number).toFixed(decimals);
-}
-
-// Error Handling
-window.onerror = function(msg, url, lineNo, columnNo, error) {
-    console.error('Error: ' + msg + '\nURL: ' + url + '\nLine: ' + lineNo + '\nColumn: ' + columnNo + '\nError object: ' + JSON.stringify(error));
-    displayAlert('An unexpected error occurred. Please try again.', 'error');
-    return false;
-};
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    stopAutoRefresh();
-});
-
-// Load sensors data
-async function loadSensors() {
-    showLoading();
-    try {
-        const response = await fetch('get_sensors.php');
-        const result = await response.json();
-        
-        if (result.success) {
-            const sensorsGrid = document.querySelector('.sensors-grid');
-            sensorsGrid.innerHTML = '';
-            
-            result.sensors.forEach(sensor => {
-                const sensorCard = createSensorCard(sensor);
-                sensorsGrid.appendChild(sensorCard);
-            });
-        } else {
-            throw new Error(result.message);
-        }
-    } catch (error) {
-        console.error('Error loading sensors:', error);
-        displayAlert('Error loading sensors. Please try again.', 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-// Create sensor card element
-function createSensorCard(sensor) {
-    const card = document.createElement('div');
-    card.className = 'sensor-card';
-    card.innerHTML = `
-        <div class="card-header">
-            <h3>${sensor.name}</h3>
-            <div class="card-actions">
-                <button class="btn btn-icon" onclick="editSensor(${sensor.id})">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-icon" onclick="deleteSensor(${sensor.id})">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="sensor-info">
-                <p><strong>Type:</strong> ${sensor.type}</p>
-                <p><strong>Pin:</strong> ${sensor.pin}</p>
-                <p><strong>Plant:</strong> ${sensor.plant_name || 'None'}</p>
-                <p><strong>Status:</strong> <span class="status-badge ${sensor.status}">${sensor.status}</span></p>
-            </div>
-            <div class="sensor-readings">
-                <div class="reading">
-                    <span class="reading-value">${formatReading(sensor.last_reading, sensor.type)}</span>
-                    <span class="reading-unit">${getReadingUnit(sensor.type)}</span>
-                </div>
-                <div class="reading-time">Last updated: ${formatTimestamp(sensor.last_updated)}</div>
-            </div>
-        </div>
-    `;
-    return card;
-}
-
-// Load plants data
-async function loadPlants() {
-    showLoading();
-    try {
-        const response = await fetch('get_plants.php');
-        const result = await response.json();
-        
-        if (result.success) {
-            const plantsGrid = document.querySelector('.plants-grid');
-            plantsGrid.innerHTML = '';
-            
-            result.plants.forEach(plant => {
-                const plantCard = createPlantCard(plant);
-                plantsGrid.appendChild(plantCard);
-            });
-        } else {
-            throw new Error(result.message);
-        }
-    } catch (error) {
-        console.error('Error loading plants:', error);
-        displayAlert('Error loading plants. Please try again.', 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-// Create plant card element
-function createPlantCard(plant) {
-    const card = document.createElement('div');
-    card.className = 'plant-card';
-    card.innerHTML = `
-        <div class="card-header">
-            <h3>${plant.name}</h3>
-            <div class="card-actions">
-                <button class="btn btn-icon" onclick="editPlant(${plant.id})">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-icon" onclick="deletePlant(${plant.id})">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="plant-info">
-                <p><strong>Type:</strong> ${plant.type}</p>
-                <p><strong>Location:</strong> ${plant.location}</p>
-                <p><strong>Moisture Range:</strong> ${plant.min_moisture}% - ${plant.max_moisture}%</p>
-            </div>
-            <div class="plant-sensors">
-                <h4>Associated Sensors</h4>
-                <ul>
-                    ${plant.sensors.map(sensor => `
-                        <li>${sensor.name} (${sensor.type})</li>
-                    `).join('')}
-                </ul>
-            </div>
-        </div>
-    `;
-    return card;
-}
-
-// Load sensor readings
-async function loadReadings() {
-    showLoading();
-    try {
-        const sensorId = document.getElementById('sensor-filter').value;
-        const timeRange = document.getElementById('time-range').value;
-        
-        const response = await fetch(`get_readings.php?sensor_id=${sensorId}&time_range=${timeRange}`);
-        const result = await response.json();
-        
-        if (result.success) {
-            const readingsContainer = document.querySelector('.readings-container');
-            readingsContainer.innerHTML = '';
-            
-            // Create chart container
-            const chartContainer = document.createElement('div');
-            chartContainer.className = 'readings-chart';
-            readingsContainer.appendChild(chartContainer);
-            
-            // Create readings table
-            const table = createReadingsTable(result.readings);
-            readingsContainer.appendChild(table);
-            
-            // Initialize chart
-            initializeChart(result.readings, chartContainer);
-        } else {
-            throw new Error(result.message);
-        }
-    } catch (error) {
-        console.error('Error loading readings:', error);
-        displayAlert('Error loading sensor readings. Please try again.', 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-// Create readings table
-function createReadingsTable(readings) {
-    const table = document.createElement('table');
-    table.className = 'readings-table';
-    table.innerHTML = `
-        <thead>
-            <tr>
-                <th>Timestamp</th>
-                <th>Value</th>
-                <th>Unit</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${readings.map(reading => `
-                <tr>
-                    <td>${formatTimestamp(reading.timestamp)}</td>
-                    <td>${formatReading(reading.value, reading.type)}</td>
-                    <td>${getReadingUnit(reading.type)}</td>
-                    <td><span class="status-badge ${reading.status}">${reading.status}</span></td>
-                </tr>
-            `).join('')}
-        </tbody>
-    `;
-    return table;
-}
-
-// Initialize chart using Chart.js
-function initializeChart(readings, container) {
-    const ctx = document.createElement('canvas');
-    container.appendChild(ctx);
+// Setup interactive elements
+function setupInteractiveElements() {
+    // Sensor card interactions
+    $(document).on('mouseenter', '.sensor-card', function() {
+        $(this).addClass('hover');
+    }).on('mouseleave', '.sensor-card', function() {
+        $(this).removeClass('hover');
+    });
     
-    const labels = readings.map(r => formatTimestamp(r.timestamp));
-    const values = readings.map(r => r.value);
+    // Plant card interactions
+    $(document).on('mouseenter', '.plant-card', function() {
+        $(this).addClass('hover');
+    }).on('mouseleave', '.plant-card', function() {
+        $(this).removeClass('hover');
+    });
     
-    new Chart(ctx, {
+    // Quick actions
+    $(document).on('click', '.quick-action', function(e) {
+        e.preventDefault();
+        const action = $(this).data('action');
+        const id = $(this).data('id');
+        handleQuickAction(action, id);
+    });
+}
+
+// Initialize sensor card
+function initializeSensorCard(card) {
+    const sensorId = card.data('sensor-id');
+    
+    // Add quick actions
+    card.find('.card-header').append(`
+        <div class="quick-actions">
+            <button class="quick-action" data-action="edit" data-id="${sensorId}">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="quick-action" data-action="delete" data-id="${sensorId}">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `);
+    
+    // Initialize sensor chart
+    initializeSensorChart(sensorId);
+}
+
+// Initialize plant card
+function initializePlantCard(card) {
+    const plantId = card.data('plant-id');
+    
+    // Add quick actions
+    card.find('.card-header').append(`
+        <div class="quick-actions">
+            <button class="quick-action" data-action="edit" data-id="${plantId}">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="quick-action" data-action="delete" data-id="${plantId}">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `);
+    
+    // Initialize moisture threshold controls
+    initializeMoistureControls(card);
+}
+
+// Initialize setting toggle
+function initializeSettingToggle(toggle) {
+    const setting = toggle.data('setting');
+    const value = toggle.prop('checked');
+    
+    // Store original value
+    toggle.data('original-value', value);
+    
+    // Add change handler
+    toggle.on('change', function() {
+        updateSetting($(this));
+    });
+}
+
+// Handle quick action
+async function handleQuickAction(action, id) {
+    switch (action) {
+        case 'edit':
+            showEditModal(action, id);
+            break;
+        case 'delete':
+            showDeleteConfirmation(action, id);
+            break;
+        default:
+            console.error('Unknown action:', action);
+    }
+}
+
+// Show edit modal
+function showEditModal(type, id) {
+    // Implementation depends on your modal system
+    // This is a placeholder
+    showInfo('Edit functionality coming soon');
+}
+
+// Show delete confirmation
+function showDeleteConfirmation(type, id) {
+    if (confirm(`Are you sure you want to delete this ${type}?`)) {
+        // Implementation depends on your API
+        // This is a placeholder
+        showSuccess(`${type} deleted successfully`);
+    }
+}
+
+// Initialize moisture controls
+function initializeMoistureControls(card) {
+    const plantId = card.data('plant-id');
+    
+    // Add moisture threshold controls
+    card.find('.plant-info').append(`
+        <div class="moisture-controls">
+            <div class="form-group">
+                <label>Min Moisture (%)</label>
+                <input type="number" 
+                       class="form-control moisture-threshold" 
+                       data-plant-id="${plantId}" 
+                       data-type="min" 
+                       min="0" 
+                       max="100">
+            </div>
+            <div class="form-group">
+                <label>Max Moisture (%)</label>
+                <input type="number" 
+                       class="form-control moisture-threshold" 
+                       data-plant-id="${plantId}" 
+                       data-type="max" 
+                       min="0" 
+                       max="100">
+            </div>
+        </div>
+    `);
+    
+    // Add change handlers
+    card.find('.moisture-threshold').on('input', function() {
+        updateMoistureThreshold($(this));
+    });
+}
+
+// Switch tabs
+function switchTab(tab) {
+    // Update active states
+    $('.menu-item').removeClass('active');
+    $(`.menu-item[data-tab="${tab}"]`).addClass('active');
+    
+    $('.tab-content').removeClass('active');
+    $(`#${tab}`).addClass('active');
+    
+    // Load tab content if not dashboard
+    if (tab !== 'Dashboard') {
+        loadTabContent(tab);
+    }
+}
+
+// Load dashboard data
+async function loadDashboardData() {
+    showLoading();
+    
+    try {
+        // Load sensor status
+        const sensorStatus = await $.get('get_tab_data.php', { section: 'sensor-status' });
+        $('#sensor-status').html(sensorStatus);
+        
+        // Load plant health
+        const plantHealth = await $.get('get_tab_data.php', { section: 'plant-health' });
+        $('#plant-health').html(plantHealth);
+        
+        // Load recent readings
+        const recentReadings = await $.get('get_tab_data.php', { section: 'recent-readings' });
+        $('#recent-readings').html(recentReadings);
+        
+        // Load alerts
+        const alerts = await $.get('get_tab_data.php', { section: 'alerts' });
+        $('#alerts').html(alerts);
+        
+        // Update charts
+        updateCharts();
+        
+    } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        showError('Failed to load dashboard data');
+    }
+    
+    hideLoading();
+}
+
+// Load tab content
+async function loadTabContent(tab) {
+    showLoading();
+    
+    try {
+        const content = await $.get('get_tab_data.php', { tab: tab });
+        $(`#${tab}`).html(content);
+        
+        // Initialize any components in the new content
+        initializeTabComponents(tab);
+        
+    } catch (error) {
+        console.error(`Error loading ${tab} content:`, error);
+        showError(`Failed to load ${tab} content`);
+    }
+    
+    hideLoading();
+}
+
+// Initialize charts
+function initializeCharts() {
+    // Moisture levels chart
+    const moistureCtx = document.getElementById('moisture-chart').getContext('2d');
+    charts.moisture = new Chart(moistureCtx, {
         type: 'line',
         data: {
-            labels: labels,
-            datasets: [{
-                label: 'Sensor Readings',
-                data: values,
-                borderColor: '#4CAF50',
-                tension: 0.1
-            }]
+            labels: [],
+            datasets: []
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    max: 100
                 }
             }
         }
     });
+    
+    // Temperature chart
+    const tempCtx = document.getElementById('temperature-chart').getContext('2d');
+    charts.temperature = new Chart(tempCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
 }
 
-// Load settings
-async function loadSettings() {
-    showLoading();
+// Update charts
+async function updateCharts() {
     try {
-        const response = await fetch('get_settings.php');
-        const result = await response.json();
+        // Get chart data
+        const moistureData = await $.get('get_readings.php', { type: 'moisture' });
+        const tempData = await $.get('get_readings.php', { type: 'temperature' });
         
-        if (result.success) {
-            const settingsContainer = document.querySelector('.settings-container');
-            settingsContainer.innerHTML = '';
-            
-            // Create settings form
-            const form = createSettingsForm(result.settings);
-            settingsContainer.appendChild(form);
-        } else {
-            throw new Error(result.message);
-        }
+        // Update moisture chart
+        charts.moisture.data = moistureData;
+        charts.moisture.update();
+        
+        // Update temperature chart
+        charts.temperature.data = tempData;
+        charts.temperature.update();
+        
     } catch (error) {
-        console.error('Error loading settings:', error);
-        displayAlert('Error loading settings. Please try again.', 'error');
-    } finally {
-        hideLoading();
+        console.error('Error updating charts:', error);
     }
 }
 
-// Create settings form
-function createSettingsForm(settings) {
-    const form = document.createElement('form');
-    form.className = 'settings-form';
-    form.innerHTML = `
-        <div class="form-group">
-            <label class="form-label" for="update-interval">Update Interval (minutes)</label>
-            <input type="number" 
-                   class="form-control" 
-                   id="update-interval" 
-                   name="update_interval" 
-                   value="${settings.update_interval}"
-                   min="1"
-                   required>
-        </div>
-        
-        <div class="form-group">
-            <label class="form-label" for="alert-threshold">Alert Threshold (%)</label>
-            <input type="number" 
-                   class="form-control" 
-                   id="alert-threshold" 
-                   name="alert_threshold" 
-                   value="${settings.alert_threshold}"
-                   min="0"
-                   max="100"
-                   required>
-        </div>
-        
-        <div class="form-group">
-            <label class="form-label" for="email-notifications">Email Notifications</label>
-            <div class="form-check">
-                <input type="checkbox" 
-                       class="form-check-input" 
-                       id="email-notifications" 
-                       name="email_notifications" 
-                       ${settings.email_notifications ? 'checked' : ''}>
-                <label class="form-check-label" for="email-notifications">
-                    Enable email notifications for alerts
-                </label>
-            </div>
-        </div>
-        
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Save Settings</button>
-        </div>
-    `;
-    
-    form.addEventListener('submit', handleSettingsForm);
-    return form;
-}
-
-// Handle settings form submission
-async function handleSettingsForm(e) {
+// Handle form submissions
+async function handleFormSubmission(e) {
     e.preventDefault();
     
+    const form = $(this);
+    const fields = form.find('input, select, textarea');
+    let isValid = true;
+    
+    // Validate all fields
+    fields.each(function() {
+        if (!validateField($(this))) {
+            isValid = false;
+        }
+    });
+    
+    if (!isValid) {
+        showError('Please correct the errors in the form');
+        return;
+    }
+    
+    showLoading();
+    
     try {
-        const formData = new FormData(this);
-        const response = await fetch('update_settings.php', {
-            method: 'POST',
-            body: formData
+        const response = await $.ajax({
+            url: form.attr('action'),
+            type: 'POST',
+            data: form.serialize(),
+            dataType: 'json'
         });
         
-        const result = await response.json();
-        
-        if (result.success) {
-            displayAlert('Settings updated successfully', 'success');
+        if (response.success) {
+            showSuccess(response.message);
+            form[0].reset();
+            
+            // Refresh data if needed
+            if (response.refresh) {
+                loadDashboardData();
+            }
         } else {
-            displayAlert(result.message, 'error');
+            showError(response.message);
         }
     } catch (error) {
-        displayAlert('An error occurred. Please try again.', 'error');
-        console.error('Settings update error:', error);
+        console.error('Form submission error:', error);
+        showError('An error occurred while submitting the form');
     }
+    
+    hideLoading();
+}
+
+// Initialize tab-specific components
+function initializeTabComponents(tab) {
+    switch (tab) {
+        case 'Sensors':
+            initializeSensorComponents();
+            break;
+        case 'Plants':
+            initializePlantComponents();
+            break;
+        case 'Settings':
+            initializeSettingsComponents();
+            break;
+    }
+}
+
+// Auto-refresh
+function startAutoRefresh() {
+    refreshInterval = setInterval(loadDashboardData, REFRESH_INTERVAL);
+}
+
+function stopAutoRefresh() {
+    clearInterval(refreshInterval);
+}
+
+// Loading overlay
+function showLoading() {
+    $('.loading-overlay').fadeIn(200);
+}
+
+function hideLoading() {
+    $('.loading-overlay').fadeOut(200);
+}
+
+// Sensor components
+function initializeSensorComponents() {
+    // Initialize sensor-specific components
+    $('.sensor-card').each(function() {
+        const sensorId = $(this).data('sensor-id');
+        initializeSensorChart(sensorId);
+    });
+}
+
+// Plant components
+function initializePlantComponents() {
+    // Initialize plant-specific components
+    $('.moisture-threshold').on('input', function() {
+        updateMoistureThreshold($(this));
+    });
+}
+
+// Settings components
+function initializeSettingsComponents() {
+    // Initialize settings-specific components
+    $('.setting-toggle').on('change', function() {
+        updateSetting($(this));
+    });
 }
 
 // Utility functions
-function formatReading(value, type) {
-    switch (type) {
-        case 'moisture':
-            return formatMoisture(value);
-        case 'temperature':
-            return formatTemperature(value);
-        case 'humidity':
-            return formatHumidity(value);
-        default:
-            return value;
+async function updateSetting(element) {
+    const setting = element.data('setting');
+    const value = element.val();
+    
+    try {
+        const response = await $.post('update_settings.php', {
+            setting: setting,
+            value: value
+        });
+        
+        if (response.success) {
+            showSuccess('Setting updated successfully');
+        } else {
+            showError('Failed to update setting');
+            // Revert the change
+            element.val(element.data('original-value'));
+        }
+    } catch (error) {
+        console.error('Error updating setting:', error);
+        showError('Failed to update setting');
+        // Revert the change
+        element.val(element.data('original-value'));
     }
 }
 
-function getReadingUnit(type) {
-    switch (type) {
-        case 'moisture':
-            return '%';
-        case 'temperature':
-            return '°C';
-        case 'humidity':
-            return '%';
-        default:
-            return '';
+async function updateMoistureThreshold(element) {
+    const plantId = element.data('plant-id');
+    const type = element.data('type'); // min or max
+    const value = element.val();
+    
+    try {
+        const response = await $.post('update_plant.php', {
+            plant_id: plantId,
+            type: type,
+            value: value
+        });
+        
+        if (response.success) {
+            showSuccess('Threshold updated successfully');
+        } else {
+            showError('Failed to update threshold');
+            // Revert the change
+            element.val(element.data('original-value'));
+        }
+    } catch (error) {
+        console.error('Error updating threshold:', error);
+        showError('Failed to update threshold');
+        // Revert the change
+        element.val(element.data('original-value'));
     }
-}
-
-function formatTimestamp(timestamp) {
-    return new Date(timestamp).toLocaleString();
-}
-
-function formatMoisture(value) {
-    return `${value}%`;
-}
-
-function formatTemperature(value) {
-    return `${value}°C`;
-}
-
-function formatHumidity(value) {
-    return `${value}%`;
 } 

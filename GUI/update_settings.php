@@ -46,7 +46,7 @@ try {
     $conn->beginTransaction();
     
     // Check if settings exist
-    $query = "SELECT id FROM UserSettings WHERE user_id = :user_id";
+    $query = "SELECT id FROM usersettings WHERE user_id = :user_id";
     $stmt = $conn->prepare($query);
     $stmt->execute([':user_id' => $_SESSION['user_id']]);
     $settings = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -54,7 +54,7 @@ try {
     if ($settings) {
         // Update existing settings
         $query = "
-            UPDATE UserSettings
+            UPDATE usersettings
             SET 
                 update_interval = :update_interval,
                 alert_threshold = :alert_threshold,
@@ -65,7 +65,7 @@ try {
     } else {
         // Insert new settings
         $query = "
-            INSERT INTO UserSettings (
+            INSERT INTO usersettings (
                 user_id,
                 update_interval,
                 alert_threshold,

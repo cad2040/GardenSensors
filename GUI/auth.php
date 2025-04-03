@@ -52,7 +52,7 @@ function handleLogin() {
         $db = new Database();
         $conn = $db->getConnection();
         
-        $query = "SELECT * FROM Users WHERE email = :email AND status = 'active'";
+        $query = "SELECT * FROM users WHERE email = :email AND status = 'active'";
         $stmt = $conn->prepare($query);
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -62,19 +62,19 @@ function handleLogin() {
         }
         
         // Update last login
-        $updateQuery = "UPDATE Users SET last_login = NOW() WHERE id = :id";
+        $updateQuery = "UPDATE users SET last_login = NOW() WHERE user_id = :user_id";
         $updateStmt = $conn->prepare($updateQuery);
-        $updateStmt->execute([':id' => $user['id']]);
+        $updateStmt->execute([':user_id' => $user['user_id']]);
         
         // Set session
-        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_id'] = $user['user_id'];
         $_SESSION['user_name'] = $user['name'];
         $_SESSION['user_role'] = $user['role'];
         
         // Log successful login
-        $logQuery = "INSERT INTO SystemLog (action, details, user_id) VALUES ('login', 'User logged in successfully', :user_id)";
+        $logQuery = "INSERT INTO systemlog (action, details, user_id) VALUES ('login', 'User logged in successfully', :user_id)";
         $logStmt = $conn->prepare($logQuery);
-        $logStmt->execute([':user_id' => $user['id']]);
+        $logStmt->execute([':user_id' => $user['user_id']]);
         
         sendJsonResponse(true, 'Login successful');
         
@@ -108,7 +108,7 @@ function handleRegister() {
         $db = new Database();
         $conn = $db->getConnection();
         
-        $checkQuery = "SELECT id FROM Users WHERE email = :email";
+        $checkQuery = "SELECT user_id FROM users WHERE email = :email";
         $checkStmt = $conn->prepare($checkQuery);
         $checkStmt->execute([':email' => $email]);
         
@@ -116,11 +116,29 @@ function handleRegister() {
             throw new Exception('Email already registered');
         }
         
+        // Generate username from name
+        $username = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $name));
+        
+        // Check if username exists and append number if needed
+        $baseUsername = $username;
+        $counter = 1;
+        while (true) {
+            $checkUsernameQuery = "SELECT user_id FROM users WHERE username = :username";
+            $checkUsernameStmt = $conn->prepare($checkUsernameQuery);
+            $checkUsernameStmt->execute([':username' => $username]);
+            if (!$checkUsernameStmt->fetch()) {
+                break;
+            }
+            $username = $baseUsername . $counter;
+            $counter++;
+        }
+        
         // Insert new user
-        $query = "INSERT INTO Users (name, email, password, role, status) 
-                 VALUES (:name, :email, :password, 'user', 'active')";
+        $query = "INSERT INTO users (username, name, email, password, role) 
+                 VALUES (:username, :name, :email, :password, 'user')";
         $stmt = $conn->prepare($query);
         $stmt->execute([
+            ':username' => $username,
             ':name' => $name,
             ':email' => $email,
             ':password' => password_hash($password, PASSWORD_DEFAULT)
@@ -129,11 +147,11 @@ function handleRegister() {
         $userId = $conn->lastInsertId();
         
         // Log registration
-        $logQuery = "INSERT INTO SystemLog (action, details, user_id) VALUES ('register', 'New user registered', :user_id)";
+        $logQuery = "INSERT INTO systemlog (action, details, user_id) VALUES ('register', 'New user registered', :user_id)";
         $logStmt = $conn->prepare($logQuery);
         $logStmt->execute([':user_id' => $userId]);
         
-        sendJsonResponse(true, 'Registration successful');
+        sendJsonResponse(true, 'Registration successful. Your username is: ' . $username);
         
     } catch (Exception $e) {
         logError('Registration error: ' . $e->getMessage());
@@ -154,7 +172,7 @@ function handleForgotPassword() {
         $db = new Database();
         $conn = $db->getConnection();
         
-        $query = "SELECT id, name FROM Users WHERE email = :email AND status = 'active'";
+        $query = "SELECT user_id, name FROM users WHERE email = :email AND status = 'active'";
         $stmt = $conn->prepare($query);
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -168,12 +186,12 @@ function handleForgotPassword() {
         $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
         
         // Store reset token
-        $updateQuery = "UPDATE Users SET reset_token = :token, reset_expires = :expires WHERE id = :id";
+        $updateQuery = "UPDATE users SET reset_token = :token, reset_expires = :expires WHERE user_id = :user_id";
         $updateStmt = $conn->prepare($updateQuery);
         $updateStmt->execute([
             ':token' => $token,
             ':expires' => $expires,
-            ':id' => $user['id']
+            ':user_id' => $user['user_id']
         ]);
         
         // Send reset email
@@ -194,9 +212,9 @@ function handleForgotPassword() {
         mail($to, $subject, $message, $headers);
         
         // Log password reset request
-        $logQuery = "INSERT INTO SystemLog (action, details, user_id) VALUES ('forgot_password', 'Password reset requested', :user_id)";
+        $logQuery = "INSERT INTO systemlog (action, details, user_id) VALUES ('forgot_password', 'Password reset requested', :user_id)";
         $logStmt = $conn->prepare($logQuery);
-        $logStmt->execute([':user_id' => $user['id']]);
+        $logStmt->execute([':user_id' => $user['user_id']]);
         
         sendJsonResponse(true, 'Password reset instructions sent to your email');
         
@@ -229,7 +247,7 @@ function handleResetPassword() {
         $db = new Database();
         $conn = $db->getConnection();
         
-        $query = "SELECT id FROM Users WHERE reset_token = :token AND reset_expires > NOW() AND status = 'active'";
+        $query = "SELECT user_id FROM users WHERE reset_token = :token AND reset_expires > NOW() AND status = 'active'";
         $stmt = $conn->prepare($query);
         $stmt->execute([':token' => $token]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -239,17 +257,17 @@ function handleResetPassword() {
         }
         
         // Update password
-        $updateQuery = "UPDATE Users SET password = :password, reset_token = NULL, reset_expires = NULL WHERE id = :id";
+        $updateQuery = "UPDATE users SET password = :password, reset_token = NULL, reset_expires = NULL WHERE user_id = :user_id";
         $updateStmt = $conn->prepare($updateQuery);
         $updateStmt->execute([
             ':password' => password_hash($password, PASSWORD_DEFAULT),
-            ':id' => $user['id']
+            ':user_id' => $user['user_id']
         ]);
         
         // Log password reset
-        $logQuery = "INSERT INTO SystemLog (action, details, user_id) VALUES ('reset_password', 'Password reset completed', :user_id)";
+        $logQuery = "INSERT INTO systemlog (action, details, user_id) VALUES ('reset_password', 'Password reset completed', :user_id)";
         $logStmt = $conn->prepare($logQuery);
-        $logStmt->execute([':user_id' => $user['id']]);
+        $logStmt->execute([':user_id' => $user['user_id']]);
         
         sendJsonResponse(true, 'Password reset successful');
         
