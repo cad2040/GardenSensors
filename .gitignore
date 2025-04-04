@@ -7,24 +7,92 @@
 /vendor/
 /venv/
 /node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# IDE files
+# IDE and editor files
 .idea/
 .vscode/
-*.sublime-project
-*.sublime-workspace
+*.swp
+*.swo
+*~
 
-# Logs
-/logs/*
-!/logs/.gitkeep
-
-# Uploads
-/public/uploads/*
-!/public/uploads/.gitkeep
-
-# Cache
-*.cache
+# Logs and temporary files
 *.log
+/tmp/
+/temp/
+*.tmp
+*.temp
+
+# Database files
+*.sqlite
+*.db
+*.sql
+
+# Python
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Test artifacts
+/tests/artifacts/
+/tests/data/
+*.test.db
+*.test.sqlite
+*.test.sql
+*.test.log
+*.test.tmp
+*.test.temp
+
+# Local deployment files
+/deploy/
+/deployment/
+*.local
+*.local.*
+!*.local.example
+*.dev
+*.dev.*
+!*.dev.example
+*.prod
+*.prod.*
+!*.prod.example
+*.staging
+*.staging.*
+!*.staging.example
+*.test
+*.test.*
+!*.test.example
+
+# Build and compile files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+*.7z
 
 # OS generated files
 .DS_Store
@@ -35,44 +103,13 @@
 ehthumbs.db
 Thumbs.db
 
-# Compiled files
-*.com
-*.class
-*.dll
-*.exe
-*.o
-*.so
+# Uploads
+/public/uploads/*
+!/public/uploads/.gitkeep
 
-# Temporary files
-*.swp
-*.swo
-*~
-
-# Database
-*.sqlite
-*.db
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# Cache
+*.cache
+*.log
 
 # PHP
 composer.phar
