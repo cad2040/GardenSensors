@@ -1,8 +1,9 @@
 <?php
-namespace Tests\Models;
+namespace GardenSensors\Tests\Models;
 
 use PHPUnit\Framework\TestCase;
-use App\Models\User;
+use GardenSensors\Models\User;
+use GardenSensors\Core\Database;
 
 class UserTest extends TestCase {
     private $user;

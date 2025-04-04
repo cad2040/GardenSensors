@@ -1,8 +1,8 @@
 <?php
-namespace App\Services;
+namespace GardenSensors\Services;
 
-use App\Core\AppConfig;
-use App\Exceptions\PythonExecutionException;
+use GardenSensors\Config\AppConfig;
+use GardenSensors\Exceptions\PythonExecutionException;
 
 class PythonService {
     private $pythonPath;
@@ -13,8 +13,8 @@ class PythonService {
     private $plotter;
 
     public function __construct() {
-        $this->pythonPath = AppConfig::get('python.path', '/usr/bin/python3');
-        $this->projectRoot = dirname(dirname(dirname(__DIR__)));
+        $this->pythonPath = AppConfig::get('python.path', dirname(dirname(dirname(__DIR__))) . '/venv/bin/python3');
+        $this->projectRoot = dirname(dirname(__DIR__));
     }
 
     /**
@@ -25,7 +25,7 @@ class PythonService {
      * @return array Output from the Python script
      * @throws PythonExecutionException
      */
-    private function executePythonScript(string $script, array $args = []): array {
+    public function executePythonScript(string $script, array $args = []): array {
         $scriptPath = $this->projectRoot . '/python/' . $script;
         if (!file_exists($scriptPath)) {
             throw new PythonExecutionException("Python script not found: {$script}");

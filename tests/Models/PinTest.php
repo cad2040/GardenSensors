@@ -1,9 +1,10 @@
 <?php
-namespace Tests\Models;
+namespace GardenSensors\Tests\Models;
 
 use PHPUnit\Framework\TestCase;
-use App\Models\Pin;
-use App\Models\Sensor;
+use GardenSensors\Models\Pin;
+use GardenSensors\Core\Database;
+use GardenSensors\Models\Sensor;
 
 class PinTest extends TestCase {
     private $pin;

@@ -2,7 +2,7 @@
 
 namespace GardenSensors\Tests\Unit;
 
-use GardenSensors\Cache;
+use GardenSensors\Core\Cache;
 use PHPUnit\Framework\TestCase;
 use Mockery;
 
@@ -119,7 +119,7 @@ class CacheTest extends TestCase
     public function testSetWithInvalidKey()
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid cache key');
+        $this->expectExceptionMessage('Cache key cannot be empty');
 
         $this->cache->set('', 'value', 60);
     }
@@ -127,7 +127,7 @@ class CacheTest extends TestCase
     public function testSetWithInvalidTTL()
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid TTL');
+        $this->expectExceptionMessage('TTL must be greater than 0');
 
         $this->cache->set('key', 'value', -1);
     }
@@ -135,7 +135,7 @@ class CacheTest extends TestCase
     public function testSetWithInvalidValue()
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid cache value');
+        $this->expectExceptionMessage('Cache value cannot be null');
 
         $this->cache->set('key', null, 60);
     }

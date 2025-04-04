@@ -1,5 +1,5 @@
 <?php
-namespace App\Exceptions;
+namespace GardenSensors\Exceptions;
 
 class PythonExecutionException extends \Exception {
     /**

@@ -1,10 +1,11 @@
 <?php
-namespace Tests\Models;
+namespace GardenSensors\Tests\Models;
 
 use PHPUnit\Framework\TestCase;
-use App\Models\FactPlant;
-use App\Models\Plant;
-use App\Models\Sensor;
+use GardenSensors\Models\FactPlant;
+use GardenSensors\Core\Database;
+use GardenSensors\Models\Plant;
+use GardenSensors\Models\Sensor;
 
 class FactPlantTest extends TestCase {
     private $factPlant;

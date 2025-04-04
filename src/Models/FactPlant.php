@@ -1,5 +1,5 @@
 <?php
-namespace App\Models;
+namespace GardenSensors\Models;
 
 class FactPlant extends BaseModel {
     protected static $table = 'fact_plants';

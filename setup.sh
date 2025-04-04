@@ -51,8 +51,8 @@ validate_env() {
     local required_vars=(
         "DB_HOST"
         "DB_USER"
+        "DB_PASS"
         "DB_NAME"
-        "APACHE_DOMAIN"
     )
     
     for var in "${required_vars[@]}"; do
@@ -137,116 +137,47 @@ setup_mysql() {
         print_info "MySQL service is already running"
     fi
     
-    # Drop and recreate database and user
-    print_info "Setting up database and user..."
-    sudo mysql -e "DROP DATABASE IF EXISTS ${DB_NAME};"
-    sudo mysql -e "DROP USER IF EXISTS '${DB_USER}'@'${DB_HOST}';"
-    sudo mysql -e "CREATE DATABASE ${DB_NAME};"
-    sudo mysql -e "CREATE USER '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '';"
-    sudo mysql -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'${DB_HOST}';"
-    sudo mysql -e "FLUSH PRIVILEGES;"
+    # Create database user
+    print_info "Creating database user..."
+    php tests/setup_db_user.php || print_error "Failed to create database user"
     
-    # Deploy database schema
-    print_info "Deploying database schema..."
-    if [ -f SQLDeployScript.sql ]; then
-        sudo mysql ${DB_NAME} < SQLDeployScript.sql || print_error "Failed to deploy database schema"
-    else
-        print_error "SQLDeployScript.sql not found"
-        return 1
-    fi
+    # Create database and tables
+    print_info "Creating database and tables..."
+    php tests/setup.php || print_error "Failed to setup database"
     
     print_status "MySQL setup completed"
 }
 
 # Function to setup application files
-setup_application() {
+setup_app_files() {
     print_step "Setting up application files"
     
-    # Create application directory structure
-    print_info "Creating application directory structure..."
-    sudo mkdir -p /var/www/html/garden-sensors/{public/{includes,assets,css,js,uploads},src,config,logs,cache}
-    
-    # Copy application files
-    print_info "Copying application files..."
-    sudo cp -r public/* /var/www/html/garden-sensors/public/
-    sudo cp -r src/* /var/www/html/garden-sensors/src/
-    
-    # Ensure includes directory is properly set up
-    print_info "Setting up includes directory..."
-    sudo mkdir -p /var/www/html/garden-sensors/public/includes
-    
-    # Copy functions.php to the correct location
-    if [ -f public/includes/functions.php ]; then
-        sudo cp public/includes/functions.php /var/www/html/garden-sensors/public/includes/
-    elif [ -f public/assets/includes/functions.php ]; then
-        sudo cp public/assets/includes/functions.php /var/www/html/garden-sensors/public/includes/
-    elif [ -f public/assets/functions.php ]; then
-        sudo cp public/assets/functions.php /var/www/html/garden-sensors/public/includes/
-    else
-        print_error "functions.php not found in any expected location"
-        return 1
-    fi
+    # Create necessary directories
+    print_info "Creating application directories..."
+    mkdir -p config cache logs || print_error "Failed to create application directories"
     
     # Set proper permissions
     print_info "Setting file permissions..."
-    sudo chown -R www-data:www-data /var/www/html/garden-sensors
-    sudo chmod -R 755 /var/www/html/garden-sensors
-    sudo chmod -R 775 /var/www/html/garden-sensors/logs
-    sudo chmod -R 775 /var/www/html/garden-sensors/cache
-    sudo chmod -R 775 /var/www/html/garden-sensors/public/uploads
+    chmod -R 755 . || print_error "Failed to set file permissions"
+    chmod -R 777 cache logs || print_error "Failed to set cache and log permissions"
     
-    print_status "Application setup completed"
+    print_status "Application files setup completed"
 }
 
-# Function to setup Apache web server
-setup_apache() {
-    print_step "Setting up Apache web server"
+# Main setup process
+main() {
+    print_step "Starting Garden Sensors Setup"
     
-    # Enable required Apache modules
-    print_info "Enabling Apache modules..."
-    a2enmod rewrite
-    a2enmod php8.3
+    validate_env
+    check_root
+    install_system_deps
+    setup_python_env
+    setup_mysql
+    setup_app_files
     
-    # Create Apache virtual host configuration
-    print_info "Creating Apache virtual host configuration..."
-    cat > /etc/apache2/sites-available/garden-sensors.conf << EOL
-<VirtualHost *:80>
-    ServerName ${APACHE_DOMAIN}
-    DocumentRoot /var/www/html/garden-sensors/public
-    
-    <Directory /var/www/html/garden-sensors/public>
-        Options Indexes FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-    
-    ErrorLog \${APACHE_LOG_DIR}/garden-sensors-error.log
-    CustomLog \${APACHE_LOG_DIR}/garden-sensors-access.log combined
-</VirtualHost>
-EOL
-    
-    # Enable the site
-    print_info "Enabling Apache site..."
-    a2ensite garden-sensors
-    
-    # Restart Apache
-    print_info "Restarting Apache..."
-    systemctl restart apache2
-    
-    print_status "Apache setup completed"
+    print_step "Setup Completed Successfully"
+    print_info "You can now access the application at http://localhost"
 }
 
-# Main installation process
-print_step "Starting installation"
-
-# Run each setup step
-validate_env
-check_root
-install_system_deps
-setup_python_env
-setup_mysql
-setup_application
-setup_apache
-
-print_status "Installation completed successfully"
-print_info "You can access the application at: http://${APACHE_DOMAIN}" 
+# Run main setup process
+main 

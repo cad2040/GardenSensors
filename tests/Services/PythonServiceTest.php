@@ -1,9 +1,10 @@
 <?php
-namespace Tests\Services;
+namespace GardenSensors\Tests\Services;
 
 use PHPUnit\Framework\TestCase;
-use App\Services\PythonService;
-use App\Exceptions\PythonExecutionException;
+use GardenSensors\Services\PythonService;
+use GardenSensors\Exceptions\PythonExecutionException;
+use GardenSensors\Config\AppConfig;
 
 class PythonServiceTest extends TestCase {
     private $pythonService;
@@ -11,6 +12,10 @@ class PythonServiceTest extends TestCase {
 
     protected function setUp(): void {
         parent::setUp();
+        
+        // Set up AppConfig with test values
+        AppConfig::set('python.path', '/usr/bin/python3');
+            
         $this->pythonService = new PythonService();
     }
 

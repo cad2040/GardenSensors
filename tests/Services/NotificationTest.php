@@ -2,10 +2,10 @@
 
 namespace GardenSensors\Tests\Unit;
 
-use GardenSensors\Notification;
-use GardenSensors\Database;
-use GardenSensors\Cache;
-use GardenSensors\Logger;
+use GardenSensors\Services\Notification;
+use GardenSensors\Core\Database;
+use GardenSensors\Core\Cache;
+use GardenSensors\Core\Logger;
 use PHPUnit\Framework\TestCase;
 use Mockery;
 

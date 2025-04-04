@@ -2,7 +2,7 @@
 
 namespace GardenSensors\Tests\Unit;
 
-use GardenSensors\Database;
+use GardenSensors\Core\Database;
 use PHPUnit\Framework\TestCase;
 use PDO;
 use PDOStatement;

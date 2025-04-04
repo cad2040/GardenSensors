@@ -1,12 +1,11 @@
 <?php
+namespace GardenSensors\Tests\Models;
 
-namespace GardenSensors\Tests\Unit;
-
-use GardenSensors\Plant;
-use GardenSensors\Database;
+use PHPUnit\Framework\TestCase;
+use GardenSensors\Models\Plant;
+use GardenSensors\Core\Database;
 use GardenSensors\Cache;
 use GardenSensors\Logger;
-use PHPUnit\Framework\TestCase;
 use Mockery;
 
 class PlantTest extends TestCase

@@ -19,7 +19,8 @@ class DBConnect:
         self.host = os.getenv('DB_HOST', 'localhost')
         self.user = os.getenv('DB_USER', 'garden_user')
         self.password = os.getenv('DB_PASS', '')
-        self.database = os.getenv('DB_NAME', 'garden_sensors')
+        # Use test database if TESTING environment variable is set
+        self.database = os.getenv('DB_NAME', 'garden_sensors_test' if os.getenv('TESTING') == 'true' else 'garden_sensors')
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def connect(self):

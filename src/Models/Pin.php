@@ -1,5 +1,5 @@
 <?php
-namespace App\Models;
+namespace GardenSensors\Models;
 
 class Pin extends BaseModel {
     protected static $table = 'pins';

@@ -1,19 +1,20 @@
 <?php
-namespace App\Models;
+namespace GardenSensors\Models;
 
-class Sensor extends Model {
+class Sensor extends BaseModel {
     protected static $table = 'sensors';
     protected static $primaryKey = 'id';
     protected static $fillable = [
-        'sensor',
-        'description',
+        'name',
+        'type',
         'location',
+        'description',
         'status',
         'last_reading',
         'plot_url',
         'plot_type'
     ];
-    protected static $hidden = ['inserted', 'updated'];
+    protected static $hidden = ['created_at', 'updated_at'];
 
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
@@ -35,8 +36,33 @@ class Sensor extends Model {
         return $this->status === self::STATUS_MAINTENANCE;
     }
 
+    public function getId(): int {
+        return $this->id;
+    }
+
+    public function calculateStatus(): string {
+        $latestReading = $this->getLatestReading();
+        if (!$latestReading) {
+            return self::STATUS_INACTIVE;
+        }
+
+        $lastReadingTime = strtotime($latestReading['created_at']);
+        $now = time();
+        $hoursSinceLastReading = ($now - $lastReadingTime) / 3600;
+
+        if ($hoursSinceLastReading > 24) {
+            return self::STATUS_MAINTENANCE;
+        }
+
+        return self::STATUS_ACTIVE;
+    }
+
+    public function updateReading(float $value, ?float $temperature = null, ?float $humidity = null): bool {
+        return $this->addReading($value, $temperature, $humidity);
+    }
+
     public function pins() {
-        $db = Database::getInstance();
+        $db = self::getConnection();
         $sql = "SELECT * FROM pins WHERE sensor_id = :sensor_id";
         $stmt = $db->prepare($sql);
         $stmt->execute([':sensor_id' => $this->id]);
@@ -44,8 +70,8 @@ class Sensor extends Model {
     }
 
     public function readings(int $limit = null) {
-        $db = Database::getInstance();
-        $sql = "SELECT * FROM readings WHERE sensor_id = :sensor_id ORDER BY inserted DESC";
+        $db = self::getConnection();
+        $sql = "SELECT * FROM readings WHERE sensor_id = :sensor_id ORDER BY created_at DESC";
         
         if ($limit !== null) {
             $sql .= " LIMIT :limit";
@@ -65,22 +91,23 @@ class Sensor extends Model {
         return $readings[0] ?? null;
     }
 
-    public function addReading(float $reading, ?float $temperature = null, ?float $humidity = null): bool {
-        $db = Database::getInstance();
+    public function addReading(float $value, ?float $temperature = null, ?float $humidity = null): bool {
+        $db = self::getConnection();
         $stmt = $db->prepare("
-            INSERT INTO readings (sensor_id, reading, temperature, humidity, inserted)
-            VALUES (:sensor_id, :reading, :temperature, :humidity, NOW())
+            INSERT INTO readings (sensor_id, value, unit, temperature, humidity)
+            VALUES (:sensor_id, :value, :unit, :temperature, :humidity)
         ");
         
         $result = $stmt->execute([
             ':sensor_id' => $this->id,
-            ':reading' => $reading,
+            ':value' => $value,
+            ':unit' => $this->type === self::PLOT_TYPE_TEMPERATURE ? '°C' : '%',
             ':temperature' => $temperature,
             ':humidity' => $humidity
         ]);
 
         if ($result) {
-            $this->last_reading = $reading;
+            $this->last_reading = $value;
             $this->save();
         }
 
@@ -88,12 +115,12 @@ class Sensor extends Model {
     }
 
     public function getReadingsByDateRange(string $startDate, string $endDate) {
-        $db = Database::getInstance();
+        $db = self::getConnection();
         $stmt = $db->prepare("
             SELECT * FROM readings 
             WHERE sensor_id = :sensor_id 
-            AND inserted BETWEEN :start_date AND :end_date
-            ORDER BY inserted ASC
+            AND created_at BETWEEN :start_date AND :end_date
+            ORDER BY created_at ASC
         ");
         
         $stmt->execute([
@@ -106,12 +133,12 @@ class Sensor extends Model {
     }
 
     public function getAverageReading(string $startDate, string $endDate) {
-        $db = Database::getInstance();
+        $db = self::getConnection();
         $stmt = $db->prepare("
-            SELECT AVG(reading) as average
+            SELECT AVG(value) as average
             FROM readings 
             WHERE sensor_id = :sensor_id 
-            AND inserted BETWEEN :start_date AND :end_date
+            AND created_at BETWEEN :start_date AND :end_date
         ");
         
         $stmt->execute([
@@ -130,12 +157,12 @@ class Sensor extends Model {
     }
 
     public function plants() {
-        $db = Database::getInstance();
+        $db = self::getConnection();
         $sql = "
             SELECT p.* 
-            FROM fact_plants fp
-            JOIN dim_plants p ON fp.plant_id = p.id
-            WHERE fp.sensor_id = :sensor_id
+            FROM plant_sensors ps
+            JOIN plants p ON ps.plant_id = p.id
+            WHERE ps.sensor_id = :sensor_id
         ";
         $stmt = $db->prepare($sql);
         $stmt->execute([':sensor_id' => $this->id]);
@@ -143,29 +170,29 @@ class Sensor extends Model {
     }
 
     public function save(): bool {
-        if (!isset($this->attributes['inserted'])) {
-            $this->attributes['inserted'] = date('Y-m-d H:i:s');
+        if (!isset($this->attributes['created_at'])) {
+            $this->attributes['created_at'] = date('Y-m-d H:i:s');
         }
-        $this->attributes['updated'] = date('Y-m-d H:i:s');
+        $this->attributes['updated_at'] = date('Y-m-d H:i:s');
         
         return parent::save();
     }
 
-    public function delete(): bool {
+    public static function delete($id): bool {
         // Delete all readings first
-        $db = Database::getInstance();
+        $db = self::getConnection();
         $stmt = $db->prepare("DELETE FROM readings WHERE sensor_id = :sensor_id");
-        $stmt->execute([':sensor_id' => $this->id]);
+        $stmt->execute([':sensor_id' => $id]);
         
         // Delete all pins
         $stmt = $db->prepare("DELETE FROM pins WHERE sensor_id = :sensor_id");
-        $stmt->execute([':sensor_id' => $this->id]);
+        $stmt->execute([':sensor_id' => $id]);
         
         // Delete plant associations
-        $stmt = $db->prepare("DELETE FROM fact_plants WHERE sensor_id = :sensor_id");
-        $stmt->execute([':sensor_id' => $this->id]);
+        $stmt = $db->prepare("DELETE FROM plant_sensors WHERE sensor_id = :sensor_id");
+        $stmt->execute([':sensor_id' => $id]);
         
-        return parent::delete();
+        return parent::delete($id);
     }
 
     public static function getPlotTypes(): array {
@@ -181,6 +208,23 @@ class Sensor extends Model {
             self::STATUS_ACTIVE,
             self::STATUS_INACTIVE,
             self::STATUS_MAINTENANCE
+        ];
+    }
+
+    public function jsonSerialize(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'type' => $this->type,
+            'location' => $this->location,
+            'description' => $this->description,
+            'status' => $this->status,
+            'last_reading' => $this->last_reading,
+            'plot_url' => $this->plot_url,
+            'plot_type' => $this->plot_type,
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at
         ];
     }
 } 

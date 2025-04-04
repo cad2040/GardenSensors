@@ -1,10 +1,11 @@
 <?php
 
-namespace Tests\Models;
+namespace GardenSensors\Tests\Models;
 
 use PHPUnit\Framework\TestCase;
-use App\Models\Reading;
-use App\Models\Sensor;
+use GardenSensors\Models\Reading;
+use GardenSensors\Core\Database;
+use GardenSensors\Models\Sensor;
 
 class ReadingTest extends TestCase
 {

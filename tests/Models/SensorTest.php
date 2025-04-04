@@ -1,9 +1,9 @@
 <?php
-
-namespace Tests\Unit;
+namespace GardenSensors\Tests\Models;
 
 use PHPUnit\Framework\TestCase;
-use App\Models\Sensor;
+use GardenSensors\Models\Sensor;
+use GardenSensors\Core\Database;
 
 class SensorTest extends TestCase
 {

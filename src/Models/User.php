@@ -1,7 +1,7 @@
 <?php
-namespace App\Models;
+namespace GardenSensors\Models;
 
-class User extends Model {
+class User extends BaseModel implements \JsonSerializable {
     protected static $table = 'users';
     protected static $primaryKey = 'user_id';
     protected static $fillable = [
@@ -9,10 +9,14 @@ class User extends Model {
         'email',
         'password',
         'role',
+        'status',
         'last_login',
         'created_at',
         'updated_at'
     ];
+
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_INACTIVE = 'inactive';
 
     public function setPassword(string $password): void {
         $this->attributes['password'] = password_hash($password, PASSWORD_DEFAULT);
@@ -24,6 +28,20 @@ class User extends Model {
 
     public function isAdmin(): bool {
         return $this->role === 'admin';
+    }
+
+    public function isActive(): bool {
+        return $this->status === self::STATUS_ACTIVE;
+    }
+
+    public function updateStatus(string $status): bool {
+        $this->status = $status;
+        return $this->save();
+    }
+
+    public function updateRole(string $role): bool {
+        $this->role = $role;
+        return $this->save();
     }
 
     public static function findByEmail(string $email) {
@@ -49,16 +67,27 @@ class User extends Model {
     }
 
     public function sensors() {
-        return Sensor::where('user_id', $this->user_id);
+        return $this->hasMany(Sensor::class, 'user_id');
     }
 
     public function plants() {
-        return Plant::where('user_id', $this->user_id);
+        return $this->hasMany(Plant::class, 'user_id');
     }
 
     public function toArray(): array {
-        $data = parent::toArray();
-        unset($data['password']); // Never expose password hash
-        return $data;
+        return [
+            'id' => $this->id,
+            'username' => $this->username,
+            'email' => $this->email,
+            'role' => $this->role,
+            'status' => $this->status,
+            'last_login' => $this->last_login,
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at
+        ];
+    }
+
+    public function jsonSerialize(): array {
+        return $this->toArray();
     }
 } 

@@ -1,14 +1,19 @@
 <?php
-namespace Tests\Models;
+namespace GardenSensors\Tests\Models;
 
 use PHPUnit\Framework\TestCase;
-use App\Models\BaseModel;
+use GardenSensors\Models\BaseModel;
 
 // Create a test model class that extends BaseModel
 class TestModel extends BaseModel {
     protected static $table = 'test_models';
     protected static $primaryKey = 'id';
     protected static $fillable = ['name', 'value'];
+    protected static $hidden = ['created_at', 'updated_at'];
+    
+    public function jsonSerialize(): mixed {
+        return $this->toArray();
+    }
 }
 
 class BaseModelTest extends TestCase {
@@ -18,15 +23,15 @@ class BaseModelTest extends TestCase {
         parent::setUp();
         
         // Create test table
-        $db = \App\Core\Database::getInstance();
+        $db = \GardenSensors\Core\Database::getInstance();
         $db->exec("
             CREATE TABLE test_models (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
+                id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
                 value TEXT,
-                inserted DATETIME,
-                updated DATETIME
-            )
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
         ");
         
         $this->model = new TestModel([
@@ -37,7 +42,7 @@ class BaseModelTest extends TestCase {
 
     protected function tearDown(): void {
         // Drop test table
-        $db = \App\Core\Database::getInstance();
+        $db = \GardenSensors\Core\Database::getInstance();
         $db->exec("DROP TABLE test_models");
         
         parent::tearDown();
@@ -53,8 +58,8 @@ class BaseModelTest extends TestCase {
         $this->model->save();
         
         $this->assertNotNull($this->model->id);
-        $this->assertNotNull($this->model->inserted);
-        $this->assertNotNull($this->model->updated);
+        $this->assertNotNull($this->model->created_at);
+        $this->assertNotNull($this->model->updated_at);
     }
 
     public function testModelUpdate() {
@@ -65,7 +70,7 @@ class BaseModelTest extends TestCase {
         
         $updated = TestModel::find($this->model->id);
         $this->assertEquals('updated', $updated->name);
-        $this->assertNotEquals($updated->inserted, $updated->updated);
+        $this->assertNotEquals($updated->created_at, $updated->updated_at);
     }
 
     public function testModelDelete() {
@@ -125,8 +130,8 @@ class BaseModelTest extends TestCase {
         $this->model->save();
         
         $array = $this->model->toArray();
-        $this->assertArrayNotHasKey('inserted', $array);
-        $this->assertArrayNotHasKey('updated', $array);
+        $this->assertArrayNotHasKey('created_at', $array);
+        $this->assertArrayNotHasKey('updated_at', $array);
     }
 
     public function testModelToArray() {
