@@ -12,8 +12,8 @@ class TestDBConnect(unittest.TestCase):
         
     def tearDown(self):
         """Clean up after each test method."""
-        if hasattr(self, 'db') and self.db.conn:
-            self.db.conn.close()
+        if hasattr(self, 'db'):
+            self.db.disconnect()
 
     def test_initialization(self):
         """Test that the DBConnect class initializes correctly."""
@@ -21,7 +21,7 @@ class TestDBConnect(unittest.TestCase):
         self.assertIsNone(self.db.conn)
         self.assertIsNone(self.db.cursor)
 
-    @patch('python.DBConnect.sqlite3.connect')
+    @patch('mysql.connector.connect')
     def test_connect_success(self, mock_connect):
         """Test successful database connection."""
         mock_conn = MagicMock()
@@ -29,14 +29,20 @@ class TestDBConnect(unittest.TestCase):
         mock_connect.return_value = mock_conn
         mock_conn.cursor.return_value = mock_cursor
 
-        self.db.connect()
+        result = self.db.connect()
         
+        self.assertTrue(result)
         self.assertIsNotNone(self.db.conn)
         self.assertIsNotNone(self.db.cursor)
-        mock_connect.assert_called_once()
+        mock_connect.assert_called_once_with(
+            host=self.db.host,
+            user=self.db.user,
+            password=self.db.password,
+            database=self.db.database
+        )
         mock_conn.cursor.assert_called_once()
 
-    @patch('python.DBConnect.sqlite3.connect')
+    @patch('mysql.connector.connect')
     def test_connect_failure(self, mock_connect):
         """Test database connection failure."""
         mock_connect.side_effect = Exception("Connection failed")
@@ -97,7 +103,7 @@ class TestDBConnect(unittest.TestCase):
         self.db.conn = mock_conn
         self.db.cursor = mock_cursor
         
-        query = "INSERT INTO test_table (col1, col2) VALUES (?, ?)"
+        query = "INSERT INTO test_table (col1, col2) VALUES (%s, %s)"
         params = [('val1', 'val2'), ('val3', 'val4')]
         
         self.db.execute_many(query, params)
@@ -116,7 +122,7 @@ class TestDBConnect(unittest.TestCase):
         self.db.cursor = mock_cursor
         
         with self.assertRaises(Exception):
-            self.db.execute_many("INSERT INTO test_table VALUES (?)", [('val1',)])
+            self.db.execute_many("INSERT INTO test_table VALUES (%s)", [('val1',)])
 
     def test_rollback(self):
         """Test transaction rollback."""
@@ -127,19 +133,20 @@ class TestDBConnect(unittest.TestCase):
         
         mock_conn.rollback.assert_called_once()
 
-    def test_context_manager(self):
+    @patch('mysql.connector.connect')
+    def test_context_manager(self, mock_connect):
         """Test DBConnect as a context manager."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_conn
         
-        with patch('python.DBConnect.sqlite3.connect', return_value=mock_conn) as mock_connect:
-            with DBConnect() as db:
-                self.assertIsNotNone(db.conn)
-                self.assertIsNotNone(db.cursor)
-            
-            mock_connect.assert_called_once()
-            mock_conn.close.assert_called_once()
+        with DBConnect() as db:
+            self.assertIsNotNone(db.conn)
+            self.assertIsNotNone(db.cursor)
+        
+        mock_connect.assert_called_once()
+        mock_conn.close.assert_called_once()
 
 if __name__ == '__main__':
     unittest.main() 

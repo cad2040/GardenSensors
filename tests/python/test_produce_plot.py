@@ -2,13 +2,18 @@ import unittest
 import os
 from unittest.mock import patch, MagicMock
 import sys
+import pandas as pd
+from datetime import datetime, timedelta
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from python.ProducePlot import PlotGenerator
 
 class TestPlotGenerator(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures before each test method."""
-        self.plotter = PlotGenerator()
+        self.mock_db = MagicMock()
+        with patch('python.ProducePlot.DBConnect', return_value=self.mock_db):
+            self.plotter = PlotGenerator()
         
     def tearDown(self):
         """Clean up after each test method."""
@@ -18,134 +23,74 @@ class TestPlotGenerator(unittest.TestCase):
     def test_initialization(self):
         """Test that the PlotGenerator class initializes correctly."""
         self.assertIsNotNone(self.plotter)
-        self.assertIsNone(self.plotter.data)
-        self.assertIsNone(self.plotter.figure)
-        self.assertIsNone(self.plotter.axes)
+        self.assertIsNotNone(self.plotter.db)
 
-    def test_load_data(self):
-        """Test loading data from database."""
-        mock_data = [
-            {'timestamp': '2024-01-01 10:00:00', 'value': 45.5},
-            {'timestamp': '2024-01-01 11:00:00', 'value': 46.2}
-        ]
+    def test_get_sensor_data(self):
+        """Test getting sensor data from database."""
+        mock_data = pd.DataFrame({
+            'sensor_name': ['Sensor1', 'Sensor1'],
+            'sensor_type': ['temperature', 'temperature'],
+            'reading_value': [25.5, 26.2],
+            'reading_timestamp': [
+                datetime.now() - timedelta(hours=1),
+                datetime.now()
+            ]
+        })
         
-        with patch('python.ProducePlot.DBConnect') as mock_db:
-            mock_db.return_value.__enter__.return_value.execute_query.return_value = mock_data
-            self.plotter.load_data('test_sensor', '2024-01-01', '2024-01-02')
-            
-            self.assertEqual(len(self.plotter.data), 2)
-            self.assertEqual(self.plotter.data[0]['value'], 45.5)
+        self.mock_db.query_to_dataframe.return_value = mock_data
+        result = self.plotter.get_sensor_data(days=1)
+        
+        self.assertTrue(isinstance(result, pd.DataFrame))
+        self.assertEqual(len(result), 2)
+        self.assertEqual(list(result.columns), ['sensor_name', 'sensor_type', 'reading_value', 'reading_timestamp'])
 
-    def test_load_data_empty(self):
-        """Test loading data when no data is available."""
-        with patch('python.ProducePlot.DBConnect') as mock_db:
-            mock_db.return_value.__enter__.return_value.execute_query.return_value = []
-            self.plotter.load_data('test_sensor', '2024-01-01', '2024-01-02')
-            
-            self.assertEqual(len(self.plotter.data), 0)
+    def test_get_sensor_data_empty(self):
+        """Test getting sensor data when no data is available."""
+        self.mock_db.query_to_dataframe.return_value = pd.DataFrame()
+        result = self.plotter.get_sensor_data(days=1)
+        
+        self.assertTrue(result.empty)
 
-    def test_create_figure(self):
-        """Test creating a new figure."""
-        self.plotter.create_figure()
+    @patch('python.ProducePlot.figure')
+    @patch('python.ProducePlot.output_file')
+    @patch('python.ProducePlot.save')
+    def test_generate_plot(self, mock_save, mock_output_file, mock_figure):
+        """Test generating a plot."""
+        mock_data = pd.DataFrame({
+            'sensor_name': ['Sensor1', 'Sensor1'],
+            'sensor_type': ['temperature', 'temperature'],
+            'reading_value': [25.5, 26.2],
+            'reading_timestamp': [
+                datetime.now() - timedelta(hours=1),
+                datetime.now()
+            ]
+        })
         
-        self.assertIsNotNone(self.plotter.figure)
-        self.assertIsNotNone(self.plotter.axes)
+        self.mock_db.query_to_dataframe.return_value = mock_data
+        result = self.plotter.generate_plot('test_plot.html', days=1)
+        
+        self.assertTrue(result)
+        mock_figure.assert_called_once()
+        mock_output_file.assert_called_once_with('test_plot.html')
+        mock_save.assert_called_once()
 
-    def test_plot_line(self):
-        """Test plotting a line graph."""
-        self.plotter.data = [
-            {'timestamp': '2024-01-01 10:00:00', 'value': 45.5},
-            {'timestamp': '2024-01-01 11:00:00', 'value': 46.2}
-        ]
+    @patch('python.ProducePlot.figure')
+    @patch('python.ProducePlot.output_file')
+    @patch('python.ProducePlot.save')
+    def test_generate_plot_empty_data(self, mock_save, mock_output_file, mock_figure):
+        """Test generating a plot with no data."""
+        self.mock_db.query_to_dataframe.return_value = pd.DataFrame()
+        result = self.plotter.generate_plot('test_plot.html', days=1)
         
-        self.plotter.create_figure()
-        self.plotter.plot_line('value', 'Test Line')
-        
-        self.assertEqual(len(self.plotter.axes.lines), 1)
-        self.assertEqual(self.plotter.axes.lines[0].get_label(), 'Test Line')
-
-    def test_plot_bar(self):
-        """Test plotting a bar graph."""
-        self.plotter.data = [
-            {'timestamp': '2024-01-01 10:00:00', 'value': 45.5},
-            {'timestamp': '2024-01-01 11:00:00', 'value': 46.2}
-        ]
-        
-        self.plotter.create_figure()
-        self.plotter.plot_bar('value', 'Test Bar')
-        
-        self.assertEqual(len(self.plotter.axes.patches), 2)
-        self.assertEqual(self.plotter.axes.patches[0].get_label(), 'Test Bar')
-
-    def test_set_title(self):
-        """Test setting plot title."""
-        self.plotter.create_figure()
-        self.plotter.set_title('Test Title')
-        
-        self.assertEqual(self.plotter.axes.get_title(), 'Test Title')
-
-    def test_set_labels(self):
-        """Test setting axis labels."""
-        self.plotter.create_figure()
-        self.plotter.set_labels('X Label', 'Y Label')
-        
-        self.assertEqual(self.plotter.axes.get_xlabel(), 'X Label')
-        self.assertEqual(self.plotter.axes.get_ylabel(), 'Y Label')
-
-    def test_set_legend(self):
-        """Test setting plot legend."""
-        self.plotter.create_figure()
-        self.plotter.set_legend()
-        
-        self.assertIsNotNone(self.plotter.axes.get_legend())
-
-    def test_save_plot(self):
-        """Test saving plot to file."""
-        self.plotter.create_figure()
-        test_file = 'test_plot.png'
-        
-        with patch('matplotlib.figure.Figure.savefig') as mock_save:
-            self.plotter.save_plot(test_file)
-            mock_save.assert_called_once_with(test_file)
+        self.assertFalse(result)
+        mock_figure.assert_not_called()
+        mock_output_file.assert_not_called()
+        mock_save.assert_not_called()
 
     def test_cleanup(self):
-        """Test cleanup of plot resources."""
-        self.plotter.create_figure()
-        
-        with patch('matplotlib.figure.Figure.close') as mock_close:
-            self.plotter.cleanup()
-            mock_close.assert_called_once()
-
-    def test_plot_multiple_lines(self):
-        """Test plotting multiple lines on the same graph."""
-        self.plotter.data = [
-            {'timestamp': '2024-01-01 10:00:00', 'value1': 45.5, 'value2': 55.5},
-            {'timestamp': '2024-01-01 11:00:00', 'value1': 46.2, 'value2': 56.2}
-        ]
-        
-        self.plotter.create_figure()
-        self.plotter.plot_line('value1', 'Line 1')
-        self.plotter.plot_line('value2', 'Line 2')
-        
-        self.assertEqual(len(self.plotter.axes.lines), 2)
-        self.assertEqual(self.plotter.axes.lines[0].get_label(), 'Line 1')
-        self.assertEqual(self.plotter.axes.lines[1].get_label(), 'Line 2')
-
-    def test_plot_with_grid(self):
-        """Test plotting with grid enabled."""
-        self.plotter.create_figure()
-        self.plotter.set_grid(True)
-        
-        self.assertTrue(self.plotter.axes.xaxis._gridOnMajor)
-        self.assertTrue(self.plotter.axes.yaxis._gridOnMajor)
-
-    def test_plot_with_custom_style(self):
-        """Test plotting with custom style."""
-        self.plotter.create_figure()
-        self.plotter.set_style('dark_background')
-        
-        self.assertEqual(self.plotter.figure.get_facecolor(), '#000000')
-        self.assertEqual(self.plotter.axes.get_facecolor(), '#000000')
+        """Test cleanup of resources."""
+        self.plotter.cleanup()
+        self.mock_db.disconnect.assert_called_once()
 
 if __name__ == '__main__':
     unittest.main() 

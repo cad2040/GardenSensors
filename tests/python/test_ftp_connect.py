@@ -2,7 +2,7 @@ import unittest
 import os
 from unittest.mock import patch, MagicMock
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from python.FTPConnectMod import FTPConnect
 
 class TestFTPConnect(unittest.TestCase):
@@ -13,7 +13,7 @@ class TestFTPConnect(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test method."""
         if hasattr(self, 'ftp') and self.ftp.ftp:
-            self.ftp.ftp.quit()
+            self.ftp.disconnect()
 
     def test_initialization(self):
         """Test that the FTPConnect class initializes correctly."""
@@ -23,27 +23,25 @@ class TestFTPConnect(unittest.TestCase):
         self.assertIsNone(self.ftp.username)
         self.assertIsNone(self.ftp.password)
 
-    @patch('python.FTPConnectMod.ftplib.FTP')
+    @patch('ftplib.FTP')
     def test_connect_success(self, mock_ftp):
         """Test successful FTP connection."""
         mock_ftp_instance = MagicMock()
         mock_ftp.return_value = mock_ftp_instance
         
-        self.ftp.connect('test.host.com', 'user', 'pass')
+        result = self.ftp.connect()
         
-        self.assertIsNotNone(self.ftp.ftp)
-        self.assertEqual(self.ftp.host, 'test.host.com')
-        self.assertEqual(self.ftp.username, 'user')
-        self.assertEqual(self.ftp.password, 'pass')
-        mock_ftp_instance.login.assert_called_once_with('user', 'pass')
+        self.assertTrue(result)
+        mock_ftp.assert_called_once_with(self.ftp.host)
+        mock_ftp_instance.login.assert_called_once_with(self.ftp.username, self.ftp.password)
 
-    @patch('python.FTPConnectMod.ftplib.FTP')
+    @patch('ftplib.FTP')
     def test_connect_failure(self, mock_ftp):
         """Test FTP connection failure."""
         mock_ftp.side_effect = Exception("Connection failed")
         
         with self.assertRaises(Exception):
-            self.ftp.connect('test.host.com', 'user', 'pass')
+            self.ftp.connect()
 
     def test_disconnect(self):
         """Test FTP disconnection."""
@@ -55,19 +53,25 @@ class TestFTPConnect(unittest.TestCase):
         self.assertIsNone(self.ftp.ftp)
         mock_ftp.quit.assert_called_once()
 
-    def test_upload_file_success(self):
+    @patch('ftplib.FTP')
+    def test_upload_file_success(self, mock_ftp):
         """Test successful file upload."""
-        mock_ftp = MagicMock()
-        self.ftp.ftp = mock_ftp
+        mock_ftp_instance = MagicMock()
+        mock_ftp.return_value = mock_ftp_instance
         
-        local_path = 'test.txt'
-        remote_path = 'remote/test.txt'
+        test_file = "test.txt"
+        with open(test_file, "w") as f:
+            f.write("test content")
         
-        with patch('builtins.open', create=True) as mock_open:
-            self.ftp.upload_file(local_path, remote_path)
+        try:
+            result = self.ftp.upload_file(test_file, "remote.txt")
             
-            mock_open.assert_called_once_with(local_path, 'rb')
-            mock_ftp.storbinary.assert_called_once()
+            self.assertTrue(result)
+            mock_ftp.assert_called_once_with(self.ftp.host)
+            mock_ftp_instance.login.assert_called_once_with(self.ftp.username, self.ftp.password)
+            self.assertTrue(mock_ftp_instance.storbinary.called)
+        finally:
+            os.remove(test_file)
 
     def test_upload_file_failure(self):
         """Test file upload failure."""
@@ -142,6 +146,16 @@ class TestFTPConnect(unittest.TestCase):
             
             mock_ftp_class.assert_called_once()
             mock_ftp.quit.assert_called_once()
+
+    def test_close(self):
+        """Test FTPConnect close method."""
+        mock_ftp = MagicMock()
+        self.ftp.ftp = mock_ftp
+        
+        self.ftp.close()
+        
+        mock_ftp.quit.assert_called_once()
+        self.assertIsNone(self.ftp.ftp)
 
 if __name__ == '__main__':
     unittest.main() 

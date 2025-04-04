@@ -1,8 +1,24 @@
-# Core dependencies
-bokeh==2.4.3
+# Web Framework and Tools
+bokeh==3.7.2
 mysql-connector-python==8.0.33
 python-dotenv==1.0.0
 
-# Development dependencies (optional)
+# Data Processing
+pandas==2.2.0
+numpy==1.26.4
+pyarrow==19.0.1  # Required for pandas 3.0 compatibility
+
+# Utilities
+tenacity==8.2.3
+
+# Testing
 pytest==7.4.3
-black==23.11.0 
+black==23.11.0
+
+# Dependencies for Bokeh
+contourpy==1.3.1
+narwhals==1.33.0
+xyzservices==2025.1.0
+
+# Note: RPi.GPIO is only needed on Raspberry Pi hardware
+# For development environments, we mock this dependency 
