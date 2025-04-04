@@ -1,26 +1,6 @@
 <?php
-require_once 'config.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
-
-// Start session
-session_start();
-
-// Check if user is logged in
-if (isset($_SESSION['user_id'])) {
-    try {
-        $db = new Database();
-        $conn = $db->getConnection();
-        
-        // Log the logout
-        $logQuery = "INSERT INTO SystemLog (action, details, user_id) VALUES ('logout', 'User logged out', :user_id)";
-        $logStmt = $conn->prepare($logQuery);
-        $logStmt->execute([':user_id' => $_SESSION['user_id']]);
-        
-    } catch (Exception $e) {
-        logError('Logout error: ' . $e->getMessage());
-    }
-}
+// Load configuration
+require_once __DIR__ . '/config.php';
 
 // Clear all session variables
 $_SESSION = array();

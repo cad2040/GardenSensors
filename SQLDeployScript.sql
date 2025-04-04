@@ -194,3 +194,62 @@ SELECT
     COUNT(DISTINCT CASE WHEN fp.nextWatering < NOW() THEN fp.id END) as plants_needing_water
 FROM Sensors s
 LEFT JOIN FactPlants fp ON s.id = fp.sensor_id;
+
+-- Create users table
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Create sensors table
+CREATE TABLE IF NOT EXISTS sensors (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    location VARCHAR(100),
+    description TEXT,
+    status ENUM('active', 'inactive', 'maintenance') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Create sensor_readings table
+CREATE TABLE IF NOT EXISTS sensor_readings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sensor_id INT NOT NULL,
+    value DECIMAL(10,2) NOT NULL,
+    unit VARCHAR(20) NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sensor_id) REFERENCES sensors(id) ON DELETE CASCADE
+);
+
+-- Create system_log table
+CREATE TABLE IF NOT EXISTS system_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    action VARCHAR(50) NOT NULL,
+    details TEXT,
+    user_id INT,
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Insert default admin user (password: admin123)
+INSERT INTO users (username, password_hash, email) VALUES 
+('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@example.com');
+
+-- Insert some sample sensors
+INSERT INTO sensors (name, type, location, description) VALUES
+('Temperature Sensor 1', 'temperature', 'Greenhouse 1', 'Main temperature sensor in greenhouse 1'),
+('Humidity Sensor 1', 'humidity', 'Greenhouse 1', 'Main humidity sensor in greenhouse 1'),
+('Soil Moisture 1', 'moisture', 'Greenhouse 1', 'Soil moisture sensor for plant bed 1');
+
+-- Insert some sample readings
+INSERT INTO sensor_readings (sensor_id, value, unit) VALUES
+(1, 25.5, '°C'),
+(2, 65.0, '%'),
+(3, 45.0, '%');

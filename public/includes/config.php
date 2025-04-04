@@ -2,13 +2,13 @@
 // Database configuration
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'garden_sensors');
-define('DB_USER', 'root');
+define('DB_USER', 'garden_user');
 define('DB_PASS', '');
 define('DB_CHARSET', 'utf8mb4');
 
 // Application configuration
 define('APP_NAME', 'Garden Sensors');
-define('APP_URL', 'http://localhost/GardenSensors/GUI');
+define('APP_URL', 'http://localhost');
 define('APP_VERSION', '1.0.0');
 
 // Security configuration
@@ -21,7 +21,7 @@ define('API_KEY_LENGTH', 32);
 // Cache configuration
 define('CACHE_ENABLED', true);
 define('CACHE_DIR', __DIR__ . '/../cache');
-define('CACHE_TTL', 300); // 5 minutes
+define('CACHE_TTL', 3600); // 1 hour
 
 // Rate limiting configuration
 define('RATE_LIMIT_ENABLED', true);
@@ -34,7 +34,7 @@ define('API_BASE_URL', APP_URL . '/api/' . API_VERSION);
 define('API_RESPONSE_FORMAT', 'json');
 
 // Logging configuration
-define('LOG_LEVEL', 'debug'); // debug, info, warning, error
+define('LOG_LEVEL', 'DEBUG');
 define('LOG_FILE', __DIR__ . '/../logs/app.log');
 define('LOG_MAX_SIZE', 5242880); // 5MB
 define('LOG_MAX_FILES', 5);

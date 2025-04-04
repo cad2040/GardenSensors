@@ -13,20 +13,28 @@ if (session_status() === PHP_SESSION_NONE) {
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Include the main configuration file
+require_once __DIR__ . '/includes/config.php';
+
 // Database configuration
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'garden_sensors');
 define('DB_USER', 'garden_user');
-define('DB_PASS', 'garden123');
+define('DB_PASS', '');
+
+// Application paths
+define('APP_ROOT', dirname(__DIR__));
+define('INCLUDES_PATH', APP_ROOT . '/public/includes');
+
+// Include required files
+require_once(INCLUDES_PATH . '/functions.php');
 
 // Application configuration
-define('APP_NAME', 'Garden Sensors Dashboard');
-define('APP_URL', 'http://localhost/garden-sensors');
+define('APP_NAME', 'Garden Sensors');
 define('APP_VERSION', '1.0.0');
 
 // File paths (only define if not already defined)
 if (!defined('ROOT_PATH')) define('ROOT_PATH', '/var/www/html/garden-sensors');
-if (!defined('INCLUDES_PATH')) define('INCLUDES_PATH', ROOT_PATH . '/includes');
 if (!defined('CACHE_PATH')) define('CACHE_PATH', ROOT_PATH . '/cache');
 if (!defined('LOGS_PATH')) define('LOGS_PATH', ROOT_PATH . '/logs');
 
@@ -49,22 +57,23 @@ date_default_timezone_set('UTC');
 if (!defined('DEBUG_MODE')) define('DEBUG_MODE', true); // Enable debug mode temporarily
 if (!defined('TIMEZONE')) define('TIMEZONE', 'UTC');
 
-// Security settings
-if (!defined('SESSION_LIFETIME')) define('SESSION_LIFETIME', 3600); // 1 hour
-if (!defined('MAX_LOGIN_ATTEMPTS')) define('MAX_LOGIN_ATTEMPTS', 5);
-if (!defined('LOCKOUT_TIME')) define('LOCKOUT_TIME', 900); // 15 minutes
-if (!defined('PASSWORD_RESET_EXPIRY')) define('PASSWORD_RESET_EXPIRY', 3600); // 1 hour
-if (!defined('CSRF_TOKEN_NAME')) define('CSRF_TOKEN_NAME', 'csrf_token');
-if (!defined('CSRF_TOKEN_LENGTH')) define('CSRF_TOKEN_LENGTH', 32);
-if (!defined('PASSWORD_HASH_ALGO')) define('PASSWORD_HASH_ALGO', PASSWORD_DEFAULT);
+// Security configuration
+define('SESSION_LIFETIME', 3600);
+define('CSRF_TOKEN_NAME', 'csrf_token');
+define('CSRF_TOKEN_LENGTH', 32);
+define('MAX_LOGIN_ATTEMPTS', 5);
+define('LOGIN_TIMEOUT', 900);
 
-// Cache settings
-if (!defined('CACHE_ENABLED')) define('CACHE_ENABLED', true);
-if (!defined('CACHE_LIFETIME')) define('CACHE_LIFETIME', 300); // 5 minutes
+// Cache configuration
+define('CACHE_ENABLED', true);
+define('CACHE_DIR', APP_ROOT . '/cache');
+define('CACHE_TTL', 300);
 
-// Logging settings
-if (!defined('LOG_ENABLED')) define('LOG_ENABLED', true);
-if (!defined('LOG_LEVEL')) define('LOG_LEVEL', 'ERROR'); // DEBUG, INFO, WARNING, ERROR
+// Logging configuration
+define('LOG_LEVEL', 'debug');
+define('LOG_FILE', APP_ROOT . '/logs/app.log');
+define('LOG_MAX_SIZE', 5242880);
+define('LOG_MAX_FILES', 5);
 
 // Email settings
 if (!defined('SMTP_HOST')) define('SMTP_HOST', 'smtp.gmail.com');
@@ -77,14 +86,6 @@ if (!defined('ALERT_EMAIL')) define('ALERT_EMAIL', 'alerts@yourdomain.com');
 if (!defined('READING_INTERVAL')) define('READING_INTERVAL', 3600); // 1 hour
 if (!defined('ALERT_THRESHOLD')) define('ALERT_THRESHOLD', 20); // Battery level percentage
 if (!defined('DATA_RETENTION_DAYS')) define('DATA_RETENTION_DAYS', 30);
-
-// Include required files only if they haven't been included yet
-if (!function_exists('getUserById')) {
-    require_once INCLUDES_PATH . '/functions.php';
-}
-if (!class_exists('Database')) {
-    require_once INCLUDES_PATH . '/db.php';
-}
 
 // Set timezone
 date_default_timezone_set(TIMEZONE);

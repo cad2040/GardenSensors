@@ -720,4 +720,94 @@ async function updateMoistureThreshold(element) {
         // Revert the change
         element.val(element.data('original-value'));
     }
-} 
+}
+
+// Utility function to format dates
+function formatDate(date) {
+    return new Date(date).toLocaleString();
+}
+
+// Function to update sensor readings in real-time
+function updateSensorReadings() {
+    fetch('/api/v1/readings/latest')
+        .then(response => response.json())
+        .then(data => {
+            const readingsTable = document.querySelector('.sensor-readings tbody');
+            if (readingsTable && data.readings) {
+                readingsTable.innerHTML = data.readings.map(reading => `
+                    <tr>
+                        <td>${reading.sensor_id}</td>
+                        <td>${reading.value}</td>
+                        <td>${formatDate(reading.timestamp)}</td>
+                    </tr>
+                `).join('');
+            }
+        })
+        .catch(error => console.error('Error updating readings:', error));
+}
+
+// Function to handle form submissions with CSRF protection
+function handleFormSubmit(formId, endpoint) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                showAlert('success', data.message);
+                if (data.redirect) {
+                    window.location.href = data.redirect;
+                }
+            } else {
+                showAlert('danger', data.message || 'An error occurred');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showAlert('danger', 'An error occurred while processing your request');
+        }
+    });
+}
+
+// Function to show alerts
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Set up real-time updates if on dashboard
+    if (document.querySelector('.sensor-readings')) {
+        updateSensorReadings();
+        setInterval(updateSensorReadings, 30000); // Update every 30 seconds
+    }
+}); 

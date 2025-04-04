@@ -1,313 +1,189 @@
 <?php
-/**
- * Utility functions for the Garden Sensors Dashboard
- */
+// Include configuration file
+require_once 'config.php';
 
-// Check if functions are already defined to prevent redeclaration
-if (!function_exists('sanitizeInput')) {
-    /**
-     * Sanitize user input
-     */
-    function sanitizeInput($data) {
-        $data = trim($data);
-        $data = stripslashes($data);
-        $data = htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
-        return $data;
+// Database functions
+function getDatabaseConnection() {
+    static $db = null;
+    if ($db === null) {
+        $db = new Database();
     }
+    return $db->getConnection();
 }
 
-if (!function_exists('generateCSRFToken')) {
-    /**
-     * Generate CSRF token
-     */
-    function generateCSRFToken() {
-        if (empty($_SESSION[CSRF_TOKEN_NAME])) {
-            $_SESSION[CSRF_TOKEN_NAME] = bin2hex(random_bytes(CSRF_TOKEN_LENGTH));
+// User functions
+function createUser($email, $password, $name = '') {
+    try {
+        $conn = getDatabaseConnection();
+        
+        // Check if user already exists
+        $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = :email");
+        $stmt->execute([':email' => $email]);
+        if ($stmt->fetch()) {
+            throw new Exception("User with this email already exists");
         }
-        return $_SESSION[CSRF_TOKEN_NAME];
+        
+        // Hash password
+        $hashedPassword = password_hash($password, PASSWORD_HASH_ALGO);
+        
+        // Insert new user
+        $query = "INSERT INTO users (email, password, name, created_at) VALUES (:email, :password, :name, NOW())";
+        $stmt = $conn->prepare($query);
+        $stmt->execute([
+            ':email' => $email,
+            ':password' => $hashedPassword,
+            ':name' => $name
+        ]);
+        
+        return $conn->lastInsertId();
+    } catch (Exception $e) {
+        logError("Error creating user: " . $e->getMessage());
+        throw $e;
     }
 }
 
-if (!function_exists('validateCSRFToken')) {
-    /**
-     * Validate CSRF token
-     */
-    function validateCSRFToken($token) {
-        return !empty($_SESSION[CSRF_TOKEN_NAME]) && 
-               hash_equals($_SESSION[CSRF_TOKEN_NAME], $token);
-    }
-}
-
-if (!function_exists('logError')) {
-    /**
-     * Log errors
-     */
-    function logError($message, $context = []) {
-        $timestamp = date('Y-m-d H:i:s');
-        $contextStr = !empty($context) ? json_encode($context) : '';
-        $logMessage = "[$timestamp] ERROR: $message $contextStr\n";
-        error_log($logMessage, 3, LOGS_PATH . '/error.log');
-    }
-}
-
-if (!function_exists('logInfo')) {
-    /**
-     * Log info messages
-     */
-    function logInfo($message, $context = []) {
-        $timestamp = date('Y-m-d H:i:s');
-        $contextStr = !empty($context) ? json_encode($context) : '';
-        $logMessage = "[$timestamp] INFO: $message $contextStr\n";
-        error_log($logMessage, 3, LOGS_PATH . '/info.log');
-    }
-}
-
-/**
- * Format moisture reading
- */
-function formatMoisture($value) {
-    return number_format($value, 1) . '%';
-}
-
-/**
- * Format temperature reading
- */
-function formatTemperature($value) {
-    return number_format($value, 1) . '°C';
-}
-
-/**
- * Format humidity reading
- */
-function formatHumidity($value) {
-    return number_format($value, 1) . '%';
-}
-
-/**
- * Format timestamp
- */
-function formatTimestamp($timestamp) {
-    return date('Y-m-d H:i:s', strtotime($timestamp));
-}
-
-/**
- * Display alert message
- */
-function displayAlert($message, $type = 'info') {
-    $class = match($type) {
-        'success' => 'alert-success',
-        'warning' => 'alert-warning',
-        'error' => 'alert-danger',
-        default => 'alert-info'
-    };
-    return "<div class='alert {$class}'>{$message}</div>";
-}
-
-/**
- * Validate sensor data
- */
-function validateSensorData($data) {
-    $errors = [];
-    
-    if (empty($data['sensor'])) {
-        $errors[] = 'Sensor name is required';
-    }
-    
-    if (isset($data['reading']) && !is_numeric($data['reading'])) {
-        $errors[] = 'Reading must be a number';
-    }
-    
-    if (isset($data['temperature']) && !is_numeric($data['temperature'])) {
-        $errors[] = 'Temperature must be a number';
-    }
-    
-    if (isset($data['humidity']) && !is_numeric($data['humidity'])) {
-        $errors[] = 'Humidity must be a number';
-    }
-    
-    return $errors;
-}
-
-/**
- * Validate plant data
- */
-function validatePlantData($data) {
-    $errors = [];
-    
-    if (empty($data['plant'])) {
-        $errors[] = 'Plant name is required';
-    }
-    
-    if (!isset($data['minSoilMoisture']) || !is_numeric($data['minSoilMoisture'])) {
-        $errors[] = 'Minimum soil moisture must be a number';
-    }
-    
-    if (!isset($data['maxSoilMoisture']) || !is_numeric($data['maxSoilMoisture'])) {
-        $errors[] = 'Maximum soil moisture must be a number';
-    }
-    
-    if ($data['minSoilMoisture'] >= $data['maxSoilMoisture']) {
-        $errors[] = 'Minimum soil moisture must be less than maximum';
-    }
-    
-    return $errors;
-}
-
-/**
- * Check if user has permission
- */
-function checkPermission($permission) {
-    if (!isset($_SESSION['permissions']) || !in_array($permission, $_SESSION['permissions'])) {
-        throw new Exception('Permission denied');
-    }
-    return true;
-}
-
-/**
- * Get user's timezone
- */
-function getUserTimezone() {
-    return $_SESSION['timezone'] ?? 'UTC';
-}
-
-/**
- * Convert timestamp to user's timezone
- */
-function convertToUserTimezone($timestamp) {
-    $userTimezone = getUserTimezone();
-    $date = new DateTime($timestamp, new DateTimeZone('UTC'));
-    $date->setTimezone(new DateTimeZone($userTimezone));
-    return $date->format('Y-m-d H:i:s');
-}
-
-/**
- * User functions
- */
-
-if (!function_exists('getDbConnection')) {
-    /**
-     * Get database connection
-     */
-    function getDbConnection() {
-        static $conn = null;
-        if ($conn === null) {
-            try {
-                $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-                if ($conn->connect_error) {
-                    throw new Exception("Connection failed: " . $conn->connect_error);
-                }
-                $conn->set_charset("utf8mb4");
-            } catch (Exception $e) {
-                logError("Database connection error: " . $e->getMessage());
-                throw $e;
+function updateUser($userId, $data) {
+    try {
+        $conn = getDatabaseConnection();
+        
+        $allowedFields = ['name', 'email', 'password', 'role'];
+        $updates = [];
+        $params = [':user_id' => $userId];
+        
+        foreach ($data as $field => $value) {
+            if (in_array($field, $allowedFields)) {
+                $updates[] = "$field = :$field";
+                $params[":$field"] = $value;
             }
         }
-        return $conn;
-    }
-}
-
-if (!function_exists('getUserById')) {
-    /**
-     * Get user by ID
-     */
-    function getUserById($user_id) {
-        try {
-            $conn = getDbConnection();
-            $user_id = sanitizeInput($user_id);
-            $stmt = $conn->prepare("SELECT * FROM users WHERE user_id = ?");
-            if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
-            }
-            $stmt->bind_param("i", $user_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            return $result->fetch_assoc();
-        } catch (Exception $e) {
-            logError("Error getting user by ID: " . $e->getMessage(), ['user_id' => $user_id]);
-            return null;
+        
+        if (empty($updates)) {
+            return false;
         }
+        
+        $query = "UPDATE users SET " . implode(', ', $updates) . " WHERE user_id = :user_id";
+        $stmt = $conn->prepare($query);
+        return $stmt->execute($params);
+    } catch (Exception $e) {
+        logError("Error updating user: " . $e->getMessage());
+        throw $e;
     }
 }
 
-if (!function_exists('getUserByEmail')) {
-    /**
-     * Get user by email
-     */
-    function getUserByEmail($email) {
-        try {
-            $conn = getDbConnection();
-            $email = sanitizeInput($email);
-            $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
-            if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
-            }
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            return $result->fetch_assoc();
-        } catch (Exception $e) {
-            logError("Error getting user by email: " . $e->getMessage(), ['email' => $email]);
-            return null;
+function deleteUser($userId) {
+    try {
+        $conn = getDatabaseConnection();
+        
+        $query = "DELETE FROM users WHERE user_id = :user_id";
+        $stmt = $conn->prepare($query);
+        return $stmt->execute([':user_id' => $userId]);
+    } catch (Exception $e) {
+        logError("Error deleting user: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+// Sensor functions
+function getSensorReadings($sensorId, $limit = 100) {
+    try {
+        $conn = getDatabaseConnection();
+        
+        $query = "SELECT * FROM sensor_readings WHERE sensor_id = :sensor_id ORDER BY timestamp DESC LIMIT :limit";
+        $stmt = $conn->prepare($query);
+        $stmt->bindValue(':sensor_id', $sensorId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        logError("Error getting sensor readings: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+function addSensorReading($sensorId, $moisture, $temperature, $battery) {
+    try {
+        $conn = getDatabaseConnection();
+        
+        $query = "INSERT INTO sensor_readings (sensor_id, moisture, temperature, battery, timestamp) 
+                 VALUES (:sensor_id, :moisture, :temperature, :battery, NOW())";
+        $stmt = $conn->prepare($query);
+        return $stmt->execute([
+            ':sensor_id' => $sensorId,
+            ':moisture' => $moisture,
+            ':temperature' => $temperature,
+            ':battery' => $battery
+        ]);
+    } catch (Exception $e) {
+        logError("Error adding sensor reading: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+// Alert functions
+function checkBatteryLevel($sensorId) {
+    try {
+        $conn = getDatabaseConnection();
+        
+        $query = "SELECT battery FROM sensor_readings WHERE sensor_id = :sensor_id ORDER BY timestamp DESC LIMIT 1";
+        $stmt = $conn->prepare($query);
+        $stmt->execute([':sensor_id' => $sensorId]);
+        $reading = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($reading && $reading['battery'] <= ALERT_THRESHOLD) {
+            sendAlert($sensorId, "Low battery level: {$reading['battery']}%");
         }
+    } catch (Exception $e) {
+        logError("Error checking battery level: " . $e->getMessage());
     }
 }
 
-if (!function_exists('isLoggedIn')) {
-    /**
-     * Check if user is logged in
-     */
-    function isLoggedIn() {
-        return isset($_SESSION['user_id']);
+function sendAlert($sensorId, $message) {
+    try {
+        $conn = getDatabaseConnection();
+        
+        $query = "INSERT INTO alerts (sensor_id, message, created_at) VALUES (:sensor_id, :message, NOW())";
+        $stmt = $conn->prepare($query);
+        $stmt->execute([
+            ':sensor_id' => $sensorId,
+            ':message' => $message
+        ]);
+        
+        // TODO: Implement email notification
+    } catch (Exception $e) {
+        logError("Error sending alert: " . $e->getMessage());
     }
 }
 
-if (!function_exists('requireLogin')) {
-    /**
-     * Require user to be logged in
-     */
-    function requireLogin() {
-        if (!isLoggedIn()) {
-            header('Location: ' . APP_URL . '/login.php');
-            exit();
+// Cache functions
+function getCachedData($key) {
+    if (!CACHE_ENABLED) {
+        return null;
+    }
+    
+    $file = CACHE_PATH . '/' . md5($key) . '.cache';
+    if (file_exists($file) && (time() - filemtime($file) < CACHE_LIFETIME)) {
+        return unserialize(file_get_contents($file));
+    }
+    return null;
+}
+
+function setCachedData($key, $data) {
+    if (!CACHE_ENABLED) {
+        return false;
+    }
+    
+    $file = CACHE_PATH . '/' . md5($key) . '.cache';
+    return file_put_contents($file, serialize($data));
+}
+
+function clearCache($key = null) {
+    if ($key) {
+        $file = CACHE_PATH . '/' . md5($key) . '.cache';
+        if (file_exists($file)) {
+            unlink($file);
         }
-    }
-}
-
-if (!function_exists('isAdmin')) {
-    /**
-     * Check if user is admin
-     */
-    function isAdmin() {
-        if (!isLoggedIn()) return false;
-        $user = getUserById($_SESSION['user_id']);
-        return $user && $user['role'] === 'admin';
-    }
-}
-
-if (!function_exists('requireAdmin')) {
-    /**
-     * Require user to be admin
-     */
-    function requireAdmin() {
-        if (!isAdmin()) {
-            header('Location: ' . APP_URL . '/index.php');
-            exit();
-        }
-    }
-}
-
-/**
- * Response helpers
- */
-
-if (!function_exists('sendJsonResponse')) {
-    /**
-     * Send JSON response
-     */
-    function sendJsonResponse($data, $status = 200) {
-        header('Content-Type: application/json');
-        http_response_code($status);
-        echo json_encode($data);
-        exit();
+    } else {
+        array_map('unlink', glob(CACHE_PATH . '/*.cache'));
     }
 } 
