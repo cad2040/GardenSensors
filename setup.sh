@@ -304,6 +304,63 @@ EOL
     print_info "MySQL application user 'SoilSensors' has been created with password 'SoilSensors123'"
 }
 
+# Function to setup PHP application
+setup_php_app() {
+    print_step "Setting up PHP application"
+    
+    # Install Composer if not installed
+    if ! command_exists composer; then
+        print_info "Installing Composer..."
+        EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+        php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+        ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
+        if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+            rm composer-setup.php
+            print_error "Composer installer checksum verification failed"
+        fi
+        php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+        rm composer-setup.php
+    fi
+    
+    # Create application directory
+    print_info "Creating application directory..."
+    mkdir -p /var/www/garden-sensors
+    
+    # Copy application files
+    print_info "Copying application files..."
+    cp -r src/* /var/www/garden-sensors/
+    cp composer.json composer.lock /var/www/garden-sensors/
+    cp .env.example /var/www/garden-sensors/.env
+    
+    # Set proper permissions
+    print_info "Setting file permissions..."
+    chown -R www-data:www-data /var/www/garden-sensors
+    chmod -R 755 /var/www/garden-sensors
+    chmod -R 775 /var/www/garden-sensors/storage
+    chmod -R 775 /var/www/garden-sensors/bootstrap/cache
+    
+    # Install PHP dependencies
+    print_info "Installing PHP dependencies..."
+    cd /var/www/garden-sensors
+    composer install --no-dev --optimize-autoloader
+    
+    # Generate application key
+    print_info "Generating application key..."
+    php artisan key:generate
+    
+    # Run database migrations
+    print_info "Running database migrations..."
+    php artisan migrate --force
+    
+    # Cache configuration and routes
+    print_info "Optimizing application..."
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+    
+    print_status "PHP application setup completed"
+}
+
 # Function to setup Apache web server
 setup_apache() {
     print_step "Setting up Apache web server"
@@ -576,8 +633,20 @@ main() {
     # Setup MySQL
     setup_mysql
     
+    # Setup PHP application
+    setup_php_app
+    
     # Setup Apache
     setup_apache
+    
+    # Setup configuration
+    setup_config
+    
+    # Setup cron jobs
+    setup_cron
+    
+    # Create admin user
+    create_admin_user
     
     # Setup Arduino if needed
     if [ "$ARDUINO_DEVELOPMENT" = "true" ]; then
@@ -588,6 +657,7 @@ main() {
     health_check
     
     print_status "Installation completed successfully"
+    print_info "You can access the application at: http://garden-sensors.local"
 }
 
 # Execute main function

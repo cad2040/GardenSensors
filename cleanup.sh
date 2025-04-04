@@ -39,9 +39,22 @@ check_root() {
 cleanup() {
     print_status "Starting cleanup"
     
-    # Stop Apache service
-    print_info "Stopping Apache service..."
+    # Stop services
+    print_info "Stopping services..."
     systemctl stop apache2 || print_warning "Failed to stop Apache"
+    systemctl stop mysql || print_warning "Failed to stop MySQL"
+    
+    # Clear PHP application caches
+    if [ -d "/var/www/garden-sensors" ]; then
+        print_info "Clearing PHP application caches..."
+        cd /var/www/garden-sensors
+        if [ -f "artisan" ]; then
+            php artisan cache:clear
+            php artisan config:clear
+            php artisan route:clear
+            php artisan view:clear
+        fi
+    fi
     
     # Remove Apache virtual host
     print_info "Removing Apache virtual host..."
@@ -56,7 +69,7 @@ cleanup() {
     print_info "Removing domain from hosts file..."
     sed -i '/garden-sensors.local/d' /etc/hosts
     
-    # Drop database
+    # Drop database and user
     print_info "Dropping database..."
     mysql -e "DROP DATABASE IF EXISTS garden_sensors;"
     mysql -e "DROP USER IF EXISTS 'garden_user'@'localhost';"
@@ -69,8 +82,18 @@ cleanup() {
     print_info "Removing log files..."
     rm -f /var/log/apache2/garden-sensors-*.log
     
-    # Start Apache service
-    print_info "Starting Apache service..."
+    # Remove Composer cache
+    print_info "Removing Composer cache..."
+    rm -rf ~/.composer/cache/*
+    
+    # Remove any remaining temporary files
+    print_info "Removing temporary files..."
+    rm -f composer-setup.php
+    rm -f composer.phar
+    
+    # Start services
+    print_info "Starting services..."
+    systemctl start mysql || print_warning "Failed to start MySQL"
     systemctl start apache2 || print_warning "Failed to start Apache"
     
     print_status "Cleanup completed successfully"

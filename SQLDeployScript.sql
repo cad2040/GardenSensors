@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS Sensors (
     INDEX idx_plot_type (plot_type)
 ) ENGINE=InnoDB;
 
--- Create Readings table with partitioning for better performance
+-- Create Readings table with improved indexing
 CREATE TABLE IF NOT EXISTS Readings (
     id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     sensor_id INT(6) UNSIGNED NOT NULL,
@@ -61,12 +61,7 @@ CREATE TABLE IF NOT EXISTS Readings (
         ON DELETE CASCADE,
     INDEX idx_sensor_time (sensor_id, inserted),
     INDEX idx_reading_time (inserted)
-) ENGINE=InnoDB
-PARTITION BY RANGE (UNIX_TIMESTAMP(inserted)) (
-    PARTITION p_old VALUES LESS THAN (UNIX_TIMESTAMP('2024-01-01 00:00:00')),
-    PARTITION p_current VALUES LESS THAN (UNIX_TIMESTAMP('2024-07-01 00:00:00')),
-    PARTITION p_future VALUES LESS THAN MAXVALUE
-);
+) ENGINE=InnoDB;
 
 -- Create DimPlants table with improved constraints
 CREATE TABLE IF NOT EXISTS DimPlants (
@@ -148,16 +143,20 @@ GRANT SELECT, INSERT ON garden_sensors.SystemLog TO 'garden_user'@'localhost';
 FLUSH PRIVILEGES;
 
 -- Insert initial data
-INSERT INTO Pins (pin, description) VALUES
-(2, 'GPIO2'),
-(3, 'GPIO3'),
-(4, 'GPIO4'),
-(5, 'GPIO5'),
-(12, 'GPIO12'),
-(13, 'GPIO13'),
-(14, 'GPIO14'),
-(15, 'GPIO15'),
-(16, 'GPIO16');
+INSERT INTO Sensors (sensor, description, location, status) VALUES
+('MAIN_SENSOR', 'Main garden sensor', 'Garden Center', 'active');
+
+-- Insert initial pins for the main sensor
+INSERT INTO Pins (sensor_id, pin, pinType) VALUES
+((SELECT id FROM Sensors WHERE sensor = 'MAIN_SENSOR'), 2, 'sensor'),
+((SELECT id FROM Sensors WHERE sensor = 'MAIN_SENSOR'), 3, 'sensor'),
+((SELECT id FROM Sensors WHERE sensor = 'MAIN_SENSOR'), 4, 'sensor'),
+((SELECT id FROM Sensors WHERE sensor = 'MAIN_SENSOR'), 5, 'sensor'),
+((SELECT id FROM Sensors WHERE sensor = 'MAIN_SENSOR'), 12, 'pump'),
+((SELECT id FROM Sensors WHERE sensor = 'MAIN_SENSOR'), 13, 'pump'),
+((SELECT id FROM Sensors WHERE sensor = 'MAIN_SENSOR'), 14, 'pump'),
+((SELECT id FROM Sensors WHERE sensor = 'MAIN_SENSOR'), 15, 'pump'),
+((SELECT id FROM Sensors WHERE sensor = 'MAIN_SENSOR'), 16, 'relay');
 
 -- Insert example plants
 INSERT INTO DimPlants (plant, species, minSoilMoisture, maxSoilMoisture, wateringFrequency) VALUES
