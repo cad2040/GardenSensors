@@ -7,6 +7,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Backup directory
+BACKUP_DIR="/var/backups/garden-sensors"
+
 # Function to print status messages
 print_status() {
     echo -e "${GREEN}[*] $1${NC}"
@@ -35,14 +38,58 @@ check_root() {
     fi
 }
 
+# Function to verify backup
+verify_backup() {
+    print_info "Verifying backup..."
+    
+    # Check if backup exists
+    if [ ! -d "$BACKUP_DIR" ]; then
+        print_warning "No backup directory found"
+        return 1
+    fi
+    
+    # Check backup integrity
+    if [ -f "$BACKUP_DIR/latest_backup.tar.gz" ]; then
+        if ! tar -tzf "$BACKUP_DIR/latest_backup.tar.gz" >/dev/null 2>&1; then
+            print_warning "Backup file is corrupted"
+            return 1
+        fi
+        print_status "Backup verification successful"
+        return 0
+    else
+        print_warning "No backup file found"
+        return 1
+    fi
+}
+
+# Function to get user confirmation
+get_confirmation() {
+    local message=$1
+    echo -e "${YELLOW}$message${NC}"
+    read -p "Do you want to proceed? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_error "Operation cancelled by user"
+    fi
+}
+
 # Main cleanup function
 cleanup() {
     print_status "Starting cleanup"
+    
+    # Verify backup before proceeding
+    verify_backup
+    
+    # Get user confirmation
+    get_confirmation "This will remove all garden-sensors components. Are you sure you want to proceed?"
     
     # Stop services
     print_info "Stopping services..."
     systemctl stop apache2 || print_warning "Failed to stop Apache"
     systemctl stop mysql || print_warning "Failed to stop MySQL"
+    systemctl stop prometheus || print_warning "Failed to stop Prometheus"
+    systemctl stop apache-exporter || print_warning "Failed to stop Apache exporter"
+    systemctl stop mysql-exporter || print_warning "Failed to stop MySQL exporter"
     
     # Clear PHP application caches
     if [ -d "/var/www/garden-sensors" ]; then
@@ -60,6 +107,7 @@ cleanup() {
     print_info "Removing Apache virtual host..."
     rm -f /etc/apache2/sites-available/garden-sensors.conf
     rm -f /etc/apache2/sites-enabled/garden-sensors.conf
+    rm -f /etc/apache2/conf-available/rate-limit.conf
     
     # Remove application files
     print_info "Removing application files..."
@@ -85,6 +133,24 @@ cleanup() {
     # Remove Composer cache
     print_info "Removing Composer cache..."
     rm -rf ~/.composer/cache/*
+    
+    # Remove monitoring components
+    print_info "Removing monitoring components..."
+    systemctl disable prometheus apache-exporter mysql-exporter
+    rm -f /etc/systemd/system/apache-exporter.service
+    rm -f /etc/systemd/system/mysql-exporter.service
+    rm -f /usr/local/bin/apache_exporter
+    rm -f /usr/local/bin/mysqld_exporter
+    apt-get remove -y prometheus prometheus-node-exporter || print_warning "Failed to remove monitoring packages"
+    
+    # Remove SSL certificate
+    print_info "Removing SSL certificate..."
+    certbot delete --cert-name garden-sensors.local --non-interactive || print_warning "Failed to remove SSL certificate"
+    
+    # Remove firewall rules
+    print_info "Removing firewall rules..."
+    ufw delete allow http || print_warning "Failed to remove HTTP rule"
+    ufw delete allow https || print_warning "Failed to remove HTTPS rule"
     
     # Remove any remaining temporary files
     print_info "Removing temporary files..."

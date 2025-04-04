@@ -13,6 +13,10 @@ MIN_MYSQL_VERSION="8.0"
 MIN_APACHE_VERSION="2.4"
 MIN_PHP_VERSION="7.4"
 
+# Backup configuration
+BACKUP_RETENTION_DAYS=7
+BACKUP_DIR="/var/backups/garden-sensors"
+
 # Function to print status messages
 print_status() {
     echo -e "${GREEN}[*] $1${NC}"
@@ -605,6 +609,179 @@ setup_arduino() {
     print_status "Arduino development environment setup completed"
 }
 
+# Function to setup SSL certificate
+setup_ssl() {
+    print_step "Setting up SSL certificate"
+    
+    # Install certbot if not installed
+    if ! command_exists certbot; then
+        print_info "Installing Certbot..."
+        apt-get install -y certbot python3-certbot-apache || print_error "Failed to install Certbot"
+    fi
+    
+    # Get domain from environment
+    DOMAIN=${APACHE_DOMAIN:-"garden-sensors.local"}
+    
+    # Generate SSL certificate
+    print_info "Generating SSL certificate..."
+    certbot --apache -d "$DOMAIN" --non-interactive --agree-tos --email admin@example.com || print_error "Failed to generate SSL certificate"
+    
+    # Configure automatic renewal
+    print_info "Configuring certificate renewal..."
+    echo "0 0 * * * certbot renew --quiet" | crontab -
+    
+    print_status "SSL setup completed"
+}
+
+# Function to setup firewall
+setup_firewall() {
+    print_step "Setting up firewall"
+    
+    # Install UFW if not installed
+    if ! command_exists ufw; then
+        print_info "Installing UFW..."
+        apt-get install -y ufw || print_error "Failed to install UFW"
+    fi
+    
+    # Configure UFW
+    print_info "Configuring firewall rules..."
+    ufw default deny incoming || print_error "Failed to set default deny incoming"
+    ufw default allow outgoing || print_error "Failed to set default allow outgoing"
+    ufw allow ssh || print_error "Failed to allow SSH"
+    ufw allow http || print_error "Failed to allow HTTP"
+    ufw allow https || print_error "Failed to allow HTTPS"
+    
+    # Enable UFW
+    print_info "Enabling firewall..."
+    ufw --force enable || print_error "Failed to enable firewall"
+    
+    print_status "Firewall setup completed"
+}
+
+# Function to setup monitoring
+setup_monitoring() {
+    print_step "Setting up monitoring"
+    
+    # Install Prometheus and Node Exporter
+    print_info "Installing monitoring tools..."
+    apt-get install -y prometheus prometheus-node-exporter || print_error "Failed to install monitoring tools"
+    
+    # Configure Prometheus
+    print_info "Configuring Prometheus..."
+    cat > /etc/prometheus/prometheus.yml << EOL
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
+  - job_name: 'apache'
+    static_configs:
+      - targets: ['localhost:9117']
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['localhost:9104']
+EOL
+    
+    # Install Apache exporter
+    print_info "Installing Apache exporter..."
+    wget https://github.com/Lusitaniae/apache_exporter/releases/download/v0.7.0/apache_exporter-0.7.0.linux-amd64.tar.gz
+    tar xzf apache_exporter-0.7.0.linux-amd64.tar.gz
+    mv apache_exporter-0.7.0.linux-amd64/apache_exporter /usr/local/bin/
+    rm -rf apache_exporter-0.7.0.linux-amd64*
+    
+    # Install MySQL exporter
+    print_info "Installing MySQL exporter..."
+    wget https://github.com/prometheus/mysqld_exporter/releases/download/v0.12.1/mysqld_exporter-0.12.1.linux-amd64.tar.gz
+    tar xzf mysqld_exporter-0.12.1.linux-amd64.tar.gz
+    mv mysqld_exporter-0.12.1.linux-amd64/mysqld_exporter /usr/local/bin/
+    rm -rf mysqld_exporter-0.12.1.linux-amd64*
+    
+    # Create systemd service for exporters
+    print_info "Creating systemd services..."
+    cat > /etc/systemd/system/apache-exporter.service << EOL
+[Unit]
+Description=Apache Exporter
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/apache_exporter
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOL
+    
+    cat > /etc/systemd/system/mysql-exporter.service << EOL
+[Unit]
+Description=MySQL Exporter
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mysqld_exporter
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOL
+    
+    # Start services
+    print_info "Starting monitoring services..."
+    systemctl daemon-reload
+    systemctl enable prometheus apache-exporter mysql-exporter
+    systemctl start prometheus apache-exporter mysql-exporter
+    
+    print_status "Monitoring setup completed"
+}
+
+# Function to setup backup rotation
+setup_backup_rotation() {
+    print_step "Setting up backup rotation"
+    
+    # Create backup directory
+    print_info "Creating backup directory..."
+    mkdir -p "$BACKUP_DIR"
+    
+    # Create backup rotation script
+    print_info "Creating backup rotation script..."
+    cat > /usr/local/bin/rotate-backups.sh << EOL
+#!/bin/bash
+find "$BACKUP_DIR" -type f -mtime +$BACKUP_RETENTION_DAYS -delete
+EOL
+    chmod +x /usr/local/bin/rotate-backups.sh
+    
+    # Add to crontab
+    print_info "Adding backup rotation to crontab..."
+    (crontab -l 2>/dev/null; echo "0 1 * * * /usr/local/bin/rotate-backups.sh") | crontab -
+    
+    print_status "Backup rotation setup completed"
+}
+
+# Function to setup rate limiting
+setup_rate_limiting() {
+    print_step "Setting up rate limiting"
+    
+    # Install mod_ratelimit
+    print_info "Installing rate limiting module..."
+    a2enmod ratelimit || print_error "Failed to enable rate limiting module"
+    
+    # Configure rate limiting
+    print_info "Configuring rate limiting..."
+    cat > /etc/apache2/conf-available/rate-limit.conf << EOL
+<IfModule mod_ratelimit.c>
+    SetOutputFilter RATE_LIMIT
+    SetEnv rate-limit 400
+</IfModule>
+EOL
+    a2enconf rate-limit
+    
+    print_status "Rate limiting setup completed"
+}
+
 # Main installation function
 main() {
     print_step "Starting installation"
@@ -639,6 +816,21 @@ main() {
     # Setup Apache
     setup_apache
     
+    # Setup SSL
+    setup_ssl
+    
+    # Setup firewall
+    setup_firewall
+    
+    # Setup monitoring
+    setup_monitoring
+    
+    # Setup backup rotation
+    setup_backup_rotation
+    
+    # Setup rate limiting
+    setup_rate_limiting
+    
     # Setup configuration
     setup_config
     
@@ -657,7 +849,7 @@ main() {
     health_check
     
     print_status "Installation completed successfully"
-    print_info "You can access the application at: http://garden-sensors.local"
+    print_info "You can access the application at: https://garden-sensors.local"
 }
 
 # Execute main function

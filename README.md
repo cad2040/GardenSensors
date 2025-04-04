@@ -1,226 +1,206 @@
-# Garden Sensors Project 🌱
+# Garden Sensors Application
 
-## Overview
-A comprehensive garden monitoring system that uses various sensors to track soil moisture, temperature, and humidity. The system provides real-time data visualization, automated alerts, and remote control capabilities through a modern web interface.
+A comprehensive garden monitoring system that tracks soil moisture, temperature, and other environmental factors using Arduino sensors and provides a web interface for data visualization and management.
 
-## Features 🌟
-- **Real-time Monitoring**
-  - Soil moisture tracking
-  - Temperature monitoring
-  - Humidity measurement
-  - Automated data collection
+## Features
 
-- **Smart Alerts**
-  - Low moisture warnings
-  - Temperature thresholds
-  - Battery status monitoring
-  - System health notifications
+- Real-time soil moisture and temperature monitoring
+- Web-based dashboard for data visualization
+- Email alerts for low moisture levels
+- Data export functionality
+- User authentication and role-based access control
+- Secure HTTPS access
+- Rate limiting for API endpoints
+- Automated backups with rotation
+- System monitoring with Prometheus
+- Firewall protection with UFW
 
-- **Automation**
-  - Scheduled watering
-  - Custom watering schedules per plant
-  - Automated data cleanup
-  - Database optimization
+## System Requirements
 
-- **Security**
-  - User authentication
-  - Role-based access control
-  - API rate limiting
-  - CSRF protection
-  - Input validation
-  - Secure password handling
+- Ubuntu 20.04 or later
+- Python 3.8 or later
+- MySQL 8.0 or later
+- Apache 2.4 or later
+- PHP 7.4 or later
+- Arduino (for sensor deployment)
 
-- **Performance**
-  - Database partitioning
-  - Query optimization
-  - Caching system
-  - Efficient data storage
+## Installation
 
-## System Requirements 🖥️
-- PHP 7.4 or higher
-- MySQL 8.0 or higher
-- Python 3.8 or higher
-- Apache 2.4 or higher
-- Composer
-- Git
-- (Optional) Arduino IDE or Arduino CLI for sensor development
-
-## Quick Start 🚀
-
-### 1. Clone the Repository
+1. Clone the repository:
 ```bash
 git clone https://github.com/yourusername/garden-sensors.git
 cd garden-sensors
 ```
 
-### 2. Environment Setup
+2. Set up environment variables:
 ```bash
-# Copy environment file
 cp .env.example .env
-
-# Edit .env with your settings
-nano .env
+# Edit .env with your configuration
 ```
 
-### 3. Installation
+3. Run the setup script:
 ```bash
-# Install PHP dependencies
-composer install
-
-# Install Python dependencies
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# Run setup script
 sudo ./setup.sh
 ```
 
-### 4. Arduino Development (Optional)
-If you're developing or modifying the sensor code:
-```bash
-# Install Arduino dependencies
-pip install -r requirements-arduino.txt
+The setup script will:
+- Install all required system dependencies
+- Set up Python virtual environment
+- Configure MySQL database
+- Deploy PHP application
+- Configure Apache with SSL
+- Set up firewall rules
+- Configure monitoring with Prometheus
+- Set up automated backups
+- Configure rate limiting
+- Create admin user
 
-# Set Arduino development flag
+## Security Features
+
+- SSL/TLS encryption for web access
+- UFW firewall with minimal open ports
+- Rate limiting for API endpoints
+- Secure password storage
+- Regular security updates
+- Automated backup system
+- Monitoring and alerting
+
+## Monitoring
+
+The application includes comprehensive monitoring:
+- System metrics (CPU, memory, disk usage)
+- Apache server metrics
+- MySQL database metrics
+- Application-specific metrics
+- Prometheus dashboard for visualization
+
+## Backup System
+
+Automated backups include:
+- Database dumps
+- Application files
+- Configuration files
+- 7-day retention period
+- Daily rotation
+
+## Development
+
+### Arduino Development
+
+To enable Arduino development:
+```bash
 export ARDUINO_DEVELOPMENT=true
-
-# Run setup script again
 sudo ./setup.sh
 ```
 
-### 5. Database Setup
+### Local Development
+
+1. Create a virtual environment:
 ```bash
-# Import database schema
-mysql -u root -p < SQLDeployScript.sql
+python3 -m venv venv
+source venv/bin/activate
 ```
 
-### 6. Start the Application
+2. Install dependencies:
 ```bash
-# Development server
-php -S localhost:8000 -t public
+pip install -r requirements.txt
+```
 
-# Production (using Apache)
+3. Set up development database:
+```bash
+mysql -u root -p < database/schema.sql
+```
+
+## Maintenance
+
+### Backup Management
+
+Backups are stored in `/var/backups/garden-sensors` and automatically rotated daily.
+
+### Log Management
+
+Logs are stored in:
+- Apache logs: `/var/log/apache2/garden-sensors-*.log`
+- Application logs: `/var/www/garden-sensors/storage/logs`
+- Monitoring logs: `/var/log/prometheus`
+
+### Monitoring Access
+
+Access the monitoring dashboard:
+```bash
+# Prometheus
+http://localhost:9090
+
+# Node Exporter
+http://localhost:9100/metrics
+
+# Apache Exporter
+http://localhost:9117/metrics
+
+# MySQL Exporter
+http://localhost:9104/metrics
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. Permission Issues
+```bash
+sudo chown -R www-data:www-data /var/www/garden-sensors
+sudo chmod -R 755 /var/www/garden-sensors
+```
+
+2. Database Connection
+```bash
+sudo mysql -u garden_user -p
+```
+
+3. Apache Configuration
+```bash
+sudo apache2ctl configtest
 sudo systemctl restart apache2
 ```
 
-## Project Structure 📁
-```
-GardenSensors/
-├── arduino/           # Arduino sensor code
-├── config/           # Configuration files
-├── database/         # Database migrations and seeds
-├── docs/            # Documentation
-├── logs/            # Application logs
-├── public/          # Public web files
-├── python/          # Python scripts
-├── src/             # Source code
-│   ├── Core/        # Core functionality (Config, Utils)
-│   ├── Controllers/ # Controller classes
-│   ├── Models/      # Model classes
-│   ├── Services/    # Service classes
-│   ├── Exceptions/  # Custom exceptions
-│   ├── Interfaces/  # Interface definitions
-│   └── Views/       # View templates
-├── tests/           # Test files
-├── tools/           # Development tools
-├── uploads/         # User uploads
-├── vendor/          # PHP dependencies
-├── .env             # Environment variables
-├── .env.example     # Example environment variables
-├── composer.json    # PHP dependencies
-├── requirements.txt # Python dependencies
-└── SQLDeployScript.sql # Database schema
-```
+### Logs
 
-## Development 🛠️
-
-### Code Style
-The project follows PSR-4 autoloading standards and modern PHP features:
-- Type declarations
-- Return type declarations
-- Null coalescing operator
-- Arrow functions
-- Match expressions
-- Named arguments
-- Constructor property promotion
-
-### Testing
-We have comprehensive test suites for both PHP and Python components. For detailed testing information, see our [Testing Guide](docs/development/TESTING.md).
-
-#### Quick Start Testing
+Check relevant logs for issues:
 ```bash
-# PHP Tests
-composer test                    # Run all PHP tests
-composer test-coverage          # Generate coverage report
-./vendor/bin/phpunit --testsuite Models    # Run specific test suite
+# Apache error log
+sudo tail -f /var/log/apache2/garden-sensors-error.log
 
-# Python Tests
-python3 tests/test_sensor_simulator.py     # Run sensor tests
-python3 tests/test_sensor_simulator.py --generate  # Generate test data
+# Application log
+sudo tail -f /var/www/garden-sensors/storage/logs/laravel.log
 
-# Cleanup Test Data
-./tests/cleanup_test_data.sh    # Clean up test files and database
+# Monitoring logs
+sudo journalctl -u prometheus
 ```
 
-#### Test Requirements
-- PHPUnit 9.0 or higher
-- Python unittest module
-- MySQL test database
-- Mock hardware capabilities
+## Uninstallation
 
-#### Code Coverage
-- Minimum 80% coverage required
-- Coverage reports in `tests/coverage/`
-- Critical paths require 100% coverage
+To completely remove the application:
 
-### Database Management
 ```bash
-# Backup database
-./tools/backup_db.sh
-
-# Optimize database
-php tools/optimize_db.php
-
-# Clean old data
-php tools/cleanup.php
+sudo ./cleanup.sh
 ```
 
-## Monitoring 📊
-- Access the web interface at: `http://localhost/garden-sensors`
-- View system health at: `http://localhost/garden-sensors/health`
-- Check logs at: `logs/application.log`
+This will:
+- Stop all services
+- Remove application files
+- Drop database
+- Remove SSL certificates
+- Remove firewall rules
+- Remove monitoring components
+- Clean up logs and caches
 
-## Troubleshooting 🔧
-1. Check the logs in `logs/` directory
-2. Verify database connection in `.env`
-3. Ensure all required services are running
-4. Check file permissions
-5. Review the [Troubleshooting Guide](docs/troubleshooting.md)
+## Contributing
 
-## Contributing 🤝
-Please read our [Contributing Guide](docs/development/CONTRIBUTING.md) for details on:
-- Code of conduct
-- Development process
-- Pull request process
-- Coding standards
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
-## Security 🔒
-- Report security issues to: security@yourdomain.com
-- Follow our [Security Policy](SECURITY.md)
-- Keep dependencies updated
-- Use secure passwords
+## License
 
-## License 📄
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support 💬
-- Documentation: [docs/](docs/)
-- Issues: [GitHub Issues](https://github.com/yourusername/garden-sensors/issues)
-- Email: support@yourdomain.com
-
-## Acknowledgments 🙏
-- Thanks to all contributors
-- Built with [PHP](https://php.net)
-- Powered by [MySQL](https://mysql.com)
-- Visualized with [Bokeh](https://bokeh.org)
+This project is licensed under the MIT License - see the LICENSE file for details.
