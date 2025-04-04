@@ -3,11 +3,13 @@ namespace App\Controllers;
 
 use App\Models\Plant;
 use App\Models\Sensor;
+use App\Services\PlantService;
 
-class PlantController extends Controller {
+class PlantController extends BaseController {
+    private $plantService;
+
     public function __construct() {
-        parent::__construct();
-        $this->requireAuth();
+        $this->plantService = new PlantService();
     }
 
     public function index(): void {

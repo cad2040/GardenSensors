@@ -15,9 +15,9 @@ ini_set('display_errors', 1);
 
 // Database configuration
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'SoilSensors');
-define('DB_USER', 'SoilSensors');
-define('DB_PASS', 'SoilSensors123');
+define('DB_NAME', 'garden_sensors');
+define('DB_USER', 'garden_user');
+define('DB_PASS', 'garden123');
 
 // Application configuration
 define('APP_NAME', 'Garden Sensors Dashboard');
@@ -25,7 +25,7 @@ define('APP_URL', 'http://localhost/garden-sensors');
 define('APP_VERSION', '1.0.0');
 
 // File paths (only define if not already defined)
-if (!defined('ROOT_PATH')) define('ROOT_PATH', dirname(__FILE__));
+if (!defined('ROOT_PATH')) define('ROOT_PATH', '/var/www/html/garden-sensors');
 if (!defined('INCLUDES_PATH')) define('INCLUDES_PATH', ROOT_PATH . '/includes');
 if (!defined('CACHE_PATH')) define('CACHE_PATH', ROOT_PATH . '/cache');
 if (!defined('LOGS_PATH')) define('LOGS_PATH', ROOT_PATH . '/logs');

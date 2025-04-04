@@ -2,8 +2,15 @@
 namespace App\Controllers;
 
 use App\Models\User;
+use App\Services\AuthService;
 
 class AuthController extends Controller {
+    private $authService;
+
+    public function __construct() {
+        $this->authService = new AuthService();
+    }
+
     public function showLogin(): void {
         if ($this->isAuthenticated()) {
             $this->redirect('/dashboard');
@@ -25,116 +32,38 @@ class AuthController extends Controller {
     }
 
     public function login(): void {
-        $this->requireCsrfToken();
-
-        $errors = $this->validate([
-            'email' => 'required|email',
-            'password' => 'required'
-        ]);
-
-        if (!empty($errors)) {
-            $this->respondWithError('Invalid input data');
-            return;
-        }
-
-        $email = $this->request->post('email');
-        $password = $this->request->post('password');
-        $remember = (bool) $this->request->post('remember');
-
-        $user = User::findByEmail($email);
-
-        if (!$user || !$user->verifyPassword($password)) {
-            $this->respondWithError('Invalid email or password');
-            return;
-        }
-
-        if ($remember) {
-            // Set remember me cookie - valid for 30 days
-            $token = bin2hex(random_bytes(32));
-            setcookie('remember_token', $token, time() + (86400 * 30), '/', '', true, true);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $email = $_POST['email'] ?? '';
+            $password = $_POST['password'] ?? '';
             
-            // Store token in database
-            $user->remember_token = $token;
-            $user->save();
+            if ($this->authService->login($email, $password)) {
+                $this->redirect('/dashboard');
+            }
+            
+            $this->render('auth/login', ['error' => 'Invalid credentials']);
         }
-
-        $user->updateLastLogin();
-        $this->setUser($user->toArray());
         
-        $this->respondWithSuccess('Login successful', '/dashboard');
+        $this->render('auth/login');
     }
 
     public function register(): void {
-        $this->requireCsrfToken();
-
-        $errors = $this->validate([
-            'username' => 'required|min:3|max:50',
-            'email' => 'required|email',
-            'password' => 'required|min:8|confirmed',
-            'password_confirmation' => 'required'
-        ]);
-
-        if (!empty($errors)) {
-            $this->respondWithError('Invalid input data');
-            return;
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $data = $_POST;
+            $result = $this->authService->register($data);
+            
+            if ($result) {
+                $this->redirect('/login');
+            }
+            
+            $this->render('auth/register', ['error' => 'Registration failed']);
         }
-
-        $username = $this->request->post('username');
-        $email = $this->request->post('email');
-        $password = $this->request->post('password');
-
-        // Check if email already exists
-        if (User::findByEmail($email)) {
-            $this->respondWithError('Email already registered');
-            return;
-        }
-
-        // Check if username already exists
-        if (User::findByUsername($username)) {
-            $this->respondWithError('Username already taken');
-            return;
-        }
-
-        // Create new user
-        $user = new User([
-            'username' => $username,
-            'email' => $email,
-            'role' => 'user'
-        ]);
         
-        $user->setPassword($password);
-        
-        if (!$user->save()) {
-            $this->respondWithError('Failed to create account');
-            return;
-        }
-
-        // Log the user in
-        $user->updateLastLogin();
-        $this->setUser($user->toArray());
-        
-        $this->respondWithSuccess('Registration successful', '/dashboard');
+        $this->render('auth/register');
     }
 
     public function logout(): void {
-        $this->requireCsrfToken();
-        
-        // Clear remember me cookie if exists
-        if (isset($_COOKIE['remember_token'])) {
-            setcookie('remember_token', '', time() - 3600, '/', '', true, true);
-            
-            // Clear token from database if user is logged in
-            if ($user = $this->getUser()) {
-                $user = User::find($user['user_id']);
-                if ($user) {
-                    $user->remember_token = null;
-                    $user->save();
-                }
-            }
-        }
-
-        $this->logout();
-        $this->respondWithSuccess('Logout successful', '/login');
+        $this->authService->logout();
+        $this->redirect('/login');
     }
 
     public function showForgotPassword(): void {
@@ -205,37 +134,30 @@ class AuthController extends Controller {
     }
 
     public function resetPassword(): void {
-        $this->requireCsrfToken();
-
-        $errors = $this->validate([
-            'token' => 'required',
-            'password' => 'required|min:8|confirmed',
-            'password_confirmation' => 'required'
-        ]);
-
-        if (!empty($errors)) {
-            $this->respondWithError('Invalid input data');
-            return;
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $email = $_POST['email'] ?? '';
+            
+            if ($this->authService->sendPasswordReset($email)) {
+                $this->render('auth/reset-sent');
+            }
+            
+            $this->render('auth/reset-password', ['error' => 'Failed to send reset email']);
         }
-
-        $token = $this->request->post('token');
-        $password = $this->request->post('password');
-
-        $user = User::findBy('reset_token', $token);
-        if (!$user || strtotime($user->reset_token_expires_at) < time()) {
-            $this->respondWithError('Invalid or expired password reset token');
-            return;
-        }
-
-        $user->setPassword($password);
-        $user->reset_token = null;
-        $user->reset_token_expires_at = null;
         
-        if (!$user->save()) {
-            $this->respondWithError('Failed to reset password');
-            return;
-        }
+        $this->render('auth/reset-password');
+    }
 
-        $this->respondWithSuccess('Password has been reset successfully', '/login');
+    public function resetPasswordConfirm($token) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $password = $_POST['password'] ?? '';
+            
+            if ($this->authService->resetPassword($token, $password)) {
+                $this->redirect('/login');
+            }
+            
+            $this->render('auth/reset-password-confirm', ['error' => 'Failed to reset password']);
+        }
+        
+        $this->render('auth/reset-password-confirm');
     }
 } 

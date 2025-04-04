@@ -13,6 +13,8 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential
+import argparse
+import sys
 
 from bokeh.plotting import figure, output_file
 from bokeh.models import ColumnDataSource, DatetimeTickFormatter
@@ -22,6 +24,8 @@ from math import pi
 
 import DBConnect as conct
 import FTPConnectMod as FTPConnt
+import matplotlib.pyplot as plt
+import pandas as pd
 
 # Configure logging
 logging.basicConfig(
@@ -183,79 +187,71 @@ def process_sensor_data(cnx, sensor: str, data: pd.DataFrame, config: Config) ->
         logger.error(f"Error processing sensor {sensor}: {e}")
         return None
 
-def main() -> None:
-    """Main function to generate and upload plots."""
-    try:
-        config = setup_config()
-        
-        # Ensure save directory exists
-        os.makedirs(config.save_directory, exist_ok=True)
-        
-        # SQL queries
-        query_sensors = "SELECT sensor FROM SoilSensors.Sensors"
-        query_readings = """
-            SELECT Sensors.sensor, Readings.reading, Readings.inserted, Readings.sensor_id 
-            FROM SoilSensors.Readings 
-            INNER JOIN SoilSensors.Sensors ON Readings.sensor_id = Sensors.id;
-        """
-        
-        # Connect to database with retry
-        @retry(stop=stop_after_attempt(config.max_retries), wait=wait_exponential(multiplier=1, min=4, max=10))
-        def get_db_connection():
-            return conct.CFSQLConnect(
-                config.db_name,
-                config.db_username,
-                config.db_password,
-                config.db_server
-            )
-        
-        cnx = get_db_connection()
-        
-        # Get data
-        data = cnx.queryMySQL(query_readings)
-        sensors = list(cnx.queryMySQL(query_sensors).sensor.unique())
-        
-        # Generate and upload plots
-        files = []
-        cnx.ExecuteMySQL("TRUNCATE TABLE SoilSensors.Plots;")
-        
-        for sensor in sensors:
-            filepath = process_sensor_data(cnx, sensor, data, config)
-            if filepath:
-                files.append(filepath)
-                
-                # Upload via FTP with retry
-                @retry(stop=stop_after_attempt(config.max_retries), wait=wait_exponential(multiplier=1, min=4, max=10))
-                def upload_file():
-                    ftp_obj = FTPConnt.FTPConnectMod(
-                        config.ftp_address,
-                        config.ftp_username,
-                        config.ftp_password
-                    )
-                    ftp_obj.UploadFile(
-                        os.path.basename(filepath),
-                        filepath,
-                        config.upload_path
-                    )
-                
-                upload_file()
-        
-        # Cleanup
-        cleanup_files(files)
-        
-        # Remove old readings
-        cnx.ExecuteMySQL(f"""
-            DELETE FROM SoilSensors.Readings 
-            WHERE inserted < (NOW() - INTERVAL {config.data_retention_days} DAY);
-        """)
-        
-    except Exception as e:
-        logger.error(f"Fatal error in main: {e}")
-        raise
+def parse_args():
+    parser = argparse.ArgumentParser(description='Generate plots for sensor data')
+    parser.add_argument('--sensor-id', required=True, help='Sensor ID')
+    parser.add_argument('--start-date', required=True, help='Start date (YYYY-MM-DD)')
+    parser.add_argument('--end-date', required=True, help='End date (YYYY-MM-DD)')
+    parser.add_argument('--output', required=True, help='Output file path')
+    return parser.parse_args()
 
-if __name__ == "__main__":
+def main():
     try:
-        main()
+        args = parse_args()
+        
+        # Convert date strings to datetime objects
+        start_date = datetime.strptime(args.start_date, '%Y-%m-%d')
+        end_date = datetime.strptime(args.end_date, '%Y-%m-%d')
+        
+        # Query data from database
+        with DBConnect() as db:
+            query = """
+                SELECT timestamp, reading, temperature, humidity
+                FROM readings
+                WHERE sensor_id = ? AND timestamp BETWEEN ? AND ?
+                ORDER BY timestamp
+            """
+            results = db.execute_query(query, [args.sensor_id, start_date, end_date])
+        
+        if not results:
+            print("No data found for the specified period")
+            sys.exit(1)
+        
+        # Convert results to DataFrame
+        df = pd.DataFrame(results, columns=['timestamp', 'reading', 'temperature', 'humidity'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        
+        # Create figure
+        plt.figure(figsize=(12, 6))
+        
+        # Plot readings
+        plt.plot(df['timestamp'], df['reading'], label='Reading')
+        plt.plot(df['timestamp'], df['temperature'], label='Temperature')
+        plt.plot(df['timestamp'], df['humidity'], label='Humidity')
+        
+        # Customize plot
+        plt.title(f'Sensor Data for {args.sensor_id}')
+        plt.xlabel('Timestamp')
+        plt.ylabel('Value')
+        plt.grid(True)
+        plt.legend()
+        
+        # Rotate x-axis labels for better readability
+        plt.xticks(rotation=45)
+        
+        # Adjust layout to prevent label cutoff
+        plt.tight_layout()
+        
+        # Save plot
+        plt.savefig(args.output)
+        plt.close()
+        
+        print("Plot generated successfully")
+        sys.exit(0)
+        
     except Exception as e:
-        logger.error(f"Script failed: {e}")
-        raise
+        print(f"Error: {str(e)}")
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()

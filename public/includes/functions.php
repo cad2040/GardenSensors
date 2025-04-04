@@ -50,6 +50,18 @@ if (!function_exists('logError')) {
     }
 }
 
+if (!function_exists('logInfo')) {
+    /**
+     * Log info messages
+     */
+    function logInfo($message, $context = []) {
+        $timestamp = date('Y-m-d H:i:s');
+        $contextStr = !empty($context) ? json_encode($context) : '';
+        $logMessage = "[$timestamp] INFO: $message $contextStr\n";
+        error_log($logMessage, 3, LOGS_PATH . '/info.log');
+    }
+}
+
 /**
  * Format moisture reading
  */

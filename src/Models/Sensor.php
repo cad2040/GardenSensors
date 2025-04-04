@@ -3,38 +3,25 @@ namespace App\Models;
 
 class Sensor extends Model {
     protected static $table = 'sensors';
-    protected static $primaryKey = 'sensor_id';
+    protected static $primaryKey = 'id';
     protected static $fillable = [
-        'user_id',
-        'name',
-        'type',
+        'sensor',
+        'description',
         'location',
         'status',
         'last_reading',
-        'last_reading_at',
-        'battery_level',
-        'firmware_version',
-        'created_at',
-        'updated_at',
-        'pin',
-        'min_value',
-        'max_value',
-        'alert_threshold',
-        'reading_interval'
+        'plot_url',
+        'plot_type'
     ];
-    protected static $hidden = ['created_at', 'updated_at'];
+    protected static $hidden = ['inserted', 'updated'];
 
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
     public const STATUS_MAINTENANCE = 'maintenance';
-    public const STATUS_ERROR = 'error';
 
-    public const TYPE_TEMPERATURE = 'temperature';
-    public const TYPE_HUMIDITY = 'humidity';
-    public const TYPE_SOIL_MOISTURE = 'soil_moisture';
-    public const TYPE_LIGHT = 'light';
-    public const TYPE_PH = 'ph';
-    public const TYPE_NUTRIENT = 'nutrient';
+    public const PLOT_TYPE_MOISTURE = 'moisture';
+    public const PLOT_TYPE_TEMPERATURE = 'temperature';
+    public const PLOT_TYPE_HUMIDITY = 'humidity';
 
     public function isActive(): bool {
         return $this->status === self::STATUS_ACTIVE;
@@ -48,17 +35,17 @@ class Sensor extends Model {
         return $this->status === self::STATUS_MAINTENANCE;
     }
 
-    public function hasError(): bool {
-        return $this->status === self::STATUS_ERROR;
-    }
-
-    public function user() {
-        return User::find($this->user_id);
+    public function pins() {
+        $db = Database::getInstance();
+        $sql = "SELECT * FROM pins WHERE sensor_id = :sensor_id";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([':sensor_id' => $this->id]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     public function readings(int $limit = null) {
         $db = Database::getInstance();
-        $sql = "SELECT * FROM sensor_readings WHERE sensor_id = :sensor_id ORDER BY reading_time DESC";
+        $sql = "SELECT * FROM readings WHERE sensor_id = :sensor_id ORDER BY inserted DESC";
         
         if ($limit !== null) {
             $sql .= " LIMIT :limit";
@@ -66,7 +53,7 @@ class Sensor extends Model {
         
         $stmt = $db->prepare($sql);
         $stmt->execute([
-            ':sensor_id' => $this->sensor_id,
+            ':sensor_id' => $this->id,
             ':limit' => $limit
         ]);
         
@@ -78,23 +65,22 @@ class Sensor extends Model {
         return $readings[0] ?? null;
     }
 
-    public function addReading(float $value, string $unit, ?string $notes = null): bool {
+    public function addReading(float $reading, ?float $temperature = null, ?float $humidity = null): bool {
         $db = Database::getInstance();
         $stmt = $db->prepare("
-            INSERT INTO sensor_readings (sensor_id, value, unit, notes, reading_time)
-            VALUES (:sensor_id, :value, :unit, :notes, NOW())
+            INSERT INTO readings (sensor_id, reading, temperature, humidity, inserted)
+            VALUES (:sensor_id, :reading, :temperature, :humidity, NOW())
         ");
         
         $result = $stmt->execute([
-            ':sensor_id' => $this->sensor_id,
-            ':value' => $value,
-            ':unit' => $unit,
-            ':notes' => $notes
+            ':sensor_id' => $this->id,
+            ':reading' => $reading,
+            ':temperature' => $temperature,
+            ':humidity' => $humidity
         ]);
 
         if ($result) {
-            $this->last_reading = $value;
-            $this->last_reading_at = date('Y-m-d H:i:s');
+            $this->last_reading = $reading;
             $this->save();
         }
 
@@ -104,14 +90,14 @@ class Sensor extends Model {
     public function getReadingsByDateRange(string $startDate, string $endDate) {
         $db = Database::getInstance();
         $stmt = $db->prepare("
-            SELECT * FROM sensor_readings 
+            SELECT * FROM readings 
             WHERE sensor_id = :sensor_id 
-            AND reading_time BETWEEN :start_date AND :end_date
-            ORDER BY reading_time ASC
+            AND inserted BETWEEN :start_date AND :end_date
+            ORDER BY inserted ASC
         ");
         
         $stmt->execute([
-            ':sensor_id' => $this->sensor_id,
+            ':sensor_id' => $this->id,
             ':start_date' => $startDate,
             ':end_date' => $endDate
         ]);
@@ -122,14 +108,14 @@ class Sensor extends Model {
     public function getAverageReading(string $startDate, string $endDate) {
         $db = Database::getInstance();
         $stmt = $db->prepare("
-            SELECT AVG(value) as average
-            FROM sensor_readings 
+            SELECT AVG(reading) as average
+            FROM readings 
             WHERE sensor_id = :sensor_id 
-            AND reading_time BETWEEN :start_date AND :end_date
+            AND inserted BETWEEN :start_date AND :end_date
         ");
         
         $stmt->execute([
-            ':sensor_id' => $this->sensor_id,
+            ':sensor_id' => $this->id,
             ':start_date' => $startDate,
             ':end_date' => $endDate
         ]);
@@ -143,42 +129,50 @@ class Sensor extends Model {
         return $this->save();
     }
 
-    public function updateBatteryLevel(int $level): bool {
-        $this->battery_level = $level;
-        return $this->save();
-    }
-
-    public function updateFirmware(string $version): bool {
-        $this->firmware_version = $version;
-        return $this->save();
+    public function plants() {
+        $db = Database::getInstance();
+        $sql = "
+            SELECT p.* 
+            FROM fact_plants fp
+            JOIN dim_plants p ON fp.plant_id = p.id
+            WHERE fp.sensor_id = :sensor_id
+        ";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([':sensor_id' => $this->id]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     public function save(): bool {
-        if (!isset($this->attributes['created_at'])) {
-            $this->attributes['created_at'] = date('Y-m-d H:i:s');
+        if (!isset($this->attributes['inserted'])) {
+            $this->attributes['inserted'] = date('Y-m-d H:i:s');
         }
-        $this->attributes['updated_at'] = date('Y-m-d H:i:s');
+        $this->attributes['updated'] = date('Y-m-d H:i:s');
         
         return parent::save();
     }
 
     public function delete(): bool {
-        // Delete all sensor readings first
+        // Delete all readings first
         $db = Database::getInstance();
-        $stmt = $db->prepare("DELETE FROM sensor_readings WHERE sensor_id = :sensor_id");
-        $stmt->execute([':sensor_id' => $this->sensor_id]);
+        $stmt = $db->prepare("DELETE FROM readings WHERE sensor_id = :sensor_id");
+        $stmt->execute([':sensor_id' => $this->id]);
+        
+        // Delete all pins
+        $stmt = $db->prepare("DELETE FROM pins WHERE sensor_id = :sensor_id");
+        $stmt->execute([':sensor_id' => $this->id]);
+        
+        // Delete plant associations
+        $stmt = $db->prepare("DELETE FROM fact_plants WHERE sensor_id = :sensor_id");
+        $stmt->execute([':sensor_id' => $this->id]);
         
         return parent::delete();
     }
 
-    public static function getTypes(): array {
+    public static function getPlotTypes(): array {
         return [
-            self::TYPE_TEMPERATURE,
-            self::TYPE_HUMIDITY,
-            self::TYPE_SOIL_MOISTURE,
-            self::TYPE_LIGHT,
-            self::TYPE_PH,
-            self::TYPE_NUTRIENT
+            self::PLOT_TYPE_MOISTURE,
+            self::PLOT_TYPE_TEMPERATURE,
+            self::PLOT_TYPE_HUMIDITY
         ];
     }
 
@@ -186,79 +180,7 @@ class Sensor extends Model {
         return [
             self::STATUS_ACTIVE,
             self::STATUS_INACTIVE,
-            self::STATUS_MAINTENANCE,
-            self::STATUS_ERROR
+            self::STATUS_MAINTENANCE
         ];
-    }
-
-    public function getReadings(int $limit = 100, string $startDate = null, string $endDate = null): array
-    {
-        $sql = "SELECT * FROM readings WHERE sensor_id = ?";
-        $params = [$this->id];
-
-        if ($startDate) {
-            $sql .= " AND timestamp >= ?";
-            $params[] = $startDate;
-        }
-
-        if ($endDate) {
-            $sql .= " AND timestamp <= ?";
-            $params[] = $endDate;
-        }
-
-        $sql .= " ORDER BY timestamp DESC LIMIT ?";
-        $params[] = $limit;
-
-        return $this->query($sql, $params);
-    }
-
-    public function getLatestReading()
-    {
-        $sql = "SELECT * FROM readings WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 1";
-        $result = $this->query($sql, [$this->id]);
-        return $result[0] ?? null;
-    }
-
-    public function getAverageReading(string $startDate = null, string $endDate = null)
-    {
-        $sql = "SELECT AVG(value) as average FROM readings WHERE sensor_id = ?";
-        $params = [$this->id];
-
-        if ($startDate) {
-            $sql .= " AND timestamp >= ?";
-            $params[] = $startDate;
-        }
-
-        if ($endDate) {
-            $sql .= " AND timestamp <= ?";
-            $params[] = $endDate;
-        }
-
-        $result = $this->query($sql, $params);
-        return $result[0]['average'] ?? null;
-    }
-
-    public function addReading(float $value, string $timestamp = null): array
-    {
-        $timestamp = $timestamp ?? date('Y-m-d H:i:s');
-        
-        $sql = "INSERT INTO readings (sensor_id, value, timestamp) VALUES (?, ?, ?)";
-        $this->execute($sql, [$this->id, $value, $timestamp]);
-        
-        return [
-            'sensor_id' => $this->id,
-            'value' => $value,
-            'timestamp' => $timestamp
-        ];
-    }
-
-    public function isInRange(float $value): bool
-    {
-        return $value >= $this->min_value && $value <= $this->max_value;
-    }
-
-    public function needsAlert(float $value): bool
-    {
-        return abs($value - $this->alert_threshold) >= $this->alert_threshold;
     }
 } 

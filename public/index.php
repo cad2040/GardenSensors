@@ -15,7 +15,7 @@ $dotenv = Dotenv\Dotenv::createImmutable(APP_ROOT);
 $dotenv->load();
 
 // Load application configuration
-$config = require APP_ROOT . '/config/app.php';
+$config = require APP_ROOT . '/src/Config/app.php';
 
 // Initialize error handling
 error_reporting(E_ALL);

@@ -7,6 +7,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Version requirements
+MIN_PYTHON_VERSION="3.8"
+MIN_MYSQL_VERSION="8.0"
+MIN_APACHE_VERSION="2.4"
+MIN_PHP_VERSION="7.4"
+
 # Function to print status messages
 print_status() {
     echo -e "${GREEN}[*] $1${NC}"
@@ -38,6 +44,106 @@ print_step() {
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# Function to check version
+check_version() {
+    local command=$1
+    local version=$2
+    local min_version=$3
+    
+    if command_exists "$command"; then
+        local current_version=$($command --version | head -n1 | grep -oP '\d+\.\d+')
+        if [ "$(printf '%s\n' "$min_version" "$current_version" | sort -V | head -n1)" = "$min_version" ]; then
+            print_status "$command version $current_version meets minimum requirement of $min_version"
+            return 0
+        else
+            print_warning "$command version $current_version is below minimum requirement of $min_version"
+            return 1
+        fi
+    else
+        print_warning "$command is not installed"
+        return 1
+    fi
+}
+
+# Function to create backup
+create_backup() {
+    local backup_dir="backups/$(date +%Y%m%d_%H%M%S)"
+    print_step "Creating backup"
+    
+    mkdir -p "$backup_dir"
+    
+    # Backup MySQL databases
+    if command_exists mysql; then
+        print_info "Backing up MySQL databases..."
+        mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --all-databases > "$backup_dir/mysql_backup.sql"
+    fi
+    
+    # Backup Apache configuration
+    if [ -d "/etc/apache2" ]; then
+        print_info "Backing up Apache configuration..."
+        cp -r /etc/apache2 "$backup_dir/apache2_backup"
+    fi
+    
+    # Backup project files
+    print_info "Backing up project files..."
+    cp -r . "$backup_dir/project_backup"
+    
+    print_status "Backup created in $backup_dir"
+}
+
+# Function to validate environment variables
+validate_env() {
+    print_step "Validating environment variables"
+    
+    # Check required environment variables
+    local required_vars=(
+        "DB_HOST"
+        "DB_USER"
+        "DB_PASSWORD"
+        "DB_NAME"
+        "APACHE_DOMAIN"
+        "SMTP_HOST"
+        "SMTP_PORT"
+        "SMTP_USER"
+        "SMTP_PASSWORD"
+    )
+    
+    for var in "${required_vars[@]}"; do
+        if [ -z "${!var}" ]; then
+            print_error "Required environment variable $var is not set"
+        fi
+    done
+    
+    print_status "Environment variables validated"
+}
+
+# Function to perform health check
+health_check() {
+    print_step "Performing health check"
+    
+    # Check MySQL
+    if ! mysql -e "SELECT 1;" >/dev/null 2>&1; then
+        print_error "MySQL health check failed"
+    fi
+    
+    # Check Apache
+    if ! systemctl is-active --quiet apache2; then
+        print_error "Apache health check failed"
+    fi
+    
+    # Check PHP
+    if ! php -v >/dev/null 2>&1; then
+        print_error "PHP health check failed"
+    fi
+    
+    # Check Python environment
+    if ! venv/bin/python3 -c "import sys; sys.exit(0)" >/dev/null 2>&1; then
+        print_error "Python environment health check failed"
+    fi
+    
+    print_status "Health check passed"
 }
 
 # Function to check if running as root
@@ -103,6 +209,12 @@ setup_python_env() {
     # Install Python dependencies
     print_info "Installing Python dependencies from requirements.txt..."
     $VENV_PIP install -r requirements.txt || print_error "Failed to install Python dependencies"
+    
+    # Check if Arduino development is needed
+    if [ "$ARDUINO_DEVELOPMENT" = "true" ]; then
+        print_info "Installing Arduino development dependencies..."
+        $VENV_PIP install -r requirements-arduino.txt || print_error "Failed to install Arduino dependencies"
+    fi
     
     print_status "Python environment setup completed"
 }
@@ -406,34 +518,77 @@ create_admin_user() {
     print_info "  Password: $ADMIN_PASSWORD"
 }
 
-# Main installation process
-main() {
-    print_step "Starting Garden Sensors installation"
+# Function to setup Arduino development environment
+setup_arduino() {
+    print_step "Setting up Arduino development environment"
     
-    # Check if running as root
-    check_root
+    # Check if Arduino CLI is installed
+    if ! command_exists arduino-cli; then
+        print_info "Installing Arduino CLI..."
+        curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh || print_error "Failed to install Arduino CLI"
+    fi
     
-    # Run installation steps
-    install_system_deps
-    setup_python_env
-    setup_mysql
-    setup_apache
-    setup_config
-    setup_cron
-    create_admin_user
-    verify_installation
+    # Initialize Arduino CLI
+    print_info "Initializing Arduino CLI..."
+    arduino-cli config init || print_error "Failed to initialize Arduino CLI"
     
-    print_step "Installation completed successfully!"
-    print_info "Please configure your ESP8266 devices according to the README.md instructions"
-    print_info "Default credentials:"
-    print_info "MySQL:"
-    print_info "  Username: SoilSensors"
-    print_info "  Password: SoilSensors123"
-    print_info "Web Interface:"
-    print_info "  URL: http://localhost/garden-sensors"
-    print_info "  Username: admin"
-    print_info "  Password: (see above)"
+    # Update core index
+    print_info "Updating core index..."
+    arduino-cli core update-index || print_error "Failed to update core index"
+    
+    # Install required board
+    print_info "Installing required board..."
+    arduino-cli core install arduino:avr || print_error "Failed to install Arduino AVR core"
+    
+    # Install required libraries
+    print_info "Installing required libraries..."
+    arduino-cli lib install "DHT sensor library" || print_error "Failed to install DHT library"
+    arduino-cli lib install "Adafruit Unified Sensor" || print_error "Failed to install Adafruit Unified Sensor library"
+    
+    print_status "Arduino development environment setup completed"
 }
 
-# Run main function
+# Main installation function
+main() {
+    print_step "Starting installation"
+    
+    # Create backup
+    create_backup
+    
+    # Validate environment
+    validate_env
+    
+    # Check root privileges
+    check_root
+    
+    # Check versions
+    check_version "python3" "$MIN_PYTHON_VERSION" || print_error "Python version requirement not met"
+    check_version "mysql" "$MIN_MYSQL_VERSION" || print_error "MySQL version requirement not met"
+    check_version "apache2" "$MIN_APACHE_VERSION" || print_error "Apache version requirement not met"
+    check_version "php" "$MIN_PHP_VERSION" || print_error "PHP version requirement not met"
+    
+    # Install system dependencies
+    install_system_deps
+    
+    # Setup Python environment
+    setup_python_env
+    
+    # Setup MySQL
+    setup_mysql
+    
+    # Setup Apache
+    setup_apache
+    
+    # Setup Arduino if needed
+    if [ "$ARDUINO_DEVELOPMENT" = "true" ]; then
+        setup_arduino
+    fi
+    
+    # Perform health check
+    health_check
+    
+    print_status "Installation completed successfully"
+}
+
+# Execute main function
 main 
