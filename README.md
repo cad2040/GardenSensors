@@ -146,20 +146,33 @@ The project follows PSR-4 autoloading standards and modern PHP features:
 - Constructor property promotion
 
 ### Testing
+We have comprehensive test suites for both PHP and Python components. For detailed testing information, see our [Testing Guide](docs/development/TESTING.md).
+
+#### Quick Start Testing
 ```bash
-# Run PHPUnit tests
-composer test
+# PHP Tests
+composer test                    # Run all PHP tests
+composer test-coverage          # Generate coverage report
+./vendor/bin/phpunit --testsuite Models    # Run specific test suite
 
-# Run PHPStan static analysis
-composer phpstan
+# Python Tests
+python3 tests/test_sensor_simulator.py     # Run sensor tests
+python3 tests/test_sensor_simulator.py --generate  # Generate test data
 
-# Run PHP_CodeSniffer
-composer cs
-composer cs-fix
-
-# Run Python tests
-pytest
+# Cleanup Test Data
+./tests/cleanup_test_data.sh    # Clean up test files and database
 ```
+
+#### Test Requirements
+- PHPUnit 9.0 or higher
+- Python unittest module
+- MySQL test database
+- Mock hardware capabilities
+
+#### Code Coverage
+- Minimum 80% coverage required
+- Coverage reports in `tests/coverage/`
+- Critical paths require 100% coverage
 
 ### Database Management
 ```bash
