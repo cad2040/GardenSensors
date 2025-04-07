@@ -1,6 +1,10 @@
 <?php
 namespace GardenSensors\Models;
 
+use GardenSensors\Core\Database;
+use GardenSensors\Core\Cache;
+use GardenSensors\Core\Logger;
+
 class Sensor extends BaseModel {
     protected static $table = 'sensors';
     protected static $primaryKey = 'id';
@@ -11,6 +15,10 @@ class Sensor extends BaseModel {
         'description',
         'status',
         'last_reading',
+        'last_reading_time',
+        'min_threshold',
+        'max_threshold',
+        'unit',
         'plot_url',
         'plot_type'
     ];
@@ -19,10 +27,24 @@ class Sensor extends BaseModel {
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
     public const STATUS_MAINTENANCE = 'maintenance';
+    public const STATUS_NORMAL = 'normal';
+    public const STATUS_BELOW_THRESHOLD = 'below_threshold';
+    public const STATUS_ABOVE_THRESHOLD = 'above_threshold';
 
     public const PLOT_TYPE_MOISTURE = 'moisture';
     public const PLOT_TYPE_TEMPERATURE = 'temperature';
     public const PLOT_TYPE_HUMIDITY = 'humidity';
+
+    private $cache;
+    private $logger;
+    private $userId;
+
+    public function __construct(array $attributes = [], ?Database $db = null, ?Cache $cache = null, ?Logger $logger = null, ?int $userId = null) {
+        parent::__construct($attributes, $db);
+        $this->cache = $cache;
+        $this->logger = $logger;
+        $this->userId = $userId;
+    }
 
     public function isActive(): bool {
         return $this->status === self::STATUS_ACTIVE;
@@ -36,69 +58,86 @@ class Sensor extends BaseModel {
         return $this->status === self::STATUS_MAINTENANCE;
     }
 
-    public function getId(): int {
+    public function getId(): ?int {
         return $this->id;
     }
 
-    public function calculateStatus(): string {
-        $latestReading = $this->getLatestReading();
-        if (!$latestReading) {
-            return self::STATUS_INACTIVE;
-        }
-
-        $lastReadingTime = strtotime($latestReading['created_at']);
-        $now = time();
-        $hoursSinceLastReading = ($now - $lastReadingTime) / 3600;
-
-        if ($hoursSinceLastReading > 24) {
-            return self::STATUS_MAINTENANCE;
-        }
-
-        return self::STATUS_ACTIVE;
+    public function getName(): ?string {
+        return $this->name;
     }
 
-    public function updateReading(float $value, ?float $temperature = null, ?float $humidity = null): bool {
-        return $this->addReading($value, $temperature, $humidity);
+    public function getType(): ?string {
+        return $this->type;
+    }
+
+    public function getLocation(): ?string {
+        return $this->location;
+    }
+
+    public function getMinThreshold(): ?float {
+        return $this->min_threshold;
+    }
+
+    public function getMaxThreshold(): ?float {
+        return $this->max_threshold;
+    }
+
+    public function getUnit(): ?string {
+        return $this->unit;
+    }
+
+    public function getLastReading(): ?float {
+        return $this->last_reading;
+    }
+
+    public function getLastReadingTime(): ?string {
+        return $this->last_reading_time;
+    }
+
+    public function calculateStatus(float $reading): string {
+        if ($reading < $this->min_threshold) {
+            return self::STATUS_BELOW_THRESHOLD;
+        } elseif ($reading > $this->max_threshold) {
+            return self::STATUS_ABOVE_THRESHOLD;
+        }
+        return self::STATUS_NORMAL;
+    }
+
+    public function updateReading(float $value, string $timestamp): bool {
+        $this->last_reading = $value;
+        $this->last_reading_time = $timestamp;
+        return $this->save();
     }
 
     public function pins() {
-        $db = self::getConnection();
-        $sql = "SELECT * FROM pins WHERE sensor_id = :sensor_id";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':sensor_id' => $this->id]);
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return $this->db->query("SELECT * FROM pins WHERE sensor_id = :sensor_id", [':sensor_id' => $this->id]);
     }
 
     public function readings(int $limit = null) {
-        $db = self::getConnection();
         $sql = "SELECT * FROM readings WHERE sensor_id = :sensor_id ORDER BY created_at DESC";
         
         if ($limit !== null) {
             $sql .= " LIMIT :limit";
         }
         
-        $stmt = $db->prepare($sql);
-        $stmt->execute([
+        return $this->db->query($sql, [
             ':sensor_id' => $this->id,
             ':limit' => $limit
         ]);
-        
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     public function getLatestReading() {
         $readings = $this->readings(1);
-        return $readings[0] ?? null;
+        return !empty($readings) ? $readings[0] : null;
     }
 
     public function addReading(float $value, ?float $temperature = null, ?float $humidity = null): bool {
-        $db = self::getConnection();
-        $stmt = $db->prepare("
+        $sql = "
             INSERT INTO readings (sensor_id, value, unit, temperature, humidity)
             VALUES (:sensor_id, :value, :unit, :temperature, :humidity)
-        ");
+        ";
         
-        $result = $stmt->execute([
+        $result = $this->db->execute($sql, [
             ':sensor_id' => $this->id,
             ':value' => $value,
             ':unit' => $this->type === self::PLOT_TYPE_TEMPERATURE ? '°C' : '%',
@@ -108,6 +147,7 @@ class Sensor extends BaseModel {
 
         if ($result) {
             $this->last_reading = $value;
+            $this->last_reading_time = date('Y-m-d H:i:s');
             $this->save();
         }
 
@@ -115,40 +155,30 @@ class Sensor extends BaseModel {
     }
 
     public function getReadingsByDateRange(string $startDate, string $endDate) {
-        $db = self::getConnection();
-        $stmt = $db->prepare("
+        return $this->db->query("
             SELECT * FROM readings 
             WHERE sensor_id = :sensor_id 
             AND created_at BETWEEN :start_date AND :end_date
             ORDER BY created_at ASC
-        ");
-        
-        $stmt->execute([
+        ", [
             ':sensor_id' => $this->id,
             ':start_date' => $startDate,
             ':end_date' => $endDate
         ]);
-        
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     public function getAverageReading(string $startDate, string $endDate) {
-        $db = self::getConnection();
-        $stmt = $db->prepare("
+        $result = $this->db->query("
             SELECT AVG(value) as average
             FROM readings 
             WHERE sensor_id = :sensor_id 
             AND created_at BETWEEN :start_date AND :end_date
-        ");
-        
-        $stmt->execute([
+        ", [
             ':sensor_id' => $this->id,
             ':start_date' => $startDate,
             ':end_date' => $endDate
         ]);
-        
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $result['average'] ?? null;
+        return $result[0]['average'] ?? null;
     }
 
     public function updateStatus(string $status): bool {
@@ -157,16 +187,12 @@ class Sensor extends BaseModel {
     }
 
     public function plants() {
-        $db = self::getConnection();
-        $sql = "
+        return $this->db->query("
             SELECT p.* 
             FROM plant_sensors ps
             JOIN plants p ON ps.plant_id = p.id
             WHERE ps.sensor_id = :sensor_id
-        ";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':sensor_id' => $this->id]);
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        ", [':sensor_id' => $this->id]);
     }
 
     public function save(): bool {
@@ -175,22 +201,34 @@ class Sensor extends BaseModel {
         }
         $this->attributes['updated_at'] = date('Y-m-d H:i:s');
         
-        return parent::save();
+        if ($this->userId) {
+            $this->attributes['user_id'] = $this->userId;
+        }
+        
+        $result = parent::save();
+        
+        if ($result && $this->cache) {
+            $this->cache->clear("sensor:{$this->id}");
+        }
+        
+        if ($result && $this->logger) {
+            $this->logger->info('Sensor saved', ['sensor_id' => $this->id, 'user_id' => $this->userId]);
+        }
+        
+        return $result;
     }
 
     public static function delete($id): bool {
+        $db = Database::getInstance();
+        
         // Delete all readings first
-        $db = self::getConnection();
-        $stmt = $db->prepare("DELETE FROM readings WHERE sensor_id = :sensor_id");
-        $stmt->execute([':sensor_id' => $id]);
+        $db->execute("DELETE FROM readings WHERE sensor_id = :sensor_id", [':sensor_id' => $id]);
         
         // Delete all pins
-        $stmt = $db->prepare("DELETE FROM pins WHERE sensor_id = :sensor_id");
-        $stmt->execute([':sensor_id' => $id]);
+        $db->execute("DELETE FROM pins WHERE sensor_id = :sensor_id", [':sensor_id' => $id]);
         
         // Delete plant associations
-        $stmt = $db->prepare("DELETE FROM plant_sensors WHERE sensor_id = :sensor_id");
-        $stmt->execute([':sensor_id' => $id]);
+        $db->execute("DELETE FROM plant_sensors WHERE sensor_id = :sensor_id", [':sensor_id' => $id]);
         
         return parent::delete($id);
     }
@@ -207,12 +245,14 @@ class Sensor extends BaseModel {
         return [
             self::STATUS_ACTIVE,
             self::STATUS_INACTIVE,
-            self::STATUS_MAINTENANCE
+            self::STATUS_MAINTENANCE,
+            self::STATUS_NORMAL,
+            self::STATUS_BELOW_THRESHOLD,
+            self::STATUS_ABOVE_THRESHOLD
         ];
     }
 
-    public function jsonSerialize(): array
-    {
+    public function jsonSerialize(): array {
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -221,6 +261,10 @@ class Sensor extends BaseModel {
             'description' => $this->description,
             'status' => $this->status,
             'last_reading' => $this->last_reading,
+            'last_reading_time' => $this->last_reading_time,
+            'min_threshold' => $this->min_threshold,
+            'max_threshold' => $this->max_threshold,
+            'unit' => $this->unit,
             'plot_url' => $this->plot_url,
             'plot_type' => $this->plot_type,
             'created_at' => $this->created_at,

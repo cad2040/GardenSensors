@@ -18,6 +18,9 @@ fi
 # Set testing environment variable
 export TESTING=true
 
+# Activate virtual environment
+source venv/bin/activate
+
 # Run PHP setup script
 php tests/setup.php
 

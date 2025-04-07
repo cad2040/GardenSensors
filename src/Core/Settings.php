@@ -2,109 +2,132 @@
 namespace GardenSensors\Core;
 
 class Settings {
-    private static $instance = null;
-    private $settings = [];
     private $db;
+    private $cache;
+    private $logger;
+    private $userId;
 
-    public function __construct() {
-        $this->db = Database::getInstance();
-        $this->loadSettings();
+    public function __construct(Database $db, Cache $cache, Logger $logger, int $userId) {
+        $this->db = $db;
+        $this->cache = $cache;
+        $this->logger = $logger;
+        $this->userId = $userId;
     }
 
-    public static function getInstance(): self {
-        if (self::$instance === null) {
-            self::$instance = new self();
-        }
-        return self::$instance;
-    }
-
-    private function loadSettings(): void {
-        $sql = "SELECT * FROM settings";
-        $this->settings = $this->db->query($sql);
-    }
-
-    public function get(string $key, $default = null) {
-        // First try to get from database
-        $sql = "SELECT value FROM settings WHERE `key` = ?";
-        $result = $this->db->query($sql, [$key]);
-        if (!empty($result)) {
-            return $result[0]['value'];
+    public function update(array $settings): bool {
+        // Validate settings
+        if (isset($settings['update_interval']) && ($settings['update_interval'] < 60 || $settings['update_interval'] > 3600)) {
+            throw new \InvalidArgumentException('Update interval must be between 60 and 3600 seconds');
         }
 
-        // If not found in database, check memory cache
-        foreach ($this->settings as $setting) {
-            if ($setting['key'] === $key) {
-                return $setting['value'];
-            }
+        if (isset($settings['timezone']) && !in_array($settings['timezone'], \DateTimeZone::listIdentifiers())) {
+            throw new \InvalidArgumentException('Invalid timezone');
         }
 
-        return $default;
-    }
-
-    public function set(string $key, $value): bool {
-        if (!$this->validateSetting($key, $value)) {
-            throw new \InvalidArgumentException("Invalid setting value for $key");
+        // Check if settings exist
+        $result = $this->db->query("SELECT id FROM user_settings WHERE user_id = ?", [$this->userId]);
+        if (empty($result)) {
+            // Create new settings
+            $sql = "INSERT INTO user_settings (
+                user_id, email_notifications, low_battery_alerts, moisture_alerts,
+                temperature_alerts, update_interval, theme, language, timezone, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+            
+            $params = [
+                $this->userId,
+                $settings['email_notifications'] ?? true,
+                $settings['low_battery_alerts'] ?? true,
+                $settings['moisture_alerts'] ?? true,
+                $settings['temperature_alerts'] ?? true,
+                $settings['update_interval'] ?? 300,
+                $settings['theme'] ?? 'light',
+                $settings['language'] ?? 'en',
+                $settings['timezone'] ?? 'UTC'
+            ];
+            
+            $this->db->execute($sql, $params);
+        } else {
+            // Update existing settings
+            $sql = "UPDATE user_settings SET 
+                email_notifications = ?,
+                low_battery_alerts = ?,
+                moisture_alerts = ?,
+                temperature_alerts = ?,
+                update_interval = ?,
+                theme = ?,
+                language = ?,
+                timezone = ?,
+                updated_at = NOW()
+                WHERE user_id = ?";
+            
+            $params = [
+                $settings['email_notifications'] ?? true,
+                $settings['low_battery_alerts'] ?? true,
+                $settings['moisture_alerts'] ?? true,
+                $settings['temperature_alerts'] ?? true,
+                $settings['update_interval'] ?? 300,
+                $settings['theme'] ?? 'light',
+                $settings['language'] ?? 'en',
+                $settings['timezone'] ?? 'UTC',
+                $this->userId
+            ];
+            
+            $this->db->execute($sql, $params);
         }
 
-        $sql = "INSERT INTO settings (`key`, `value`, updated_at) VALUES (?, ?, NOW()) 
-                ON DUPLICATE KEY UPDATE `value` = ?, updated_at = NOW()";
+        // Clear cache
+        $this->cache->clear("settings:{$this->userId}");
         
-        try {
-            $this->db->execute($sql, [$key, $value, $value]);
-            $this->loadSettings();
-            return true;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    public function delete(string $key): bool {
-        $sql = "DELETE FROM settings WHERE `key` = ?";
+        // Log update
+        $this->logger->info('Settings updated', ['user_id' => $this->userId]);
         
-        try {
-            $this->db->execute($sql, [$key]);
-            $this->loadSettings();
-            return true;
-        } catch (\Exception $e) {
-            return false;
-        }
+        return true;
     }
 
-    public function updateInterval(int $minutes): bool {
-        if ($minutes < 1 || $minutes > 60) {
-            return false;
+    public function get(): array {
+        // Try to get from cache first
+        $settings = $this->cache->get("settings:{$this->userId}");
+        if ($settings !== null) {
+            return $settings;
         }
-        return $this->set('update_interval', $minutes);
-    }
 
-    public function timezone(string $timezone): bool {
-        if (!in_array($timezone, timezone_identifiers_list())) {
-            return false;
+        // Get from database
+        $settings = $this->db->query("SELECT * FROM user_settings WHERE user_id = ?", [$this->userId]);
+        if (empty($settings)) {
+            // Return default settings
+            $settings = [
+                'user_id' => $this->userId,
+                'email_notifications' => true,
+                'low_battery_alerts' => true,
+                'moisture_alerts' => true,
+                'temperature_alerts' => true,
+                'update_interval' => 300,
+                'theme' => 'light',
+                'language' => 'en',
+                'timezone' => 'UTC'
+            ];
+        } else {
+            $settings = $settings[0];
         }
-        return $this->set('timezone', $timezone);
+
+        // Cache settings
+        $this->cache->set("settings:{$this->userId}", $settings, 3600);
+
+        return $settings;
     }
 
     public function reset(): bool {
-        $sql = "DELETE FROM settings";
-        
-        try {
-            $this->db->execute($sql);
-            $this->settings = [];
-            return true;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
+        $defaultSettings = [
+            'email_notifications' => true,
+            'low_battery_alerts' => true,
+            'moisture_alerts' => true,
+            'temperature_alerts' => true,
+            'update_interval' => 300,
+            'theme' => 'light',
+            'language' => 'en',
+            'timezone' => 'UTC'
+        ];
 
-    private function validateSetting(string $key, $value): bool
-    {
-        switch ($key) {
-            case 'update_interval':
-                return is_numeric($value) && $value > 0;
-            case 'timezone':
-                return in_array($value, \DateTimeZone::listIdentifiers());
-            default:
-                return true;
-        }
+        return $this->update($defaultSettings);
     }
 } 

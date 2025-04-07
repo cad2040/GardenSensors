@@ -9,10 +9,12 @@ pymysql>=1.0.2
 mysql-connector-python>=8.0.0
 requests>=2.26.0
 tenacity>=8.2.0
+python-dotenv>=1.0.0
 
 # Testing and Development
 pytest>=7.4.3
 black>=23.11.0
+setuptools>=78.1.0
 
 # Optional Hardware Support
 # RPi.GPIO>=0.7.0  # Uncomment when deploying to Raspberry Pi

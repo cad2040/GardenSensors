@@ -11,6 +11,10 @@ use GardenSensors\Services\RateLimiterService;
 // Initialize application configuration
 AppConfig::initialize();
 
+// Load Python configuration
+$pythonConfig = require __DIR__ . '/Config/python.php';
+AppConfig::load(['python' => $pythonConfig]);
+
 // Start session
 session_start();
 

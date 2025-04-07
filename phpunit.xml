@@ -3,7 +3,10 @@
          xsi:noNamespaceSchemaLocation="./vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          colors="true"
-         testdox="true">
+         testdox="true"
+         timeoutForSmallTests="1"
+         timeoutForMediumTests="10"
+         timeoutForLargeTests="60">
     <testsuites>
         <testsuite name="Unit">
             <directory suffix="Test.php">./tests</directory>
@@ -20,7 +23,7 @@
         <env name="DB_CONNECTION" value="mysql"/>
         <env name="DB_HOST" value="localhost"/>
         <env name="DB_DATABASE" value="garden_sensors_test"/>
-        <env name="DB_USER" value="garden_user"/>
-        <env name="DB_PASS" value="test_password"/>
+        <env name="DB_USER" value="garden_sensors"/>
+        <env name="DB_PASS" value="garden_sensors"/>
     </php>
 </phpunit> 

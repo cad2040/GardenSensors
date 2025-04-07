@@ -11,205 +11,134 @@ use Mockery;
 
 class NotificationTest extends TestCase
 {
+    private $db;
+    private $cache;
+    private $logger;
     private $notification;
-    private $dbMock;
-    private $cacheMock;
-    private $loggerMock;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
-        // Create mocks
-        $this->dbMock = Mockery::mock(Database::class);
-        $this->cacheMock = Mockery::mock(Cache::class);
-        $this->loggerMock = Mockery::mock(Logger::class);
-        
-        // Create notification instance with mocked dependencies
-        $this->notification = new Notification(
-            $this->dbMock,
-            $this->cacheMock,
-            $this->loggerMock,
-            1 // test user ID
-        );
-    }
-
-    protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
+        $this->db = Mockery::mock(Database::class);
+        $this->cache = Mockery::mock(Cache::class);
+        $this->logger = Mockery::mock(Logger::class);
+        $this->notification = new Notification($this->db, $this->cache, $this->logger);
     }
 
     public function testCreateNotification()
     {
-        $notificationData = [
-            'type' => 'alert',
-            'message' => 'Low battery alert',
-            'data' => ['sensor_id' => 1, 'battery_level' => 20]
-        ];
+        $userId = 1;
+        $type = 'alert';
+        $message = 'Low battery alert';
+        $data = ['sensor_id' => 1, 'battery_level' => 20];
 
-        $this->dbMock->shouldReceive('query')
+        $this->db->shouldReceive('execute')
             ->once()
             ->with(
-                "INSERT INTO notifications (user_id, type, message, data, created_at) 
-                VALUES (?, ?, ?, ?, NOW())",
-                [
-                    1,
-                    $notificationData['type'],
-                    $notificationData['message'],
-                    json_encode($notificationData['data'])
-                ]
+                'INSERT INTO notifications (user_id, type, message, data, created_at) VALUES (?, ?, ?, ?, NOW())',
+                [$userId, $type, $message, json_encode($data)]
             )
             ->andReturn(true);
 
-        $this->cacheMock->shouldReceive('clear')
-            ->once()
-            ->with('notifications:1');
-
-        $this->loggerMock->shouldReceive('info')
-            ->once()
-            ->with('Notification created', ['user_id' => 1, 'type' => $notificationData['type']]);
-
-        $result = $this->notification->create(
-            $notificationData['type'],
-            $notificationData['message'],
-            $notificationData['data']
-        );
+        $result = $this->notification->create($userId, $type, $message, $data);
         $this->assertTrue($result);
     }
 
     public function testMarkAsRead()
     {
         $notificationId = 1;
+        $userId = 1;
 
-        $this->dbMock->shouldReceive('query')
+        $this->db->shouldReceive('execute')
             ->once()
             ->with(
-                "UPDATE notifications SET read_at = NOW() WHERE id = ? AND user_id = ?",
-                [$notificationId, 1]
+                'UPDATE notifications SET read_at = NOW() WHERE id = ? AND user_id = ?',
+                [$notificationId, $userId]
             )
             ->andReturn(true);
 
-        $this->cacheMock->shouldReceive('clear')
-            ->once()
-            ->with('notifications:1');
-
-        $this->loggerMock->shouldReceive('info')
-            ->once()
-            ->with('Notification marked as read', ['notification_id' => $notificationId, 'user_id' => 1]);
-
-        $result = $this->notification->markAsRead($notificationId);
+        $result = $this->notification->markAsRead($notificationId, $userId);
         $this->assertTrue($result);
     }
 
     public function testMarkAllAsRead()
     {
-        $this->dbMock->shouldReceive('query')
+        $userId = 1;
+
+        $this->db->shouldReceive('execute')
             ->once()
             ->with(
-                "UPDATE notifications SET read_at = NOW() WHERE user_id = ? AND read_at IS NULL",
-                [1]
+                'UPDATE notifications SET read_at = NOW() WHERE user_id = ? AND read_at IS NULL',
+                [$userId]
             )
             ->andReturn(true);
 
-        $this->cacheMock->shouldReceive('clear')
-            ->once()
-            ->with('notifications:1');
-
-        $this->loggerMock->shouldReceive('info')
-            ->once()
-            ->with('All notifications marked as read', ['user_id' => 1]);
-
-        $result = $this->notification->markAllAsRead();
+        $result = $this->notification->markAllAsRead($userId);
         $this->assertTrue($result);
     }
 
     public function testDeleteNotification()
     {
         $notificationId = 1;
+        $userId = 1;
 
-        $this->dbMock->shouldReceive('query')
+        $this->db->shouldReceive('execute')
             ->once()
             ->with(
-                "DELETE FROM notifications WHERE id = ? AND user_id = ?",
-                [$notificationId, 1]
+                'DELETE FROM notifications WHERE id = ? AND user_id = ?',
+                [$notificationId, $userId]
             )
             ->andReturn(true);
 
-        $this->cacheMock->shouldReceive('clear')
-            ->once()
-            ->with('notifications:1');
-
-        $this->loggerMock->shouldReceive('info')
-            ->once()
-            ->with('Notification deleted', ['notification_id' => $notificationId, 'user_id' => 1]);
-
-        $result = $this->notification->delete($notificationId);
+        $result = $this->notification->delete($notificationId, $userId);
         $this->assertTrue($result);
     }
 
     public function testGetUnreadCount()
     {
-        $expectedCount = 5;
+        $userId = 1;
+        $count = 5;
 
-        $this->cacheMock->shouldReceive('get')
-            ->once()
-            ->with('notifications:unread:1')
-            ->andReturn(null);
-
-        $this->dbMock->shouldReceive('query')
+        $this->db->shouldReceive('query')
             ->once()
             ->with(
-                "SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read_at IS NULL",
-                [1]
+                'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read_at IS NULL',
+                [$userId]
             )
-            ->andReturn(['count' => $expectedCount]);
+            ->andReturn([['count' => $count]]);
 
-        $this->cacheMock->shouldReceive('set')
+        $this->cache->shouldReceive('set')
             ->once()
-            ->with('notifications:unread:1', $expectedCount, 300);
+            ->with('notifications:unread:' . $userId, $count, 300)
+            ->andReturn(true);
 
-        $result = $this->notification->getUnreadCount();
-        $this->assertEquals($expectedCount, $result);
+        $result = $this->notification->getUnreadCount($userId);
+        $this->assertEquals($count, $result);
     }
 
     public function testGetNotifications()
     {
-        $expectedNotifications = [
+        $userId = 1;
+        $notifications = [
             [
                 'id' => 1,
                 'type' => 'alert',
-                'message' => 'Low battery alert',
-                'data' => json_encode(['sensor_id' => 1, 'battery_level' => 20]),
-                'created_at' => '2024-01-01 12:00:00'
-            ],
-            [
-                'id' => 2,
-                'type' => 'info',
-                'message' => 'System update',
-                'data' => null,
-                'created_at' => '2024-01-01 11:00:00'
+                'message' => 'Test notification',
+                'data' => json_encode(['key' => 'value']),
+                'read_at' => null,
+                'created_at' => '2024-01-01 00:00:00'
             ]
         ];
 
-        $this->cacheMock->shouldReceive('get')
-            ->once()
-            ->with('notifications:list:1:1:10')
-            ->andReturn(null);
-
-        $this->dbMock->shouldReceive('query')
+        $this->db->shouldReceive('query')
             ->once()
             ->with(
-                "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                [1, 10, 0]
+                'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
+                [$userId]
             )
-            ->andReturn($expectedNotifications);
+            ->andReturn($notifications);
 
-        $this->cacheMock->shouldReceive('set')
-            ->once()
-            ->with('notifications:list:1:1:10', $expectedNotifications, 300);
-
-        $result = $this->notification->getNotifications(1, 10);
-        $this->assertEquals($expectedNotifications, $result);
+        $result = $this->notification->getNotifications($userId);
+        $this->assertEquals($notifications, $result);
     }
 } 

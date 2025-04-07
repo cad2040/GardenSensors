@@ -8,15 +8,22 @@ class Database {
     private static $instance = null;
     private $connection;
     private $inTransaction = false;
+    private const TIMEOUT = 5; // 5 second timeout
 
-    public function __construct() {
+    public function __construct($connection = null) {
+        if ($connection) {
+            $this->connection = $connection;
+            return;
+        }
+        
         $config = require __DIR__ . '/../Config/database.php';
-        $isTest = getenv('APP_ENV') === 'testing';
+        $isTest = getenv('TESTING') === 'true';
         $dbName = $isTest ? 'garden_sensors_test' : $config['database'];
         $dsn = "mysql:host={$config['host']};dbname={$dbName};charset={$config['charset']}";
         
         try {
             $this->connection = new PDO($dsn, $config['username'], $config['password'], $config['options']);
+            $this->connection->setAttribute(PDO::ATTR_TIMEOUT, self::TIMEOUT);
         } catch (PDOException $e) {
             throw new PDOException("Connection failed: " . $e->getMessage());
         }
@@ -33,7 +40,7 @@ class Database {
         try {
             $stmt = $this->connection->prepare($sql);
             $stmt->execute($params);
-            return $stmt->fetchAll();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             throw new PDOException("Query failed: " . $e->getMessage());
         }
@@ -50,23 +57,33 @@ class Database {
 
     public function beginTransaction(): bool {
         if (!$this->inTransaction) {
-            $this->inTransaction = $this->connection->beginTransaction();
+            $result = $this->connection->beginTransaction();
+            if ($result) {
+                $this->inTransaction = true;
+            }
+            return $result;
         }
-        return $this->inTransaction;
+        return false;
     }
 
     public function commit(): bool {
         if ($this->inTransaction) {
-            $this->inTransaction = false;
-            return $this->connection->commit();
+            $result = $this->connection->commit();
+            if ($result) {
+                $this->inTransaction = false;
+            }
+            return $result;
         }
         return false;
     }
 
     public function rollback(): bool {
         if ($this->inTransaction) {
-            $this->inTransaction = false;
-            return $this->connection->rollBack();
+            $result = $this->connection->rollBack();
+            if ($result) {
+                $this->inTransaction = false;
+            }
+            return $result;
         }
         return false;
     }

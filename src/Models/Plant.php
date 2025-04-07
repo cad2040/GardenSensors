@@ -1,29 +1,56 @@
 <?php
 namespace GardenSensors\Models;
 
+use GardenSensors\Core\Database;
+use GardenSensors\Core\Cache;
+use GardenSensors\Core\Logger;
+
 class Plant extends BaseModel implements \JsonSerializable {
-    protected static $table = 'plants';
-    protected static $primaryKey = 'id';
-    protected static $fillable = [
+    protected $table = 'plants';
+    protected $primaryKey = 'id';
+    protected $fillable = [
         'name',
         'species',
         'min_soil_moisture',
         'max_soil_moisture',
-        'watering_frequency'
+        'watering_frequency',
+        'location',
+        'min_temperature',
+        'max_temperature',
+        'status',
+        'user_id'
     ];
+
+    protected $db;
+    protected $cache;
+    protected $logger;
+    protected $userId;
+
+    public function __construct($attributes = [], $db = null, $cache = null, $logger = null, $userId = null) {
+        if ($attributes instanceof Database) {
+            $db = $attributes;
+            $attributes = [];
+        }
+        
+        $this->db = $db ?? Database::getInstance();
+        $this->cache = $cache ?? Cache::getInstance();
+        $this->logger = $logger ?? Logger::getInstance();
+        $this->userId = $userId;
+        
+        parent::__construct($attributes);
+    }
 
     public function sensors() {
         return $this->hasMany(Sensor::class, 'plant_sensors', 'plant_id', 'sensor_id');
     }
 
     public function addSensor(Sensor $sensor): bool {
-        $db = self::getConnection();
-        $stmt = $db->prepare("
+        $sql = "
             INSERT INTO plant_sensors (plant_id, sensor_id, water_amount)
             VALUES (:plant_id, :sensor_id, :water_amount)
-        ");
+        ";
         
-        return $stmt->execute([
+        return $this->db->execute($sql, [
             ':plant_id' => $this->id,
             ':sensor_id' => $sensor->id,
             ':water_amount' => 100  // Default water amount in ml
@@ -31,64 +58,58 @@ class Plant extends BaseModel implements \JsonSerializable {
     }
 
     public function removeSensor(Sensor $sensor): bool {
-        $db = self::getConnection();
-        $stmt = $db->prepare("
+        $sql = "
             DELETE FROM plant_sensors 
             WHERE plant_id = :plant_id AND sensor_id = :sensor_id
-        ");
+        ";
         
-        return $stmt->execute([
+        return $this->db->execute($sql, [
             ':plant_id' => $this->id,
             ':sensor_id' => $sensor->id
         ]);
     }
 
     public function updateWatering(): bool {
-        $db = self::getConnection();
-        $stmt = $db->prepare("
+        $sql = "
             UPDATE plant_sensors 
             SET last_watered = NOW(), next_watering = DATE_ADD(NOW(), INTERVAL :hours HOUR)
             WHERE plant_id = :plant_id
-        ");
+        ";
         
-        return $stmt->execute([
+        return $this->db->execute($sql, [
             ':plant_id' => $this->id,
             ':hours' => $this->watering_frequency
         ]);
     }
 
     public function needsWatering(): bool {
-        $db = self::getConnection();
-        $stmt = $db->prepare("
+        $sql = "
             SELECT ps.*, p.min_soil_moisture, p.max_soil_moisture, p.watering_frequency
             FROM plant_sensors ps
             JOIN plants p ON ps.plant_id = p.id
             WHERE ps.plant_id = :plant_id
-        ");
-        $stmt->execute([':plant_id' => $this->id]);
-        $plant = $stmt->fetch(\PDO::FETCH_ASSOC);
+        ";
+        $plant = $this->db->query($sql, [':plant_id' => $this->id]);
 
-        if (!$plant) {
+        if (empty($plant)) {
             return false;
         }
 
         // Check if next watering time has passed
-        $nextWatering = strtotime($plant['next_watering']);
+        $nextWatering = strtotime($plant[0]['next_watering']);
         return $nextWatering <= time();
     }
 
     public function getEnvironmentalConditions(): array {
-        $db = self::getConnection();
-        $stmt = $db->prepare("
+        $sql = "
             SELECT s.*, r.value, r.created_at as timestamp
             FROM plant_sensors ps
             JOIN sensors s ON ps.sensor_id = s.id
             JOIN readings r ON s.id = r.sensor_id
             WHERE ps.plant_id = :plant_id
             AND r.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-        ");
-        $stmt->execute([':plant_id' => $this->id]);
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        ";
+        return $this->db->query($sql, [':plant_id' => $this->id]);
     }
 
     public function checkHealthStatus(): string {
@@ -122,30 +143,42 @@ class Plant extends BaseModel implements \JsonSerializable {
         }
         $this->attributes['updated_at'] = date('Y-m-d H:i:s');
         
-        return parent::save();
+        if ($this->userId) {
+            $this->attributes['user_id'] = $this->userId;
+        }
+        
+        $result = parent::save();
+        
+        if ($result && $this->cache) {
+            $this->cache->clear("plant:{$this->id}");
+        }
+        
+        if ($result && $this->logger) {
+            $this->logger->info('Plant saved', ['plant_id' => $this->id, 'user_id' => $this->userId]);
+        }
+        
+        return $result;
     }
 
     public static function delete($id): bool {
-        $db = self::getConnection();
+        $db = Database::getInstance();
         
         // Delete related records first
-        $stmt = $db->prepare("DELETE FROM plant_sensors WHERE plant_id = ?");
-        $stmt->execute([$id]);
+        $db->execute("DELETE FROM plant_sensors WHERE plant_id = ?", [$id]);
         
         // Then delete the plant
         return parent::delete($id);
     }
 
     public static function findBySensor($sensorId) {
-        $db = self::getConnection();
-        $stmt = $db->prepare("
+        $db = Database::getInstance();
+        $result = $db->query("
             SELECT p.*
             FROM plants p
             JOIN plant_sensors ps ON p.id = ps.plant_id
             WHERE ps.sensor_id = :sensor_id
-        ");
-        $stmt->execute([':sensor_id' => $sensorId]);
-        return $stmt->fetch(\PDO::FETCH_ASSOC);
+        ", [':sensor_id' => $sensorId]);
+        return !empty($result) ? new static($result[0]) : null;
     }
 
     public function jsonSerialize(): array {

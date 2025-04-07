@@ -6,10 +6,10 @@ use GardenSensors\Models\BaseModel;
 
 // Create a test model class that extends BaseModel
 class TestModel extends BaseModel {
-    protected static $table = 'test_models';
-    protected static $primaryKey = 'id';
-    protected static $fillable = ['name', 'value'];
-    protected static $hidden = ['created_at', 'updated_at'];
+    protected $table = 'test_models';
+    protected $primaryKey = 'id';
+    protected $fillable = ['name', 'value'];
+    protected $hidden = ['created_at', 'updated_at'];
     
     public function jsonSerialize(): mixed {
         return $this->toArray();
@@ -49,46 +49,46 @@ class BaseModelTest extends TestCase {
     }
 
     public function testModelCreation() {
-        $this->assertNull($this->model->id);
-        $this->assertEquals('test', $this->model->name);
-        $this->assertEquals('value', $this->model->value);
+        $this->assertNull($this->model->getAttribute('id'));
+        $this->assertEquals('test', $this->model->getAttribute('name'));
+        $this->assertEquals('value', $this->model->getAttribute('value'));
     }
 
     public function testModelSave() {
         $this->model->save();
         
-        $this->assertNotNull($this->model->id);
-        $this->assertNotNull($this->model->created_at);
-        $this->assertNotNull($this->model->updated_at);
+        $this->assertNotNull($this->model->getAttribute('id'));
+        $this->assertNotNull($this->model->getAttribute('created_at'));
+        $this->assertNotNull($this->model->getAttribute('updated_at'));
     }
 
     public function testModelUpdate() {
         $this->model->save();
         
-        $this->model->name = 'updated';
+        $this->model->setAttribute('name', 'updated');
         $this->model->save();
         
-        $updated = TestModel::find($this->model->id);
-        $this->assertEquals('updated', $updated->name);
-        $this->assertNotEquals($updated->created_at, $updated->updated_at);
+        $updated = (new TestModel())->find($this->model->getAttribute('id'));
+        $this->assertEquals('updated', $updated->getAttribute('name'));
+        $this->assertNotEquals($updated->getAttribute('created_at'), $updated->getAttribute('updated_at'));
     }
 
     public function testModelDelete() {
         $this->model->save();
-        $id = $this->model->id;
+        $id = $this->model->getAttribute('id');
         
         $this->model->delete();
         
-        $deleted = TestModel::find($id);
+        $deleted = (new TestModel())->find($id);
         $this->assertNull($deleted);
     }
 
     public function testModelFind() {
         $this->model->save();
         
-        $found = TestModel::find($this->model->id);
+        $found = (new TestModel())->find($this->model->getAttribute('id'));
         $this->assertNotNull($found);
-        $this->assertEquals($this->model->id, $found->id);
+        $this->assertEquals($this->model->getAttribute('id'), $found->getAttribute('id'));
     }
 
     public function testModelFindAll() {
@@ -100,7 +100,7 @@ class BaseModelTest extends TestCase {
         ]);
         $model2->save();
         
-        $all = TestModel::findAll();
+        $all = (new TestModel())->all();
         $this->assertCount(2, $all);
     }
 
@@ -113,17 +113,17 @@ class BaseModelTest extends TestCase {
         ]);
         $model2->save();
         
-        $results = TestModel::where('name = ?', ['test']);
+        $results = (new TestModel())->where('name', '=', 'test');
         $this->assertCount(1, $results);
-        $this->assertEquals($this->model->id, $results[0]->id);
+        $this->assertEquals($this->model->getAttribute('id'), $results[0]->getAttribute('id'));
     }
 
     public function testModelFillable() {
-        $this->model->non_fillable = 'test';
+        $this->model->setAttribute('non_fillable', 'test');
         $this->model->save();
         
-        $found = TestModel::find($this->model->id);
-        $this->assertNull($found->non_fillable);
+        $found = (new TestModel())->find($this->model->getAttribute('id'));
+        $this->assertNull($found->getAttribute('non_fillable'));
     }
 
     public function testModelHidden() {

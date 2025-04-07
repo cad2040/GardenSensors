@@ -19,7 +19,7 @@ class Notification {
     }
 
     public function create(string $type, string $message, array $data = []): bool {
-        $result = $this->db->query(
+        $result = $this->db->execute(
             "INSERT INTO notifications (user_id, type, message, data, created_at) 
             VALUES (?, ?, ?, ?, NOW())",
             [
@@ -39,7 +39,7 @@ class Notification {
     }
 
     public function markAsRead(int $notificationId): bool {
-        $result = $this->db->query(
+        $result = $this->db->execute(
             "UPDATE notifications SET read_at = NOW() WHERE id = ? AND user_id = ?",
             [$notificationId, $this->userId]
         );
@@ -53,7 +53,7 @@ class Notification {
     }
 
     public function markAllAsRead(): bool {
-        $result = $this->db->query(
+        $result = $this->db->execute(
             "UPDATE notifications SET read_at = NOW() WHERE user_id = ? AND read_at IS NULL",
             [$this->userId]
         );
@@ -67,7 +67,7 @@ class Notification {
     }
 
     public function delete(int $notificationId): bool {
-        $result = $this->db->query(
+        $result = $this->db->execute(
             "DELETE FROM notifications WHERE id = ? AND user_id = ?",
             [$notificationId, $this->userId]
         );
@@ -89,7 +89,7 @@ class Notification {
                 "SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read_at IS NULL",
                 [$this->userId]
             );
-            $count = $result[0]['count'];
+            $count = isset($result[0]['count']) ? (int)$result[0]['count'] : 0;
             $this->cache->set($cacheKey, $count, 300);
         }
 

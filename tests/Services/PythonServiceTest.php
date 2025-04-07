@@ -9,31 +9,36 @@ use GardenSensors\Config\AppConfig;
 class PythonServiceTest extends TestCase {
     private $pythonService;
     private $mockExecOutput = [];
+    private $mockExecReturnVar = 0;
 
     protected function setUp(): void {
         parent::setUp();
         
         // Set up AppConfig with test values
-        AppConfig::set('python.path', '/usr/bin/python3');
+        AppConfig::set('python.path', '/home/cad2040/Code/GardenSensors/venv/bin/python3');
             
-        $this->pythonService = new PythonService();
+        $this->pythonService = $this->getMockBuilder(PythonService::class)
+            ->onlyMethods(['executePythonScript'])
+            ->getMock();
     }
 
     protected function tearDown(): void {
         parent::tearDown();
     }
 
-    /**
-     * Mock the exec function for testing
-     */
-    private function mockExec($command, &$output, &$returnVar) {
-        $output = $this->mockExecOutput;
-        $returnVar = 0;
-        return true;
-    }
-
     public function testGeneratePlot() {
-        $this->mockExecOutput = ['Plot generated successfully'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->with(
+                'ProducePlot.py',
+                [
+                    '--sensor-id', 'sensor1',
+                    '--start-date', '2024-01-01',
+                    '--end-date', '2024-01-02',
+                    '--output', 'plots/sensor1.png'
+                ]
+            )
+            ->willReturn(['Plot generated successfully']);
         
         $result = $this->pythonService->generatePlot(
             'sensor1',
@@ -46,7 +51,9 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testGeneratePlotFailure() {
-        $this->mockExecOutput = ['Error: Failed to generate plot'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->willThrowException(new PythonExecutionException('Failed to generate plot'));
         
         $result = $this->pythonService->generatePlot(
             'sensor1',
@@ -59,7 +66,16 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testControlPump() {
-        $this->mockExecOutput = ['Pump controlled successfully'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->with(
+                'RunPump.py',
+                [
+                    '--pin', '18',
+                    '--duration', '5'
+                ]
+            )
+            ->willReturn(['Pump controlled successfully']);
         
         $result = $this->pythonService->controlPump(18, 5);
 
@@ -67,7 +83,9 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testControlPumpFailure() {
-        $this->mockExecOutput = ['Error: Failed to control pump'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->willThrowException(new PythonExecutionException('Failed to control pump'));
         
         $result = $this->pythonService->controlPump(18, 5);
 
@@ -75,7 +93,17 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testUploadFile() {
-        $this->mockExecOutput = ['File uploaded successfully'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->with(
+                'FTPConnectMod.py',
+                [
+                    '--action', 'upload',
+                    '--local', 'local/file.txt',
+                    '--remote', 'remote/file.txt'
+                ]
+            )
+            ->willReturn(['File uploaded successfully']);
         
         $result = $this->pythonService->uploadFile(
             'local/file.txt',
@@ -86,7 +114,9 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testUploadFileFailure() {
-        $this->mockExecOutput = ['Error: Failed to upload file'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->willThrowException(new PythonExecutionException('Failed to upload file'));
         
         $result = $this->pythonService->uploadFile(
             'local/file.txt',
@@ -97,7 +127,17 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testDownloadFile() {
-        $this->mockExecOutput = ['File downloaded successfully'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->with(
+                'FTPConnectMod.py',
+                [
+                    '--action', 'download',
+                    '--remote', 'remote/file.txt',
+                    '--local', 'local/file.txt'
+                ]
+            )
+            ->willReturn(['File downloaded successfully']);
         
         $result = $this->pythonService->downloadFile(
             'remote/file.txt',
@@ -108,7 +148,9 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testDownloadFileFailure() {
-        $this->mockExecOutput = ['Error: Failed to download file'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->willThrowException(new PythonExecutionException('Failed to download file'));
         
         $result = $this->pythonService->downloadFile(
             'remote/file.txt',
@@ -119,26 +161,40 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testExecuteQuery() {
-        $this->mockExecOutput = [json_encode(['result1', 'result2'])];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->with(
+                'DBConnect.py',
+                [
+                    '--query', 'SELECT * FROM test_table',
+                    '--params', json_encode(['param1'])
+                ]
+            )
+            ->willReturn(['{"results": ["result1", "result2"]}']);
         
         $result = $this->pythonService->executeQuery(
             'SELECT * FROM test_table',
             ['param1']
         );
 
-        $this->assertEquals(['result1', 'result2'], $result);
+        $this->assertEquals(['results' => ['result1', 'result2']], $result);
     }
 
     public function testExecuteQueryFailure() {
         $this->expectException(PythonExecutionException::class);
         
-        $this->mockExecOutput = ['Error: Failed to execute query'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->willThrowException(new PythonExecutionException('Failed to execute query'));
         
         $this->pythonService->executeQuery('SELECT * FROM test_table');
     }
 
     public function testCheckEnvironment() {
-        $this->mockExecOutput = ['Environment check passed'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->with('check_env.py')
+            ->willReturn(['{"python_version": true, "required_packages": true}']);
         
         $result = $this->pythonService->checkEnvironment();
 
@@ -146,7 +202,9 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testCheckEnvironmentFailure() {
-        $this->mockExecOutput = ['Error: Environment check failed'];
+        $this->pythonService->expects($this->once())
+            ->method('executePythonScript')
+            ->willThrowException(new PythonExecutionException('Environment check failed'));
         
         $result = $this->pythonService->checkEnvironment();
 
@@ -154,16 +212,14 @@ class PythonServiceTest extends TestCase {
     }
 
     public function testExecutePythonScriptNotFound() {
+        $pythonService = new PythonService();
         $this->expectException(PythonExecutionException::class);
-        
-        $this->pythonService->executePythonScript('nonexistent.py');
+        $pythonService->executePythonScript('nonexistent.py');
     }
 
     public function testExecutePythonScriptFailure() {
+        $pythonService = new PythonService();
         $this->expectException(PythonExecutionException::class);
-        
-        $this->mockExecOutput = ['Error: Script execution failed'];
-        
-        $this->pythonService->executePythonScript('test.py');
+        $pythonService->executePythonScript('test.py');
     }
 } 

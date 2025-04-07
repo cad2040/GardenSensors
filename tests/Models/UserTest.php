@@ -11,10 +11,12 @@ class UserTest extends TestCase {
     protected function setUp(): void {
         parent::setUp();
         
+        putenv('TESTING=true');
+        
         $this->user = new User([
             'username' => 'testuser',
             'email' => 'test@example.com',
-            'password' => password_hash('testpassword', PASSWORD_DEFAULT),
+            'password_hash' => password_hash('testpassword', PASSWORD_DEFAULT),
             'role' => 'user',
             'status' => 'active'
         ]);
@@ -35,8 +37,8 @@ class UserTest extends TestCase {
     }
 
     public function testPasswordHashing() {
-        $this->assertTrue(password_verify('testpassword', $this->user->password));
-        $this->assertFalse(password_verify('wrongpassword', $this->user->password));
+        $this->assertTrue(password_verify('testpassword', $this->user->password_hash));
+        $this->assertFalse(password_verify('wrongpassword', $this->user->password_hash));
     }
 
     public function testUserStatusManagement() {

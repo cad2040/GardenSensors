@@ -13,7 +13,7 @@ class PythonService {
     private $plotter;
 
     public function __construct() {
-        $this->pythonPath = AppConfig::get('python.path', dirname(dirname(dirname(__DIR__))) . '/venv/bin/python3');
+        $this->pythonPath = AppConfig::get('python.path', '/home/cad2040/Code/GardenSensors/venv/bin/python3');
         $this->projectRoot = dirname(dirname(__DIR__));
     }
 
@@ -149,7 +149,11 @@ class PythonService {
                 '--query', $query,
                 '--params', json_encode($params)
             ]);
-            return json_decode($output[0], true) ?? [];
+            if (empty($output)) {
+                return [];
+            }
+            $result = json_decode($output[0], true);
+            return is_array($result) ? $result : [];
         } catch (PythonExecutionException $e) {
             error_log("Failed to execute query: " . $e->getMessage());
             throw $e;

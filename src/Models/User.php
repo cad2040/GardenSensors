@@ -3,11 +3,11 @@ namespace GardenSensors\Models;
 
 class User extends BaseModel implements \JsonSerializable {
     protected static $table = 'users';
-    protected static $primaryKey = 'user_id';
+    protected static $primaryKey = 'id';
     protected static $fillable = [
         'username',
         'email',
-        'password',
+        'password_hash',
         'role',
         'status',
         'last_login',
@@ -19,11 +19,11 @@ class User extends BaseModel implements \JsonSerializable {
     public const STATUS_INACTIVE = 'inactive';
 
     public function setPassword(string $password): void {
-        $this->attributes['password'] = password_hash($password, PASSWORD_DEFAULT);
+        $this->attributes['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
     }
 
     public function verifyPassword(string $password): bool {
-        return password_verify($password, $this->password);
+        return password_verify($password, $this->password_hash);
     }
 
     public function isAdmin(): bool {

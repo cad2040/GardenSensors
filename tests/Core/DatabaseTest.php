@@ -31,7 +31,7 @@ class DatabaseTest extends TestCase
     {
         $sql = "SELECT * FROM test WHERE id = ?";
         $params = [1];
-        $expectedResult = ['id' => 1, 'name' => 'test'];
+        $expectedResult = ['id' => 1, 'name' => 'Test 1', 'created_at' => '2025-04-07 12:53:21'];
 
         $this->pdoMock->expects($this->once())
             ->method('prepare')
@@ -100,7 +100,7 @@ class DatabaseTest extends TestCase
 
     public function testLastInsertId()
     {
-        $expectedId = 1;
+        $expectedId = '1';
 
         $this->pdoMock->expects($this->once())
             ->method('lastInsertId')
