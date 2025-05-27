@@ -111,6 +111,16 @@ pip install -r requirements.txt
 mysql -u root -p < database/schema.sql
 ```
 
+4. Set up test database:
+```bash
+./tests/setup_test_db.sh
+```
+
+5. Clean up local dev environment (if needed):
+```bash
+./dev_clean.sh
+```
+
 ## Maintenance
 
 ### Backup Management
@@ -204,3 +214,6 @@ This will:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## MySQL Root Password
+The MySQL root password is set to `364828`. **IMPORTANT:** This password should be changed in a production environment for security reasons.

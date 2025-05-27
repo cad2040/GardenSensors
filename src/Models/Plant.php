@@ -3,7 +3,7 @@ namespace GardenSensors\Models;
 
 use GardenSensors\Core\Database;
 use GardenSensors\Core\Cache;
-use GardenSensors\Core\Logger;
+// use GardenSensors\Core\Logger;
 
 class Plant extends BaseModel implements \JsonSerializable {
     protected $table = 'plants';
@@ -20,10 +20,11 @@ class Plant extends BaseModel implements \JsonSerializable {
         'status',
         'user_id'
     ];
+    protected $hidden = ['created_at', 'updated_at'];
 
     protected $db;
     protected $cache;
-    protected $logger;
+    // protected $logger;
     protected $userId;
 
     public function __construct($attributes = [], $db = null, $cache = null, $logger = null, $userId = null) {
@@ -33,8 +34,8 @@ class Plant extends BaseModel implements \JsonSerializable {
         }
         
         $this->db = $db ?? Database::getInstance();
-        $this->cache = $cache ?? Cache::getInstance();
-        $this->logger = $logger ?? Logger::getInstance();
+        $this->cache = $cache ?? Cache::getInstance(__DIR__ . '/../../cache');
+        // $this->logger = $logger ?? Logger::getInstance();
         $this->userId = $userId;
         
         parent::__construct($attributes);
@@ -153,21 +154,31 @@ class Plant extends BaseModel implements \JsonSerializable {
             $this->cache->clear("plant:{$this->id}");
         }
         
-        if ($result && $this->logger) {
-            $this->logger->info('Plant saved', ['plant_id' => $this->id, 'user_id' => $this->userId]);
-        }
+        // if ($result && $this->logger) {
+        //     $this->logger->info('Plant saved', ['plant_id' => $this->id, 'user_id' => $this->userId]);
+        // }
         
         return $result;
     }
 
-    public static function delete($id): bool {
-        $db = Database::getInstance();
-        
+    public function delete(
+        $id = null
+    ): bool {
+        $db = $this->db ?? Database::getInstance();
+        $plantId = $id ?? $this->id;
         // Delete related records first
-        $db->execute("DELETE FROM plant_sensors WHERE plant_id = ?", [$id]);
-        
+        $db->execute("DELETE FROM plant_sensors WHERE plant_id = :plant_id", [':plant_id' => $plantId]);
         // Then delete the plant
-        return parent::delete($id);
+        return parent::delete($plantId);
+    }
+
+    public static function getStatuses(): array {
+        return [
+            'healthy',
+            'needs_water',
+            'too_wet',
+            'unknown'
+        ];
     }
 
     public static function findBySensor($sensorId) {

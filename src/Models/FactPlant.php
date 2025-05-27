@@ -2,15 +2,29 @@
 namespace GardenSensors\Models;
 
 class FactPlant extends BaseModel {
-    protected static $table = 'fact_plants';
-    protected static $primaryKey = 'id';
-    protected static $fillable = [
+    protected $table = 'fact_plants';
+    protected $primaryKey = 'id';
+    protected $fillable = [
         'sensor_id',
         'plant_id',
+        'waterAmount',
         'lastWatered',
         'nextWatering',
-        'waterAmount'
+        'created_at',
+        'updated_at'
     ];
+
+    protected $hidden = ['created_at', 'updated_at'];
+
+    // Add property declarations
+    protected $id;
+    protected $sensor_id;
+    protected $plant_id;
+    protected $waterAmount;
+    protected $lastWatered;
+    protected $nextWatering;
+    protected $created_at;
+    protected $updated_at;
 
     public function sensor() {
         return Sensor::find($this->sensor_id);
@@ -36,32 +50,23 @@ class FactPlant extends BaseModel {
     }
 
     public function save(): bool {
-        if (!isset($this->attributes['inserted'])) {
-            $this->attributes['inserted'] = date('Y-m-d H:i:s');
+        if (!isset($this->attributes['created_at'])) {
+            $this->attributes['created_at'] = date('Y-m-d H:i:s');
         }
-        $this->attributes['updated'] = date('Y-m-d H:i:s');
+        $this->attributes['updated_at'] = date('Y-m-d H:i:s');
         
         return parent::save();
     }
 
-    public static function findBySensor($sensorId) {
-        $db = self::getConnection();
-        $sql = "SELECT * FROM fact_plants WHERE sensor_id = :sensor_id";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':sensor_id' => $sensorId]);
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    public function findBySensor($sensorId) {
+        return $this->where('sensor_id', '=', $sensorId);
     }
 
-    public static function findByPlant($plantId) {
-        $db = self::getConnection();
-        $sql = "SELECT * FROM fact_plants WHERE plant_id = :plant_id";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':plant_id' => $plantId]);
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    public function findByPlant($plantId) {
+        return $this->where('plant_id', '=', $plantId);
     }
 
-    public static function getPlantsNeedingWater() {
-        $db = self::getConnection();
+    public function getPlantsNeedingWater() {
         $sql = "
             SELECT fp.*, p.plant, p.species
             FROM fact_plants fp
@@ -69,8 +74,6 @@ class FactPlant extends BaseModel {
             WHERE fp.nextWatering <= NOW()
             ORDER BY fp.nextWatering ASC
         ";
-        $stmt = $db->prepare($sql);
-        $stmt->execute();
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return $this->db->query($sql);
     }
 } 

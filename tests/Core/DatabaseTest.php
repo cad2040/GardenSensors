@@ -1,132 +1,178 @@
 <?php
 
-namespace GardenSensors\Tests\Unit;
+namespace GardenSensors\Tests\Core;
 
-use GardenSensors\Core\Database;
 use PHPUnit\Framework\TestCase;
-use PDO;
-use PDOStatement;
+use GardenSensors\Core\Database;
 
 class DatabaseTest extends TestCase
 {
     private $db;
-    private $pdoMock;
-    private $statementMock;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
-        // Create PDO mock
-        $this->pdoMock = $this->createMock(PDO::class);
-        
-        // Create statement mock
-        $this->statementMock = $this->createMock(PDOStatement::class);
-        
-        // Create database instance with mocked PDO
-        $this->db = new Database($this->pdoMock);
+        $this->db = Database::getInstance();
+    }
+
+    public function testConnection()
+    {
+        $this->assertNotNull($this->db);
+        $this->assertInstanceOf(Database::class, $this->db);
     }
 
     public function testQuery()
     {
-        $sql = "SELECT * FROM test WHERE id = ?";
-        $params = [1];
-        $expectedResult = ['id' => 1, 'name' => 'Test 1', 'created_at' => '2025-04-07 12:53:21'];
-
-        $this->pdoMock->expects($this->once())
-            ->method('prepare')
-            ->with($sql)
-            ->willReturn($this->statementMock);
-
-        $this->statementMock->expects($this->once())
-            ->method('execute')
-            ->with($params)
-            ->willReturn(true);
-
-        $this->statementMock->expects($this->once())
-            ->method('fetchAll')
-            ->with(PDO::FETCH_ASSOC)
-            ->willReturn([$expectedResult]);
-
-        $result = $this->db->query($sql, $params);
-        $this->assertEquals([$expectedResult], $result);
+        $result = $this->db->query('SELECT 1 as test');
+        $this->assertIsArray($result);
+        $this->assertCount(1, $result);
+        $this->assertEquals(1, $result[0]['test']);
     }
 
-    public function testQueryWithError()
+    public function testExecute()
     {
-        $sql = "SELECT * FROM test WHERE id = ?";
-        $params = [1];
-
-        $this->pdoMock->expects($this->once())
-            ->method('prepare')
-            ->with($sql)
-            ->willThrowException(new \PDOException('Database error'));
-
-        $this->expectException(\PDOException::class);
-        $this->expectExceptionMessage('Database error');
-
-        $this->db->query($sql, $params);
-    }
-
-    public function testBeginTransaction()
-    {
-        $this->pdoMock->expects($this->once())
-            ->method('beginTransaction')
-            ->willReturn(true);
-
-        $result = $this->db->beginTransaction();
+        // Create a test table
+        $this->db->exec('CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(255))');
+        
+        // Insert a test record
+        $result = $this->db->execute(
+            'INSERT INTO test_table (id, name) VALUES (?, ?)',
+            [1, 'Test']
+        );
+        
         $this->assertTrue($result);
+        
+        // Verify the record was inserted
+        $records = $this->db->query('SELECT * FROM test_table WHERE id = ?', [1]);
+        $this->assertCount(1, $records);
+        $this->assertEquals('Test', $records[0]['name']);
+        
+        // Clean up
+        $this->db->exec('DROP TABLE IF EXISTS test_table');
+    }
+
+    public function testTransaction()
+    {
+        // Create a test table
+        $this->db->exec('CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(255))');
+        
+        // Start transaction
+        $this->db->beginTransaction();
+        
+        // Insert a test record
+        $this->db->execute(
+            'INSERT INTO test_table (id, name) VALUES (?, ?)',
+            [1, 'Test']
+        );
+        
+        // Verify the record is visible within the transaction
+        $records = $this->db->query('SELECT * FROM test_table WHERE id = ?', [1]);
+        $this->assertCount(1, $records);
+        
+        // Rollback the transaction
+        $this->db->rollback();
+        
+        // Verify the record is not visible after rollback
+        $records = $this->db->query('SELECT * FROM test_table WHERE id = ?', [1]);
+        $this->assertCount(0, $records);
+        
+        // Start a new transaction
+        $this->db->beginTransaction();
+        
+        // Insert a test record
+        $this->db->execute(
+            'INSERT INTO test_table (id, name) VALUES (?, ?)',
+            [1, 'Test']
+        );
+        
+        // Commit the transaction
+        $this->db->commit();
+        
+        // Verify the record is visible after commit
+        $records = $this->db->query('SELECT * FROM test_table WHERE id = ?', [1]);
+        $this->assertCount(1, $records);
+        
+        // Clean up
+        $this->db->exec('DROP TABLE IF EXISTS test_table');
     }
 
     public function testCommit()
     {
-        $this->pdoMock->expects($this->once())
-            ->method('commit')
-            ->willReturn(true);
-
+        // Create a test table
+        $this->db->exec('CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(255))');
+        
+        // Start transaction
+        $this->db->beginTransaction();
+        
+        // Insert a test record
+        $this->db->execute(
+            'INSERT INTO test_table (id, name) VALUES (?, ?)',
+            [1, 'Test']
+        );
+        
+        // Commit the transaction
         $result = $this->db->commit();
         $this->assertTrue($result);
+        
+        // Verify the record is visible after commit
+        $records = $this->db->query('SELECT * FROM test_table WHERE id = ?', [1]);
+        $this->assertCount(1, $records);
+        $this->assertEquals('Test', $records[0]['name']);
+        
+        // Clean up
+        $this->db->exec('DROP TABLE IF EXISTS test_table');
     }
 
     public function testRollback()
     {
-        $this->pdoMock->expects($this->once())
-            ->method('rollBack')
-            ->willReturn(true);
-
+        // Create a test table
+        $this->db->exec('CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(255))');
+        
+        // Start transaction
+        $this->db->beginTransaction();
+        
+        // Insert a test record
+        $this->db->execute(
+            'INSERT INTO test_table (id, name) VALUES (?, ?)',
+            [1, 'Test']
+        );
+        
+        // Rollback the transaction
         $result = $this->db->rollback();
         $this->assertTrue($result);
+        
+        // Verify the record is not visible after rollback
+        $records = $this->db->query('SELECT * FROM test_table WHERE id = ?', [1]);
+        $this->assertCount(0, $records);
+        
+        // Clean up
+        $this->db->exec('DROP TABLE IF EXISTS test_table');
     }
 
     public function testLastInsertId()
     {
-        $expectedId = '1';
-
-        $this->pdoMock->expects($this->once())
-            ->method('lastInsertId')
-            ->willReturn($expectedId);
-
-        $result = $this->db->lastInsertId();
-        $this->assertEquals($expectedId, $result);
+        // Create a test table with auto-increment
+        $this->db->exec('CREATE TABLE IF NOT EXISTS test_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))');
+        
+        // Insert a test record
+        $this->db->execute(
+            'INSERT INTO test_table (name) VALUES (?)',
+            ['Test']
+        );
+        
+        // Get the last insert ID
+        $id = $this->db->lastInsertId();
+        $this->assertNotNull($id);
+        $this->assertIsNumeric($id);
+        
+        // Clean up
+        $this->db->exec('DROP TABLE IF EXISTS test_table');
     }
 
-    public function testQuote()
+    public function testErrorHandling()
     {
-        $value = "test'value";
-        $expectedQuoted = "'test\\'value'";
-
-        $this->pdoMock->expects($this->once())
-            ->method('quote')
-            ->with($value)
-            ->willReturn($expectedQuoted);
-
-        $result = $this->db->quote($value);
-        $this->assertEquals($expectedQuoted, $result);
-    }
-
-    public function testGetConnection()
-    {
-        $result = $this->db->getConnection();
-        $this->assertSame($this->pdoMock, $result);
+        // Test invalid SQL
+        $this->expectException(\PDOException::class);
+        $this->db->query('INVALID SQL');
     }
 } 

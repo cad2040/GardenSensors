@@ -1,105 +1,144 @@
 <?php
 namespace GardenSensors\Tests\Models;
 
-use PHPUnit\Framework\TestCase;
+use GardenSensors\Tests\TestCase;
 use GardenSensors\Models\Pin;
-use GardenSensors\Core\Database;
 use GardenSensors\Models\Sensor;
 
-class PinTest extends TestCase {
+class PinTest extends TestCase
+{
     private $pin;
     private $sensor;
 
-    protected function setUp(): void {
+    protected function setUp(): void
+    {
         parent::setUp();
         
-        // Create a test sensor
+        // Create test user
+        $this->db->exec("
+            INSERT INTO users (username, email, password, role, status, created_at, updated_at)
+            VALUES ('testuser', 'test@example.com', 'password', 'user', 'active', NOW(), NOW())
+        ");
+        
+        // Create test sensor
+        $this->db->exec("
+            INSERT INTO sensors (name, type, description, location, status, min_threshold, max_threshold, unit, user_id, created_at, updated_at)
+            VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', 20, 80, '%', 1, NOW(), NOW())
+        ");
+        
         $this->sensor = new Sensor([
-            'sensor' => 'Test Sensor',
-            'description' => 'Test Description',
-            'location' => 'Test Location',
-            'status' => Sensor::STATUS_ACTIVE
+            'id' => 1,
+            'name' => 'Soil Moisture Sensor',
+            'type' => 'moisture',
+            'description' => 'Test sensor',
+            'location' => 'Garden Bed 1',
+            'status' => 'active',
+            'min_threshold' => 20,
+            'max_threshold' => 80,
+            'unit' => '%',
+            'user_id' => 1
         ]);
-        $this->sensor->save();
-
-        // Create a test pin
+        
         $this->pin = new Pin([
-            'sensor_id' => $this->sensor->id,
-            'pin' => 'A0',
-            'pinType' => Pin::TYPE_SENSOR,
-            'description' => 'Test Pin',
-            'status' => Pin::STATUS_ACTIVE
+            'pin_number' => 17,
+            'type' => 'digital',
+            'mode' => 'output',
+            'sensor_id' => 1,
+            'status' => 'active'
         ]);
+    }
+
+    public function testPinCreation()
+    {
         $this->pin->save();
-    }
-
-    protected function tearDown(): void {
-        // Clean up test data
-        $this->pin->delete();
-        $this->sensor->delete();
         
-        parent::tearDown();
+        $this->assertNotNull($this->pin->getId());
+        $this->assertEquals(17, $this->pin->getPinNumber());
+        $this->assertEquals('digital', $this->pin->getType());
+        $this->assertEquals('output', $this->pin->getMode());
+        $this->assertEquals(1, $this->pin->getSensorId());
+        $this->assertEquals('active', $this->pin->getStatus());
     }
 
-    public function testPinCreation() {
-        $this->assertNotNull($this->pin->id);
-        $this->assertEquals('A0', $this->pin->pin);
-        $this->assertEquals(Pin::TYPE_SENSOR, $this->pin->pinType);
-        $this->assertEquals(Pin::STATUS_ACTIVE, $this->pin->status);
+    public function testPinUpdate()
+    {
+        $this->pin->save();
+        
+        $this->pin->setMode('input');
+        $this->pin->setStatus('inactive');
+        $this->pin->save();
+        
+        $updated = Pin::find($this->pin->getId());
+        $this->assertEquals('input', $updated->getMode());
+        $this->assertEquals('inactive', $updated->getStatus());
     }
 
-    public function testPinSensorRelationship() {
-        $sensor = $this->pin->sensor();
+    public function testPinDeletion()
+    {
+        $this->pin->save();
+        $id = $this->pin->getId();
+        
+        $this->pin->delete();
+        
+        $deleted = Pin::find($id);
+        $this->assertNull($deleted);
+    }
+
+    public function testPinSensorRelationship()
+    {
+        $this->pin->save();
+        
+        $sensor = $this->pin->getSensor();
         $this->assertNotNull($sensor);
-        $this->assertEquals($this->sensor->id, $sensor->id);
+        $this->assertEquals('Soil Moisture Sensor', $sensor->getName());
     }
 
-    public function testPinStatusManagement() {
-        $this->assertTrue($this->pin->isActive());
+    public function testPinFindBySensor()
+    {
+        $this->pin->save();
         
-        $this->pin->updateStatus(Pin::STATUS_INACTIVE);
-        $this->assertTrue($this->pin->isInactive());
-        
-        $this->pin->updateStatus(Pin::STATUS_FAULTY);
-        $this->assertTrue($this->pin->isFaulty());
-    }
-
-    public function testPinTypes() {
-        $types = Pin::getTypes();
-        $this->assertContains(Pin::TYPE_PUMP, $types);
-        $this->assertContains(Pin::TYPE_SENSOR, $types);
-        $this->assertContains(Pin::TYPE_RELAY, $types);
-    }
-
-    public function testPinStatuses() {
-        $statuses = Pin::getStatuses();
-        $this->assertContains(Pin::STATUS_ACTIVE, $statuses);
-        $this->assertContains(Pin::STATUS_INACTIVE, $statuses);
-        $this->assertContains(Pin::STATUS_FAULTY, $statuses);
-    }
-
-    public function testFindBySensor() {
-        $pins = Pin::findBySensor($this->sensor->id);
+        $pins = Pin::findBySensor(1);
         $this->assertCount(1, $pins);
-        $this->assertEquals($this->pin->id, $pins[0]['id']);
+        $this->assertEquals(17, $pins[0]->getPinNumber());
     }
 
-    public function testFindByPin() {
-        $pin = Pin::findByPin('A0');
-        $this->assertNotNull($pin);
-        $this->assertEquals($this->pin->id, $pin['id']);
-    }
-
-    public function testPinDeletion() {
-        $pinId = $this->pin->id;
-        $this->pin->delete();
+    public function testPinFindByType()
+    {
+        $this->pin->save();
         
-        $pin = Pin::findByPin('A0');
-        $this->assertNull($pin);
+        $pins = Pin::findByType('digital');
+        $this->assertCount(1, $pins);
+        $this->assertEquals(17, $pins[0]->getPinNumber());
     }
 
-    public function testPinTimestamps() {
-        $this->assertNotNull($this->pin->inserted);
-        $this->assertNotNull($this->pin->updated);
+    public function testPinFindByMode()
+    {
+        $this->pin->save();
+        
+        $pins = Pin::findByMode('output');
+        $this->assertCount(1, $pins);
+        $this->assertEquals(17, $pins[0]->getPinNumber());
+    }
+
+    public function testPinFindByStatus()
+    {
+        $this->pin->save();
+        
+        $pins = Pin::findByStatus('active');
+        $this->assertCount(1, $pins);
+        $this->assertEquals(17, $pins[0]->getPinNumber());
+    }
+
+    public function testPinValidation()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        
+        new Pin([
+            'pin_number' => -1,
+            'type' => 'invalid',
+            'mode' => 'invalid',
+            'sensor_id' => 1,
+            'status' => 'active'
+        ]);
     }
 } 

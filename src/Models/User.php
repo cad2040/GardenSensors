@@ -1,10 +1,12 @@
 <?php
 namespace GardenSensors\Models;
 
+use GardenSensors\Core\Database;
+
 class User extends BaseModel implements \JsonSerializable {
-    protected static $table = 'users';
-    protected static $primaryKey = 'id';
-    protected static $fillable = [
+    protected $table = 'users';
+    protected $primaryKey = 'id';
+    protected $fillable = [
         'username',
         'email',
         'password_hash',
@@ -15,8 +17,57 @@ class User extends BaseModel implements \JsonSerializable {
         'updated_at'
     ];
 
+    protected $hidden = ['password_hash', 'created_at', 'updated_at'];
+
+    // Add property declarations
+    protected $id;
+    protected $username;
+    protected $email;
+    protected $password_hash;
+    protected $role;
+    protected $status;
+    protected $last_login;
+    protected $created_at;
+    protected $updated_at;
+
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
+
+    public function getId(): ?int {
+        return $this->id;
+    }
+
+    public function getUsername(): ?string {
+        return $this->username;
+    }
+
+    public function getEmail(): ?string {
+        return $this->email;
+    }
+
+    public function getPasswordHash(): ?string {
+        return $this->password_hash;
+    }
+
+    public function getRole(): ?string {
+        return $this->role;
+    }
+
+    public function getStatus(): ?string {
+        return $this->status;
+    }
+
+    public function getLastLogin(): ?string {
+        return $this->last_login;
+    }
+
+    public function getCreatedAt(): ?string {
+        return $this->created_at;
+    }
+
+    public function getUpdatedAt(): ?string {
+        return $this->updated_at;
+    }
 
     public function setPassword(string $password): void {
         $this->attributes['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
@@ -45,11 +96,17 @@ class User extends BaseModel implements \JsonSerializable {
     }
 
     public static function findByEmail(string $email) {
-        return self::findBy('email', $email);
+        $db = Database::getInstance();
+        $sql = "SELECT * FROM users WHERE email = :email LIMIT 1";
+        $result = $db->query($sql, [':email' => $email]);
+        return !empty($result) ? new static($result[0]) : null;
     }
 
     public static function findByUsername(string $username) {
-        return self::findBy('username', $username);
+        $db = Database::getInstance();
+        $sql = "SELECT * FROM users WHERE username = :username LIMIT 1";
+        $result = $db->query($sql, [':username' => $username]);
+        return !empty($result) ? new static($result[0]) : null;
     }
 
     public function updateLastLogin(): bool {

@@ -2,15 +2,29 @@
 namespace GardenSensors\Models;
 
 class Pin extends BaseModel {
-    protected static $table = 'pins';
-    protected static $primaryKey = 'id';
-    protected static $fillable = [
+    protected $table = 'pins';
+    protected $primaryKey = 'id';
+    protected $fillable = [
         'sensor_id',
         'pin',
         'pinType',
         'description',
-        'status'
+        'status',
+        'created_at',
+        'updated_at'
     ];
+
+    protected $hidden = ['created_at', 'updated_at'];
+
+    // Add property declarations
+    protected $id;
+    protected $sensor_id;
+    protected $pin;
+    protected $pinType;
+    protected $description;
+    protected $status;
+    protected $created_at;
+    protected $updated_at;
 
     public const TYPE_PUMP = 'pump';
     public const TYPE_SENSOR = 'sensor';
@@ -42,15 +56,15 @@ class Pin extends BaseModel {
     }
 
     public function save(): bool {
-        if (!isset($this->attributes['inserted'])) {
-            $this->attributes['inserted'] = date('Y-m-d H:i:s');
+        if (!isset($this->attributes['created_at'])) {
+            $this->attributes['created_at'] = date('Y-m-d H:i:s');
         }
-        $this->attributes['updated'] = date('Y-m-d H:i:s');
+        $this->attributes['updated_at'] = date('Y-m-d H:i:s');
         
         return parent::save();
     }
 
-    public static function getTypes(): array {
+    public function getTypes(): array {
         return [
             self::TYPE_PUMP,
             self::TYPE_SENSOR,
@@ -58,7 +72,7 @@ class Pin extends BaseModel {
         ];
     }
 
-    public static function getStatuses(): array {
+    public function getStatuses(): array {
         return [
             self::STATUS_ACTIVE,
             self::STATUS_INACTIVE,
@@ -66,19 +80,11 @@ class Pin extends BaseModel {
         ];
     }
 
-    public static function findBySensor($sensorId) {
-        $db = self::getConnection();
-        $sql = "SELECT * FROM pins WHERE sensor_id = :sensor_id";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':sensor_id' => $sensorId]);
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    public function findBySensor($sensorId) {
+        return $this->where('sensor_id', '=', $sensorId);
     }
 
-    public static function findByPin($pin) {
-        $db = self::getConnection();
-        $sql = "SELECT * FROM pins WHERE pin = :pin";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':pin' => $pin]);
-        return $stmt->fetch(\PDO::FETCH_ASSOC);
+    public function findByPin($pin) {
+        return $this->where('pin', '=', $pin);
     }
 } 

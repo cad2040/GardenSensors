@@ -1,207 +1,173 @@
 <?php
 namespace GardenSensors\Tests\Models;
 
-use PHPUnit\Framework\TestCase;
+use GardenSensors\Tests\TestCase;
 use GardenSensors\Models\Plant;
-use GardenSensors\Core\Database;
-use GardenSensors\Cache;
-use GardenSensors\Logger;
-use Mockery;
+use GardenSensors\Models\Sensor;
 
 class PlantTest extends TestCase
 {
     private $plant;
-    private $dbMock;
-    private $cacheMock;
-    private $loggerMock;
+    private $sensor;
 
     protected function setUp(): void
     {
         parent::setUp();
         
-        // Create mocks
-        $this->dbMock = Mockery::mock(Database::class);
-        $this->cacheMock = Mockery::mock(Cache::class);
-        $this->loggerMock = Mockery::mock(Logger::class);
+        // Create test user
+        $this->db->exec("
+            INSERT INTO users (username, email, password, role, status, created_at, updated_at)
+            VALUES ('testuser', 'test@example.com', 'password', 'user', 'active', NOW(), NOW())
+        ");
         
-        // Create plant instance with mocked dependencies
-        $this->plant = new Plant(
-            $this->dbMock,
-            $this->cacheMock,
-            $this->loggerMock,
-            1 // test user ID
-        );
-    }
-
-    protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
-    }
-
-    public function testAddPlant()
-    {
-        $plantData = [
+        // Create test sensor
+        $this->db->exec("
+            INSERT INTO sensors (name, type, description, location, status, min_threshold, max_threshold, unit, user_id, created_at, updated_at)
+            VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', 20, 80, '%', 1, NOW(), NOW())
+        ");
+        
+        $this->sensor = new Sensor([
+            'id' => 1,
+            'name' => 'Soil Moisture Sensor',
+            'type' => 'moisture',
+            'description' => 'Test sensor',
+            'location' => 'Garden Bed 1',
+            'status' => 'active',
+            'min_threshold' => 20,
+            'max_threshold' => 80,
+            'unit' => '%',
+            'user_id' => 1
+        ]);
+        
+        $this->plant = new Plant([
             'name' => 'Test Plant',
-            'species' => 'Tomato',
-            'location' => 'Garden',
-            'min_moisture' => 40,
-            'max_moisture' => 80,
-            'min_temperature' => 15,
-            'max_temperature' => 30,
-            'status' => 'active'
-        ];
-
-        $this->dbMock->shouldReceive('query')
-            ->once()
-            ->with(
-                "INSERT INTO plants (name, species, location, min_moisture, max_moisture, min_temperature, max_temperature, status, user_id, created_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
-                [
-                    $plantData['name'],
-                    $plantData['species'],
-                    $plantData['location'],
-                    $plantData['min_moisture'],
-                    $plantData['max_moisture'],
-                    $plantData['min_temperature'],
-                    $plantData['max_temperature'],
-                    $plantData['status'],
-                    1
-                ]
-            )
-            ->andReturn(true);
-
-        $this->cacheMock->shouldReceive('clear')
-            ->once()
-            ->with('plants:1');
-
-        $this->loggerMock->shouldReceive('info')
-            ->once()
-            ->with('Plant added', ['plant_id' => null, 'user_id' => 1]);
-
-        $result = $this->plant->add($plantData);
-        $this->assertTrue($result);
+            'species' => 'Test Species',
+            'description' => 'Test Description',
+            'location' => 'Garden Bed 1',
+            'planting_date' => date('Y-m-d'),
+            'harvest_date' => null,
+            'status' => 'active',
+            'user_id' => 1
+        ]);
     }
 
-    public function testGetPlant()
+    public function testPlantCreation()
     {
-        $plantId = 1;
-        $expectedData = [
-            'id' => $plantId,
-            'name' => 'Test Plant',
-            'species' => 'Tomato',
-            'location' => 'Garden',
-            'min_moisture' => 40,
-            'max_moisture' => 80,
-            'min_temperature' => 15,
-            'max_temperature' => 30,
-            'status' => 'active'
-        ];
-
-        $this->cacheMock->shouldReceive('get')
-            ->once()
-            ->with("plant:{$plantId}")
-            ->andReturn(null);
-
-        $this->dbMock->shouldReceive('query')
-            ->once()
-            ->with(
-                "SELECT * FROM plants WHERE id = ? AND user_id = ?",
-                [$plantId, 1]
-            )
-            ->andReturn($expectedData);
-
-        $this->cacheMock->shouldReceive('set')
-            ->once()
-            ->with("plant:{$plantId}", $expectedData, 3600);
-
-        $result = $this->plant->get($plantId);
-        $this->assertEquals($expectedData, $result);
+        $this->plant->save();
+        
+        $this->assertNotNull($this->plant->getId());
+        $this->assertEquals('Test Plant', $this->plant->getName());
+        $this->assertEquals('Test Species', $this->plant->getSpecies());
+        $this->assertEquals('Test Description', $this->plant->getDescription());
+        $this->assertEquals('Garden Bed 1', $this->plant->getLocation());
+        $this->assertEquals(date('Y-m-d'), $this->plant->getPlantingDate());
+        $this->assertNull($this->plant->getHarvestDate());
+        $this->assertEquals('active', $this->plant->getStatus());
+        $this->assertEquals(1, $this->plant->getUserId());
     }
 
-    public function testUpdatePlant()
+    public function testPlantUpdate()
     {
-        $plantId = 1;
-        $updateData = [
-            'name' => 'Updated Plant',
-            'min_moisture' => 50
-        ];
-
-        $this->dbMock->shouldReceive('query')
-            ->once()
-            ->with(
-                "UPDATE plants SET name = ?, min_moisture = ?, updated_at = NOW() WHERE id = ? AND user_id = ?",
-                [
-                    $updateData['name'],
-                    $updateData['min_moisture'],
-                    $plantId,
-                    1
-                ]
-            )
-            ->andReturn(true);
-
-        $this->cacheMock->shouldReceive('clear')
-            ->once()
-            ->with("plant:{$plantId}");
-
-        $this->loggerMock->shouldReceive('info')
-            ->once()
-            ->with('Plant updated', ['plant_id' => $plantId, 'user_id' => 1]);
-
-        $result = $this->plant->update($plantId, $updateData);
-        $this->assertTrue($result);
+        $this->plant->save();
+        
+        $this->plant->setName('Updated Plant');
+        $this->plant->setDescription('Updated Description');
+        $this->plant->save();
+        
+        $updated = Plant::find($this->plant->getId());
+        $this->assertEquals('Updated Plant', $updated->getName());
+        $this->assertEquals('Updated Description', $updated->getDescription());
     }
 
-    public function testDeletePlant()
+    public function testPlantDeletion()
     {
-        $plantId = 1;
-
-        // Check for associated sensors
-        $this->dbMock->shouldReceive('query')
-            ->once()
-            ->with(
-                "SELECT COUNT(*) as count FROM sensors WHERE plant_id = ? AND user_id = ?",
-                [$plantId, 1]
-            )
-            ->andReturn(['count' => 0]);
-
-        $this->dbMock->shouldReceive('query')
-            ->once()
-            ->with(
-                "DELETE FROM plants WHERE id = ? AND user_id = ?",
-                [$plantId, 1]
-            )
-            ->andReturn(true);
-
-        $this->cacheMock->shouldReceive('clear')
-            ->once()
-            ->with("plant:{$plantId}");
-
-        $this->loggerMock->shouldReceive('info')
-            ->once()
-            ->with('Plant deleted', ['plant_id' => $plantId, 'user_id' => 1]);
-
-        $result = $this->plant->delete($plantId);
-        $this->assertTrue($result);
+        $this->plant->save();
+        $id = $this->plant->getId();
+        
+        $this->plant->delete();
+        
+        $deleted = Plant::find($id);
+        $this->assertNull($deleted);
     }
 
-    public function testGetPlantSensors()
+    public function testPlantSensors()
     {
-        $plantId = 1;
-        $expectedSensors = [
-            ['id' => 1, 'plant_id' => $plantId, 'name' => 'Sensor 1', 'type' => 'moisture'],
-            ['id' => 2, 'plant_id' => $plantId, 'name' => 'Sensor 2', 'type' => 'temperature']
-        ];
+        $this->plant->save();
+        $this->sensor->save();
+        
+        // Associate sensor with plant
+        $this->db->exec("
+            INSERT INTO fact_plants (plant_id, sensor_id, created_at, updated_at)
+            VALUES ({$this->plant->getId()}, {$this->sensor->getId()}, NOW(), NOW())
+        ");
+        
+        $sensors = $this->plant->getSensors();
+        $this->assertCount(1, $sensors);
+        $this->assertEquals('Soil Moisture Sensor', $sensors[0]->getName());
+    }
 
-        $this->dbMock->shouldReceive('query')
-            ->once()
-            ->with(
-                "SELECT * FROM sensors WHERE plant_id = ? AND user_id = ?",
-                [$plantId, 1]
-            )
-            ->andReturn($expectedSensors);
+    public function testPlantFindByUser()
+    {
+        $this->plant->save();
+        
+        $plants = Plant::findByUser(1);
+        $this->assertCount(1, $plants);
+        $this->assertEquals('Test Plant', $plants[0]->getName());
+    }
 
-        $result = $this->plant->getSensors($plantId);
-        $this->assertEquals($expectedSensors, $result);
+    public function testPlantFindByLocation()
+    {
+        $this->plant->save();
+        
+        $plants = Plant::findByLocation('Garden Bed 1');
+        $this->assertCount(1, $plants);
+        $this->assertEquals('Test Plant', $plants[0]->getName());
+    }
+
+    public function testPlantFindByStatus()
+    {
+        $this->plant->save();
+        
+        $plants = Plant::findByStatus('active');
+        $this->assertCount(1, $plants);
+        $this->assertEquals('Test Plant', $plants[0]->getName());
+    }
+
+    public function testPlantFindByDateRange()
+    {
+        $this->plant->save();
+        
+        $startDate = date('Y-m-d', strtotime('-1 day'));
+        $endDate = date('Y-m-d', strtotime('+1 day'));
+        
+        $plants = Plant::findByDateRange($startDate, $endDate);
+        $this->assertCount(1, $plants);
+        $this->assertEquals('Test Plant', $plants[0]->getName());
+    }
+
+    public function testPlantHarvest()
+    {
+        $this->plant->save();
+        
+        $this->plant->harvest();
+        
+        $harvested = Plant::find($this->plant->getId());
+        $this->assertEquals('harvested', $harvested->getStatus());
+        $this->assertEquals(date('Y-m-d'), $harvested->getHarvestDate());
+    }
+
+    public function testPlantValidation()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        
+        new Plant([
+            'name' => '',
+            'species' => 'Test Species',
+            'description' => 'Test Description',
+            'location' => 'Garden Bed 1',
+            'planting_date' => date('Y-m-d'),
+            'status' => 'active',
+            'user_id' => 1
+        ]);
     }
 } 

@@ -1,9 +1,8 @@
 <?php
 namespace GardenSensors\Tests\Models;
 
-use PHPUnit\Framework\TestCase;
+use GardenSensors\Tests\TestCase;
 use GardenSensors\Models\Sensor;
-use GardenSensors\Core\Database;
 
 class SensorTest extends TestCase
 {
@@ -12,16 +11,32 @@ class SensorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        
+        // Create test user
+        $this->db->exec("
+            INSERT INTO users (username, email, password, role, status, created_at, updated_at)
+            VALUES ('testuser', 'test@example.com', 'password', 'user', 'active', NOW(), NOW())
+        ");
+        
+        // Create test sensor
+        $this->db->exec("
+            INSERT INTO sensors (name, type, description, location, status, min_threshold, max_threshold, unit, user_id, created_at, updated_at)
+            VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', 20, 80, '%', 1, NOW(), NOW())
+        ");
+        
         $this->sensor = new Sensor([
             'id' => 1,
             'name' => 'Soil Moisture Sensor',
             'type' => 'moisture',
+            'description' => 'Test sensor',
             'location' => 'Garden Bed 1',
+            'status' => 'active',
             'min_threshold' => 20,
             'max_threshold' => 80,
             'unit' => '%',
             'last_reading' => 45,
-            'last_reading_time' => '2023-04-03 12:00:00'
+            'last_reading_time' => '2023-04-03 12:00:00',
+            'user_id' => 1
         ]);
     }
 

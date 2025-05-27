@@ -2,32 +2,43 @@
 namespace GardenSensors\Models;
 
 class Reading extends BaseModel {
-    protected static $table = 'readings';
-    protected static $primaryKey = 'id';
-    protected static $fillable = [
+    protected $table = 'readings';
+    protected $primaryKey = 'id';
+    protected $fillable = [
         'sensor_id',
         'reading',
         'temperature',
-        'humidity'
+        'humidity',
+        'created_at'
     ];
+
+    protected $hidden = ['created_at'];
+
+    // Add property declarations
+    protected $id;
+    protected $sensor_id;
+    protected $reading;
+    protected $temperature;
+    protected $humidity;
+    protected $created_at;
 
     public function sensor() {
         return Sensor::find($this->sensor_id);
     }
 
-    public static function findBySensor($sensorId) {
-        return self::where('sensor_id = ?', [$sensorId]);
+    public function findBySensor($sensorId) {
+        return $this->where('sensor_id', '=', $sensorId);
     }
 
-    public static function findByDateRange($sensorId, $startDate, $endDate) {
-        return self::where(
-            'sensor_id = ? AND inserted BETWEEN ? AND ?',
+    public function findByDateRange($sensorId, $startDate, $endDate) {
+        return $this->where(
+            'sensor_id = ? AND created_at BETWEEN ? AND ?',
             [$sensorId, $startDate, $endDate]
         );
     }
 
-    public static function getAverage($sensorId, $startDate, $endDate) {
-        $readings = self::findByDateRange($sensorId, $startDate, $endDate);
+    public function getAverage($sensorId, $startDate, $endDate) {
+        $readings = $this->findByDateRange($sensorId, $startDate, $endDate);
         if (empty($readings)) {
             return 0;
         }
@@ -36,16 +47,16 @@ class Reading extends BaseModel {
         return $sum / count($readings);
     }
 
-    public static function batchInsert($readings) {
-        $db = self::getConnection();
-        $table = static::quoteIdentifier(static::$table);
+    public function batchInsert($readings) {
+        $db = $this->db;
+        $table = $this->table;
         
-        $columns = ['sensor_id', 'reading', 'temperature', 'humidity', 'inserted', 'updated'];
+        $columns = ['sensor_id', 'reading', 'temperature', 'humidity', 'created_at'];
         $values = [];
         $params = [];
         
         foreach ($readings as $reading) {
-            $values[] = '(?, ?, ?, ?, NOW(), NOW())';
+            $values[] = '(?, ?, ?, ?, NOW())';
             $params = array_merge($params, [
                 $reading['sensor_id'],
                 $reading['reading'],
@@ -55,17 +66,23 @@ class Reading extends BaseModel {
         }
         
         $sql = "INSERT INTO {$table} (" . implode(', ', $columns) . ") VALUES " . implode(', ', $values);
-        $stmt = $db->prepare($sql);
-        return $stmt->execute($params);
+        return $db->execute($sql, $params);
     }
 
-    public static function cleanup($daysToKeep) {
-        $db = self::getConnection();
-        $table = static::quoteIdentifier(static::$table);
+    public function cleanup($daysToKeep) {
+        $db = $this->db;
+        $table = $this->table;
         $cutoffDate = date('Y-m-d H:i:s', strtotime("-{$daysToKeep} days"));
         
-        $sql = "DELETE FROM {$table} WHERE inserted < ?";
-        $stmt = $db->prepare($sql);
-        return $stmt->execute([$cutoffDate]);
+        $sql = "DELETE FROM {$table} WHERE created_at < ?";
+        return $db->execute($sql, [$cutoffDate]);
+    }
+
+    public function save(): bool {
+        if (!isset($this->attributes['created_at'])) {
+            $this->attributes['created_at'] = date('Y-m-d H:i:s');
+        }
+        
+        return parent::save();
     }
 } 

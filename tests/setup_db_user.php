@@ -19,14 +19,14 @@ $config = require __DIR__ . '/../src/Config/database.php';
 try {
     // Drop existing user if exists
     echo "Dropping existing user if exists...\n";
-    exec("sudo mysql -e \"DROP USER IF EXISTS '{$config['username']}'@'localhost'\"");
-    exec("sudo mysql -e \"FLUSH PRIVILEGES\"");
+    exec("sudo mysql -u root -p364828 -e \"DROP USER IF EXISTS '{$config['username']}'@'localhost'\"");
+    exec("sudo mysql -u root -p364828 -e \"FLUSH PRIVILEGES\"");
 
     // Create user and grant privileges
     echo "Creating database user...\n";
-    exec("sudo mysql -e \"CREATE USER '{$config['username']}'@'localhost' IDENTIFIED BY '{$config['password']}'\"");
-    exec("sudo mysql -e \"GRANT ALL PRIVILEGES ON garden_sensors_test.* TO '{$config['username']}'@'localhost'\"");
-    exec("sudo mysql -e \"FLUSH PRIVILEGES\"");
+    exec("sudo mysql -u root -p364828 -e \"CREATE USER '{$config['username']}'@'localhost' IDENTIFIED BY '{$config['password']}'\"");
+    exec("sudo mysql -u root -p364828 -e \"GRANT ALL PRIVILEGES ON garden_sensors_test.* TO '{$config['username']}'@'localhost'\"");
+    exec("sudo mysql -u root -p364828 -e \"FLUSH PRIVILEGES\"");
 
     // Test the new user connection
     echo "Testing new user connection...\n";

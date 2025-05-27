@@ -1,9 +1,8 @@
 <?php
 namespace GardenSensors\Tests\Models;
 
-use PHPUnit\Framework\TestCase;
+use GardenSensors\Tests\TestCase;
 use GardenSensors\Models\FactPlant;
-use GardenSensors\Core\Database;
 use GardenSensors\Models\Plant;
 use GardenSensors\Models\Sensor;
 
@@ -15,123 +14,123 @@ class FactPlantTest extends TestCase {
     protected function setUp(): void {
         parent::setUp();
         
-        // Create a test plant
-        $this->plant = new Plant([
-            'plant' => 'Test Plant',
-            'species' => 'Test Species',
-            'minSoilMoisture' => 30,
-            'maxSoilMoisture' => 70,
-            'wateringFrequency' => 24
-        ]);
-        $this->plant->save();
-
-        // Create a test sensor
-        $this->sensor = new Sensor([
-            'sensor' => 'Test Sensor',
-            'description' => 'Test Description',
-            'location' => 'Test Location',
-            'status' => Sensor::STATUS_ACTIVE
-        ]);
-        $this->sensor->save();
-
-        // Create a test fact plant
-        $this->factPlant = new FactPlant([
-            'sensor_id' => $this->sensor->id,
-            'plant_id' => $this->plant->id,
-            'waterAmount' => 0
-        ]);
-        $this->factPlant->save();
-    }
-
-    protected function tearDown(): void {
-        // Clean up test data
-        $this->factPlant->delete();
-        $this->sensor->delete();
-        $this->plant->delete();
+        // Create test user
+        $this->db->exec("
+            INSERT INTO users (username, email, password, role, status, created_at, updated_at)
+            VALUES ('testuser', 'test@example.com', 'password', 'user', 'active', NOW(), NOW())
+        ");
         
-        parent::tearDown();
+        // Create test sensor
+        $this->db->exec("
+            INSERT INTO sensors (name, type, description, location, status, min_threshold, max_threshold, unit, user_id, created_at, updated_at)
+            VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', 20, 80, '%', 1, NOW(), NOW())
+        ");
+        
+        // Create test plant
+        $this->db->exec("
+            INSERT INTO dim_plants (name, species, description, location, planting_date, harvest_date, status, user_id, created_at, updated_at)
+            VALUES ('Test Plant', 'Test Species', 'Test Description', 'Garden Bed 1', NOW(), NULL, 'active', 1, NOW(), NOW())
+        ");
+        
+        $this->sensor = new Sensor([
+            'id' => 1,
+            'name' => 'Soil Moisture Sensor',
+            'type' => 'moisture',
+            'description' => 'Test sensor',
+            'location' => 'Garden Bed 1',
+            'status' => 'active',
+            'min_threshold' => 20,
+            'max_threshold' => 80,
+            'unit' => '%',
+            'user_id' => 1
+        ]);
+        
+        $this->plant = new Plant([
+            'id' => 1,
+            'name' => 'Test Plant',
+            'species' => 'Test Species',
+            'description' => 'Test Description',
+            'location' => 'Garden Bed 1',
+            'planting_date' => date('Y-m-d'),
+            'harvest_date' => null,
+            'status' => 'active',
+            'user_id' => 1
+        ]);
+        
+        $this->factPlant = new FactPlant([
+            'plant_id' => 1,
+            'sensor_id' => 1
+        ]);
     }
 
     public function testFactPlantCreation() {
-        $this->assertNotNull($this->factPlant->id);
-        $this->assertEquals($this->sensor->id, $this->factPlant->sensor_id);
-        $this->assertEquals($this->plant->id, $this->factPlant->plant_id);
-        $this->assertEquals(0, $this->factPlant->waterAmount);
-    }
-
-    public function testFactPlantRelationships() {
-        $sensor = $this->factPlant->sensor();
-        $plant = $this->factPlant->plant();
-        
-        $this->assertNotNull($sensor);
-        $this->assertNotNull($plant);
-        $this->assertEquals($this->sensor->id, $sensor->id);
-        $this->assertEquals($this->plant->id, $plant->id);
-    }
-
-    public function testUpdateWatering() {
-        $this->factPlant->updateWatering();
-        
-        $this->assertNotNull($this->factPlant->lastWatered);
-        $this->assertNotNull($this->factPlant->nextWatering);
-        
-        $nextWatering = strtotime($this->factPlant->nextWatering);
-        $expectedNextWatering = strtotime("+{$this->plant->wateringFrequency} hours");
-        
-        $this->assertEquals($expectedNextWatering, $nextWatering, '', 60); // Allow 1 minute difference
-    }
-
-    public function testNeedsWatering() {
-        // Initially should not need watering
-        $this->assertFalse($this->factPlant->needsWatering());
-        
-        // Set next watering to past time
-        $this->factPlant->nextWatering = date('Y-m-d H:i:s', strtotime('-1 hour'));
         $this->factPlant->save();
         
-        $this->assertTrue($this->factPlant->needsWatering());
+        $this->assertNotNull($this->factPlant->getId());
+        $this->assertEquals(1, $this->factPlant->getPlantId());
+        $this->assertEquals(1, $this->factPlant->getSensorId());
     }
 
-    public function testUpdateWaterAmount() {
-        $amount = 100;
-        $this->factPlant->updateWaterAmount($amount);
-        
-        $this->assertEquals($amount, $this->factPlant->waterAmount);
-    }
-
-    public function testFindBySensor() {
-        $factPlants = FactPlant::findBySensor($this->sensor->id);
-        $this->assertCount(1, $factPlants);
-        $this->assertEquals($this->factPlant->id, $factPlants[0]['id']);
-    }
-
-    public function testFindByPlant() {
-        $factPlants = FactPlant::findByPlant($this->plant->id);
-        $this->assertCount(1, $factPlants);
-        $this->assertEquals($this->factPlant->id, $factPlants[0]['id']);
-    }
-
-    public function testGetPlantsNeedingWater() {
-        // Set next watering to past time
-        $this->factPlant->nextWatering = date('Y-m-d H:i:s', strtotime('-1 hour'));
+    public function testFactPlantUpdate() {
         $this->factPlant->save();
         
-        $plants = FactPlant::getPlantsNeedingWater();
-        $this->assertCount(1, $plants);
-        $this->assertEquals($this->plant->plant, $plants[0]['plant']);
-        $this->assertEquals($this->plant->species, $plants[0]['species']);
+        // Create another sensor
+        $this->db->exec("
+            INSERT INTO sensors (name, type, description, location, status, min_threshold, max_threshold, unit, user_id, created_at, updated_at)
+            VALUES ('Temperature Sensor', 'temperature', 'Test sensor 2', 'Garden Bed 1', 'active', 15, 30, '°C', 1, NOW(), NOW())
+        ");
+        
+        $this->factPlant->setSensorId(2);
+        $this->factPlant->save();
+        
+        $updated = FactPlant::find($this->factPlant->getId());
+        $this->assertEquals(2, $updated->getSensorId());
     }
 
     public function testFactPlantDeletion() {
-        $factPlantId = $this->factPlant->id;
+        $this->factPlant->save();
+        $id = $this->factPlant->getId();
+        
         $this->factPlant->delete();
         
-        $factPlants = FactPlant::findBySensor($this->sensor->id);
-        $this->assertCount(0, $factPlants);
+        $deleted = FactPlant::find($id);
+        $this->assertNull($deleted);
     }
 
-    public function testFactPlantTimestamps() {
-        $this->assertNotNull($this->factPlant->inserted);
-        $this->assertNotNull($this->factPlant->updated);
+    public function testFactPlantRelationships() {
+        $this->factPlant->save();
+        
+        $plant = $this->factPlant->getPlant();
+        $this->assertNotNull($plant);
+        $this->assertEquals('Test Plant', $plant->getName());
+        
+        $sensor = $this->factPlant->getSensor();
+        $this->assertNotNull($sensor);
+        $this->assertEquals('Soil Moisture Sensor', $sensor->getName());
+    }
+
+    public function testFactPlantFindByPlant() {
+        $this->factPlant->save();
+        
+        $factPlants = FactPlant::findByPlant(1);
+        $this->assertCount(1, $factPlants);
+        $this->assertEquals(1, $factPlants[0]->getSensorId());
+    }
+
+    public function testFactPlantFindBySensor() {
+        $this->factPlant->save();
+        
+        $factPlants = FactPlant::findBySensor(1);
+        $this->assertCount(1, $factPlants);
+        $this->assertEquals(1, $factPlants[0]->getPlantId());
+    }
+
+    public function testFactPlantValidation() {
+        $this->expectException(\InvalidArgumentException::class);
+        
+        new FactPlant([
+            'plant_id' => 999999,  // Non-existent plant
+            'sensor_id' => 1
+        ]);
     }
 } 

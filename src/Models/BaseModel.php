@@ -26,14 +26,15 @@ abstract class BaseModel implements JsonSerializable {
         return $this->db;
     }
 
-    public function find($id) {
+    public static function find($id) {
+        $instance = new static();
         $sql = sprintf(
             "SELECT * FROM %s WHERE %s = ? LIMIT 1",
-            $this->table,
-            $this->primaryKey
+            $instance->table,
+            $instance->primaryKey
         );
 
-        $result = $this->db->query($sql, [$id]);
+        $result = $instance->db->query($sql, [$id]);
         if (empty($result)) {
             return null;
         }
@@ -42,6 +43,32 @@ abstract class BaseModel implements JsonSerializable {
         $model->fill($result[0]);
         $model->original = $model->attributes;
         return $model;
+    }
+
+    public function where($field, $operator = null, $value = null) {
+        // Handle 2-argument case (field = value)
+        if ($value === null) {
+            $value = $operator;
+            $operator = '=';
+        }
+        
+        $sql = sprintf(
+            "SELECT * FROM %s WHERE %s %s ?",
+            $this->table,
+            $field,
+            $operator
+        );
+        
+        $results = $this->db->query($sql, [$value]);
+        
+        $models = [];
+        foreach ($results as $result) {
+            $model = new static();
+            $model->fill($result);
+            $models[] = $model;
+        }
+        
+        return $models;
     }
 
     public function all() {
@@ -60,12 +87,6 @@ abstract class BaseModel implements JsonSerializable {
     }
 
     public function create(array $attributes) {
-        $this->fill($attributes);
-        $this->save();
-        return $this;
-    }
-
-    public function update(array $attributes) {
         $this->fill($attributes);
         $this->save();
         return $this;
@@ -107,7 +128,7 @@ abstract class BaseModel implements JsonSerializable {
         return true;
     }
 
-    protected function update() {
+    public function update() {
         $fields = [];
         $values = [];
 
@@ -168,27 +189,6 @@ abstract class BaseModel implements JsonSerializable {
 
     public function toJson($options = 0) {
         return json_encode($this->jsonSerialize(), $options);
-    }
-
-    public function where($field, $operator, $value) {
-        $sql = sprintf(
-            "SELECT * FROM %s WHERE %s %s ?",
-            $this->table,
-            $field,
-            $operator
-        );
-
-        $results = $this->db->query($sql, [$value]);
-
-        $models = [];
-        foreach ($results as $result) {
-            $model = new static();
-            $model->fill($result);
-            $model->original = $model->attributes;
-            $models[] = $model;
-        }
-
-        return $models;
     }
 
     public function hasMany($related, $foreignKey = null, $localKey = null) {

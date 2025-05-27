@@ -2,9 +2,8 @@
 
 namespace GardenSensors\Tests\Models;
 
-use PHPUnit\Framework\TestCase;
+use GardenSensors\Tests\TestCase;
 use GardenSensors\Models\Reading;
-use GardenSensors\Core\Database;
 use GardenSensors\Models\Sensor;
 
 class ReadingTest extends TestCase
@@ -16,52 +15,64 @@ class ReadingTest extends TestCase
     {
         parent::setUp();
         
-        // Create a test sensor
+        // Create test user
+        $this->db->exec("
+            INSERT INTO users (username, email, password, role, status, created_at, updated_at)
+            VALUES ('testuser', 'test@example.com', 'password', 'user', 'active', NOW(), NOW())
+        ");
+        
+        // Create test sensor
+        $this->db->exec("
+            INSERT INTO sensors (name, type, description, location, status, min_threshold, max_threshold, unit, user_id, created_at, updated_at)
+            VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', 20, 80, '%', 1, NOW(), NOW())
+        ");
+        
         $this->sensor = new Sensor([
-            'sensor' => 'Test Sensor',
-            'description' => 'Test Description',
-            'location' => 'Test Location',
-            'status' => Sensor::STATUS_ACTIVE
+            'id' => 1,
+            'name' => 'Soil Moisture Sensor',
+            'type' => 'moisture',
+            'description' => 'Test sensor',
+            'location' => 'Garden Bed 1',
+            'status' => 'active',
+            'min_threshold' => 20,
+            'max_threshold' => 80,
+            'unit' => '%',
+            'user_id' => 1
         ]);
-        $this->sensor->save();
-
-        // Create a test reading
+        
         $this->reading = new Reading([
-            'sensor_id' => $this->sensor->id,
-            'reading' => 45.5,
-            'temperature' => 22.3,
-            'humidity' => 65.0
+            'sensor_id' => 1,
+            'reading' => 45,
+            'temperature' => 25.5,
+            'humidity' => 60.0
         ]);
-        $this->reading->save();
-    }
-
-    protected function tearDown(): void
-    {
-        $this->reading->delete();
-        $this->sensor->delete();
-        parent::tearDown();
     }
 
     public function testReadingCreation()
     {
-        $this->assertNotNull($this->reading->id);
-        $this->assertEquals($this->sensor->id, $this->reading->sensor_id);
-        $this->assertEquals(45.5, $this->reading->reading);
-        $this->assertEquals(22.3, $this->reading->temperature);
-        $this->assertEquals(65.0, $this->reading->humidity);
+        $this->reading->save();
+        
+        $this->assertNotNull($this->reading->getId());
+        $this->assertEquals(1, $this->reading->getSensorId());
+        $this->assertEquals(45, $this->reading->getReading());
+        $this->assertEquals(25.5, $this->reading->getTemperature());
+        $this->assertEquals(60.0, $this->reading->getHumidity());
     }
 
     public function testReadingSensorRelationship()
     {
-        $sensor = $this->reading->sensor();
+        $this->reading->save();
+        
+        $sensor = $this->reading->getSensor();
         $this->assertNotNull($sensor);
-        $this->assertEquals($this->sensor->id, $sensor->id);
+        $this->assertEquals('Soil Moisture Sensor', $sensor->getName());
     }
 
     public function testReadingTimestamps()
     {
-        $this->assertNotNull($this->reading->inserted);
-        $this->assertNotNull($this->reading->updated);
+        $this->reading->save();
+        
+        $this->assertNotNull($this->reading->getCreatedAt());
     }
 
     public function testReadingValidation()
@@ -69,54 +80,60 @@ class ReadingTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         
         new Reading([
-            'sensor_id' => 999999,  // Non-existent sensor
-            'reading' => 'invalid',  // Invalid reading value
-            'temperature' => 'invalid',  // Invalid temperature
-            'humidity' => 'invalid'  // Invalid humidity
+            'sensor_id' => 1,
+            'reading' => null
         ]);
     }
 
     public function testReadingFindBySensor()
     {
-        $readings = Reading::findBySensor($this->sensor->id);
+        $this->reading->save();
+        
+        $readings = Reading::findBySensor(1);
         $this->assertCount(1, $readings);
-        $this->assertEquals($this->reading->id, $readings[0]->id);
+        $this->assertEquals(45, $readings[0]->getReading());
     }
 
     public function testReadingFindByDateRange()
     {
+        $this->reading->save();
+        
         $startDate = date('Y-m-d H:i:s', strtotime('-1 day'));
         $endDate = date('Y-m-d H:i:s', strtotime('+1 day'));
         
-        $readings = Reading::findByDateRange($this->sensor->id, $startDate, $endDate);
+        $readings = Reading::findByDateRange(1, $startDate, $endDate);
         $this->assertCount(1, $readings);
-        $this->assertEquals($this->reading->id, $readings[0]->id);
+        $this->assertEquals(45, $readings[0]->getReading());
     }
 
     public function testReadingAverage()
     {
-        // Create additional readings
+        $this->reading->save();
+        
+        // Add another reading
         $reading2 = new Reading([
-            'sensor_id' => $this->sensor->id,
-            'reading' => 55.5,
-            'temperature' => 23.3,
-            'humidity' => 70.0
+            'sensor_id' => 1,
+            'reading' => 55,
+            'temperature' => 26.0,
+            'humidity' => 65.0
         ]);
         $reading2->save();
-
+        
         $startDate = date('Y-m-d H:i:s', strtotime('-1 day'));
         $endDate = date('Y-m-d H:i:s', strtotime('+1 day'));
         
-        $average = Reading::getAverage($this->sensor->id, $startDate, $endDate);
-        $this->assertEquals(50.5, $average, '', 0.1); // Allow 0.1 difference
+        $average = Reading::getAverage(1, $startDate, $endDate);
+        $this->assertEquals(50, $average);
     }
 
     public function testReadingDeletion()
     {
-        $readingId = $this->reading->id;
+        $this->reading->save();
+        $id = $this->reading->getId();
+        
         $this->reading->delete();
         
-        $deleted = Reading::find($readingId);
+        $deleted = Reading::find($id);
         $this->assertNull($deleted);
     }
 
@@ -124,41 +141,52 @@ class ReadingTest extends TestCase
     {
         $readings = [
             [
-                'sensor_id' => $this->sensor->id,
-                'reading' => 60.0,
-                'temperature' => 24.0,
-                'humidity' => 75.0
+                'sensor_id' => 1,
+                'reading' => 45,
+                'temperature' => 25.5,
+                'humidity' => 60.0
             ],
             [
-                'sensor_id' => $this->sensor->id,
-                'reading' => 65.0,
-                'temperature' => 25.0,
-                'humidity' => 80.0
+                'sensor_id' => 1,
+                'reading' => 55,
+                'temperature' => 26.0,
+                'humidity' => 65.0
             ]
         ];
         
-        Reading::batchInsert($readings);
+        $result = Reading::batchInsert($readings);
+        $this->assertTrue($result);
         
-        $allReadings = Reading::findBySensor($this->sensor->id);
-        $this->assertCount(3, $allReadings); // Including the one from setUp
+        $allReadings = Reading::findBySensor(1);
+        $this->assertCount(2, $allReadings);
     }
 
     public function testReadingCleanup()
     {
         // Create old reading
         $oldReading = new Reading([
-            'sensor_id' => $this->sensor->id,
-            'reading' => 50.0,
-            'temperature' => 20.0,
+            'sensor_id' => 1,
+            'reading' => 45,
+            'temperature' => 25.5,
             'humidity' => 60.0,
-            'inserted' => date('Y-m-d H:i:s', strtotime('-30 days'))
+            'created_at' => date('Y-m-d H:i:s', strtotime('-31 days'))
         ]);
         $oldReading->save();
         
-        // Clean up old readings
-        Reading::cleanup(7); // Keep last 7 days
+        // Create new reading
+        $newReading = new Reading([
+            'sensor_id' => 1,
+            'reading' => 55,
+            'temperature' => 26.0,
+            'humidity' => 65.0
+        ]);
+        $newReading->save();
         
-        $readings = Reading::findBySensor($this->sensor->id);
-        $this->assertCount(1, $readings); // Only the one from setUp should remain
+        // Clean up readings older than 30 days
+        Reading::cleanup(30);
+        
+        $allReadings = Reading::findBySensor(1);
+        $this->assertCount(1, $allReadings);
+        $this->assertEquals(55, $allReadings[0]->getReading());
     }
 } 

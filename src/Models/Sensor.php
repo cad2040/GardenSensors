@@ -6,9 +6,9 @@ use GardenSensors\Core\Cache;
 use GardenSensors\Core\Logger;
 
 class Sensor extends BaseModel {
-    protected static $table = 'sensors';
-    protected static $primaryKey = 'id';
-    protected static $fillable = [
+    protected $table = 'sensors';
+    protected $primaryKey = 'id';
+    protected $fillable = [
         'name',
         'type',
         'location',
@@ -20,9 +20,26 @@ class Sensor extends BaseModel {
         'max_threshold',
         'unit',
         'plot_url',
-        'plot_type'
+        'plot_type',
+        'user_id'
     ];
-    protected static $hidden = ['created_at', 'updated_at'];
+    protected $hidden = ['created_at', 'updated_at'];
+
+    // Add property declarations
+    protected $id;
+    protected $name;
+    protected $type;
+    protected $location;
+    protected $description;
+    protected $status;
+    protected $last_reading;
+    protected $last_reading_time;
+    protected $min_threshold;
+    protected $max_threshold;
+    protected $unit;
+    protected $plot_url;
+    protected $plot_type;
+    protected $user_id;
 
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
@@ -218,19 +235,18 @@ class Sensor extends BaseModel {
         return $result;
     }
 
-    public static function delete($id): bool {
-        $db = Database::getInstance();
-        
+    public function delete(
+        $id = null
+    ): bool {
+        $db = $this->db ?? Database::getInstance();
+        $sensorId = $id ?? $this->id;
         // Delete all readings first
-        $db->execute("DELETE FROM readings WHERE sensor_id = :sensor_id", [':sensor_id' => $id]);
-        
+        $db->execute("DELETE FROM readings WHERE sensor_id = :sensor_id", [':sensor_id' => $sensorId]);
         // Delete all pins
-        $db->execute("DELETE FROM pins WHERE sensor_id = :sensor_id", [':sensor_id' => $id]);
-        
+        $db->execute("DELETE FROM pins WHERE sensor_id = :sensor_id", [':sensor_id' => $sensorId]);
         // Delete plant associations
-        $db->execute("DELETE FROM plant_sensors WHERE sensor_id = :sensor_id", [':sensor_id' => $id]);
-        
-        return parent::delete($id);
+        $db->execute("DELETE FROM plant_sensors WHERE sensor_id = :sensor_id", [':sensor_id' => $sensorId]);
+        return parent::delete($sensorId);
     }
 
     public static function getPlotTypes(): array {

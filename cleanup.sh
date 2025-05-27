@@ -117,10 +117,12 @@ cleanup() {
     print_info "Removing domain from hosts file..."
     sed -i '/garden-sensors.local/d' /etc/hosts
     
-    # Drop database and user
-    print_info "Dropping database..."
+    # Drop main and test databases and users
+    print_info "Dropping databases and users..."
     mysql -e "DROP DATABASE IF EXISTS garden_sensors;"
+    mysql -e "DROP DATABASE IF EXISTS garden_sensors_test;"
     mysql -e "DROP USER IF EXISTS 'garden_user'@'localhost';"
+    mysql -e "DROP USER IF EXISTS 'garden_test_user'@'localhost';"
     
     # Remove Python virtual environment
     print_info "Removing Python virtual environment..."
@@ -156,6 +158,12 @@ cleanup() {
     print_info "Removing temporary files..."
     rm -f composer-setup.php
     rm -f composer.phar
+    
+    # Clean up local dev environment files
+    print_info "Cleaning up local dev environment files..."
+    rm -rf /home/cad2040/Code/GardenSensors/venv
+    rm -rf /home/cad2040/Code/GardenSensors/.pytest_cache
+    rm -rf /home/cad2040/Code/GardenSensors/.phpunit.result.cache
     
     # Start services
     print_info "Starting services..."
