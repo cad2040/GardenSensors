@@ -6,7 +6,7 @@ return [
     'host' => getenv('DB_HOST') ?: 'localhost',
     'database' => getenv('DB_DATABASE') ?: $dbName,
     'username' => getenv('DB_USER') ?: 'root',
-    'password' => getenv('DB_PASS') ?: 'garden_sensors',
+    'password' => getenv('DB_PASS') ?: 'newrootpassword',
     'charset' => 'utf8mb4',
     'options' => [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

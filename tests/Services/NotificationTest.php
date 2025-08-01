@@ -26,7 +26,7 @@ class NotificationTest extends TestCase
         $this->logger = Mockery::mock(Logger::class);
         
         // Create notification service with mocks
-        $this->notification = new Notification($this->db, $this->cache, $this->logger);
+        $this->notification = new Notification($this->db, $this->cache, $this->logger, 1);
     }
 
     protected function tearDown(): void
@@ -50,12 +50,12 @@ class NotificationTest extends TestCase
             ->once()
             ->with('Notification created', ['user_id' => 1, 'type' => 'alert']);
         
-        $this->cache->shouldReceive('delete')
+        $this->cache->shouldReceive('clear')
             ->once()
-            ->with('notifications:list:1:*');
+            ->with('notifications:1');
         
         // Test notification creation
-        $result = $this->notification->create(1, 'alert', 'Low battery alert', [
+        $result = $this->notification->create('alert', 'Low battery alert', [
             'sensor_id' => 1,
             'battery_level' => 20
         ]);
@@ -69,18 +69,18 @@ class NotificationTest extends TestCase
         $this->db->shouldReceive('execute')
             ->once()
             ->with(
-                'UPDATE notifications SET read_at = NOW() WHERE id = ?',
-                [1]
+                'UPDATE notifications SET read_at = NOW() WHERE id = ? AND user_id = ?',
+                [1, 1]
             )
             ->andReturn(true);
         
         $this->logger->shouldReceive('info')
             ->once()
-            ->with('Notification marked as read', ['id' => 1]);
+            ->with('Notification marked as read', ['notification_id' => 1, 'user_id' => 1]);
         
-        $this->cache->shouldReceive('delete')
+        $this->cache->shouldReceive('clear')
             ->once()
-            ->with('notifications:list:1:*');
+            ->with('notifications:1');
         
         // Test marking notification as read
         $result = $this->notification->markAsRead(1);
@@ -103,12 +103,12 @@ class NotificationTest extends TestCase
             ->once()
             ->with('All notifications marked as read', ['user_id' => 1]);
         
-        $this->cache->shouldReceive('delete')
+        $this->cache->shouldReceive('clear')
             ->once()
-            ->with('notifications:list:1:*');
+            ->with('notifications:1');
         
         // Test marking all notifications as read
-        $result = $this->notification->markAllAsRead(1);
+        $result = $this->notification->markAllAsRead();
         
         $this->assertTrue($result);
     }
@@ -119,18 +119,18 @@ class NotificationTest extends TestCase
         $this->db->shouldReceive('execute')
             ->once()
             ->with(
-                'DELETE FROM notifications WHERE id = ?',
-                [1]
+                'DELETE FROM notifications WHERE id = ? AND user_id = ?',
+                [1, 1]
             )
             ->andReturn(true);
         
         $this->logger->shouldReceive('info')
             ->once()
-            ->with('Notification deleted', ['id' => 1]);
+            ->with('Notification deleted', ['notification_id' => 1, 'user_id' => 1]);
         
-        $this->cache->shouldReceive('delete')
+        $this->cache->shouldReceive('clear')
             ->once()
-            ->with('notifications:list:1:*');
+            ->with('notifications:1');
         
         // Test deleting notification
         $result = $this->notification->delete(1);
@@ -140,7 +140,12 @@ class NotificationTest extends TestCase
 
     public function testGetUnreadCount()
     {
-        // Set up expectations
+        // Set up expectations for cache miss
+        $this->cache->shouldReceive('get')
+            ->once()
+            ->with('notifications:unread:1')
+            ->andReturn(null);
+        
         $this->db->shouldReceive('query')
             ->once()
             ->with(
@@ -149,8 +154,12 @@ class NotificationTest extends TestCase
             )
             ->andReturn([['count' => 5]]);
         
+        $this->cache->shouldReceive('set')
+            ->once()
+            ->with('notifications:unread:1', 5, 300);
+        
         // Test getting unread count
-        $count = $this->notification->getUnreadCount(1);
+        $count = $this->notification->getUnreadCount();
         
         $this->assertEquals(5, $count);
     }
@@ -188,7 +197,7 @@ class NotificationTest extends TestCase
             ->with('notifications:list:1:1:10', $notifications, 300);
         
         // Test getting notifications
-        $result = $this->notification->getNotifications(1, 1, 10);
+        $result = $this->notification->getNotifications(1, 10);
         
         $this->assertEquals($notifications, $result);
     }

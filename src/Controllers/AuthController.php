@@ -1,10 +1,10 @@
 <?php
-namespace App\Controllers;
+namespace GardenSensors\Controllers;
 
-use App\Models\User;
-use App\Services\AuthService;
+use GardenSensors\Models\User;
+use GardenSensors\Services\AuthService;
 
-class AuthController extends Controller {
+class AuthController extends BaseController {
     private $authService;
 
     public function __construct() {

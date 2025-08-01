@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Controllers;
+namespace GardenSensors\Controllers;
 
 class BaseController {
     protected function render($view, $data = []) {

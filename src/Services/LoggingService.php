@@ -9,10 +9,10 @@ class LoggingService {
     private int $maxFiles;
 
     public function __construct() {
-        $this->logFile = LOG_FILE;
-        $this->logLevel = LOG_LEVEL;
-        $this->maxSize = LOG_MAX_SIZE;
-        $this->maxFiles = LOG_MAX_FILES;
+        $this->logFile = defined('LOG_FILE') ? LOG_FILE : '/tmp/garden_sensors.log';
+        $this->logLevel = defined('LOG_LEVEL') ? LOG_LEVEL : 'debug';
+        $this->maxSize = defined('LOG_MAX_SIZE') ? LOG_MAX_SIZE : 10485760; // 10MB
+        $this->maxFiles = defined('LOG_MAX_FILES') ? LOG_MAX_FILES : 5;
 
         if (!file_exists(dirname($this->logFile))) {
             mkdir(dirname($this->logFile), 0755, true);

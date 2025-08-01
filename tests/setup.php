@@ -34,7 +34,7 @@ try {
 
     // Read schema file
     echo "Reading schema file...\n";
-    $schemaFile = __DIR__ . '/../database/schema.sql';
+    $schemaFile = __DIR__ . '/database.sql';
     if (!file_exists($schemaFile)) {
         throw new Exception("Schema file not found at: $schemaFile");
     }

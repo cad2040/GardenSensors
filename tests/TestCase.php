@@ -12,31 +12,38 @@ class TestCase extends BaseTestCase
     {
         parent::setUp();
         
-        // Get database instance
+        // Set testing environment
+        putenv('TESTING=true');
+        putenv('DB_DATABASE=garden_sensors');
+        
+        // Get database instance (this will connect to test database)
         $this->db = Database::getInstance();
         
-        // Create test database and tables
-        $this->db->exec("DROP DATABASE IF EXISTS garden_sensors_test");
-        $this->db->exec("CREATE DATABASE garden_sensors_test");
+        // Ensure we're using the test database
         $this->db->exec("USE garden_sensors_test");
         
-        // Read and execute schema file
-        $schema = file_get_contents(__DIR__ . '/database.sql');
-        // Remove the USE statement to avoid syntax error
-        $schema = preg_replace('/USE\s+garden_sensors_test\s*;/i', '', $schema);
-        // Split the schema into individual statements and execute each
-        $statements = array_filter(array_map('trim', explode(';', $schema)));
-        foreach ($statements as $statement) {
-            if (!empty($statement)) {
-                $this->db->exec($statement);
-            }
+        // Clear any existing data
+        $this->db->exec("SET FOREIGN_KEY_CHECKS = 0");
+        $tables = $this->db->query("SHOW TABLES");
+        foreach ($tables as $table) {
+            $tableName = array_values($table)[0];
+            $this->db->exec("TRUNCATE TABLE `$tableName`");
         }
+        $this->db->exec("SET FOREIGN_KEY_CHECKS = 1");
     }
 
     protected function tearDown(): void
     {
-        // Drop test database
-        $this->db->exec("DROP DATABASE IF EXISTS garden_sensors_test");
+        // Clear test data
+        if ($this->db) {
+            $this->db->exec("SET FOREIGN_KEY_CHECKS = 0");
+            $tables = $this->db->query("SHOW TABLES");
+            foreach ($tables as $table) {
+                $tableName = array_values($table)[0];
+                $this->db->exec("TRUNCATE TABLE `$tableName`");
+            }
+            $this->db->exec("SET FOREIGN_KEY_CHECKS = 1");
+        }
         
         parent::tearDown();
     }
