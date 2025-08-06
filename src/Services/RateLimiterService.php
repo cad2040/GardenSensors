@@ -10,7 +10,7 @@ class RateLimiterService {
 
     public function __construct(DatabaseService $db) {
         $this->db = $db;
-        $this->enabled = RATE_LIMIT_ENABLED;
+        $this->enabled = getenv('RATE_LIMIT_ENABLED') !== 'false';
     }
 
     public function check(int $userId, string $endpoint): bool {
@@ -20,7 +20,7 @@ class RateLimiterService {
 
         $current = $this->getCurrentCount($userId, $endpoint);
 
-        if ($current >= RATE_LIMIT_REQUESTS) {
+        if ($current >= (int)(getenv('RATE_LIMIT_REQUESTS') ?: 100)) {
             return false;
         }
 
@@ -34,7 +34,7 @@ class RateLimiterService {
                 AND timestamp > DATE_SUB(NOW(), INTERVAL ? SECOND)";
         
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([$userId, $endpoint, RATE_LIMIT_WINDOW]);
+        $stmt->execute([$userId, $endpoint, (int)(getenv('RATE_LIMIT_WINDOW') ?: 3600)]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
         return (int)$result['count'];
@@ -50,7 +50,7 @@ class RateLimiterService {
 
     public function getRemainingRequests(int $userId, string $endpoint): int {
         $current = $this->getCurrentCount($userId, $endpoint);
-        return max(0, RATE_LIMIT_REQUESTS - $current);
+        return max(0, (int)(getenv('RATE_LIMIT_REQUESTS') ?: 100) - $current);
     }
 
     public function getResetTime(int $userId, string $endpoint): int {
@@ -63,7 +63,7 @@ class RateLimiterService {
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($result['last_request']) {
-            return strtotime($result['last_request']) + RATE_LIMIT_WINDOW;
+            return strtotime($result['last_request']) + (int)(getenv('RATE_LIMIT_WINDOW') ?: 3600);
         }
         
         return time();

@@ -17,7 +17,7 @@ class ApiController {
     public function __construct() {
         $this->db = new DatabaseService();
         $this->cache = new CacheService();
-        $this->rateLimiter = new RateLimiterService();
+        $this->rateLimiter = new RateLimiterService($this->db);
         $this->logger = new LoggingService();
         $this->userId = $_SESSION['user_id'] ?? null;
     }

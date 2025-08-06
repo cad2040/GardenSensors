@@ -9,13 +9,21 @@ class LoggingService {
     private int $maxFiles;
 
     public function __construct() {
-        $this->logFile = defined('LOG_FILE') ? LOG_FILE : '/tmp/garden_sensors.log';
-        $this->logLevel = defined('LOG_LEVEL') ? LOG_LEVEL : 'debug';
-        $this->maxSize = defined('LOG_MAX_SIZE') ? LOG_MAX_SIZE : 10485760; // 10MB
-        $this->maxFiles = defined('LOG_MAX_FILES') ? LOG_MAX_FILES : 5;
+        $this->logFile = getenv('LOG_FILE') ?: '/tmp/garden_sensors.log';
+        $this->logLevel = getenv('LOG_LEVEL') ?: 'debug';
+        $this->maxSize = (int)(getenv('LOG_MAX_SIZE') ?: 10485760); // 10MB
+        $this->maxFiles = (int)(getenv('LOG_MAX_FILES') ?: 5);
 
-        if (!file_exists(dirname($this->logFile))) {
-            mkdir(dirname($this->logFile), 0755, true);
+        // Ensure log directory is writable
+        $logDir = dirname($this->logFile);
+        if (!file_exists($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
+        
+        // Create log file if it doesn't exist and make it writable
+        if (!file_exists($this->logFile)) {
+            touch($this->logFile);
+            chmod($this->logFile, 0666);
         }
     }
 

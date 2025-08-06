@@ -19,30 +19,27 @@ class TestCase extends BaseTestCase
         // Get database instance (this will connect to test database)
         $this->db = Database::getInstance();
         
-        // Ensure we're using the test database
-        $this->db->exec("USE garden_sensors_test");
-        
         // Clear any existing data
-        $this->db->exec("SET FOREIGN_KEY_CHECKS = 0");
+        $this->db->execute("SET FOREIGN_KEY_CHECKS = 0");
         $tables = $this->db->query("SHOW TABLES");
         foreach ($tables as $table) {
             $tableName = array_values($table)[0];
-            $this->db->exec("TRUNCATE TABLE `$tableName`");
+            $this->db->execute("TRUNCATE TABLE `$tableName`");
         }
-        $this->db->exec("SET FOREIGN_KEY_CHECKS = 1");
+        $this->db->execute("SET FOREIGN_KEY_CHECKS = 1");
     }
 
     protected function tearDown(): void
     {
         // Clear test data
         if ($this->db) {
-            $this->db->exec("SET FOREIGN_KEY_CHECKS = 0");
+            $this->db->execute("SET FOREIGN_KEY_CHECKS = 0");
             $tables = $this->db->query("SHOW TABLES");
             foreach ($tables as $table) {
                 $tableName = array_values($table)[0];
-                $this->db->exec("TRUNCATE TABLE `$tableName`");
+                $this->db->execute("TRUNCATE TABLE `$tableName`");
             }
-            $this->db->exec("SET FOREIGN_KEY_CHECKS = 1");
+            $this->db->execute("SET FOREIGN_KEY_CHECKS = 1");
         }
         
         parent::tearDown();

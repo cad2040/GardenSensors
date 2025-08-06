@@ -91,6 +91,31 @@ validate_env() {
     print_status "Environment variables validated"
 }
 
+# Function to create test environment file
+create_test_env() {
+    print_info "Creating .env.test file for test environment..."
+    
+    cat > .env.test << EOF
+DB_HOST=localhost
+DB_DATABASE=garden_sensors
+DB_USER=root
+DB_PASS=newrootpassword
+CACHE_DIR=/tmp/cache
+CACHE_ENABLED=true
+CACHE_TTL=3600
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_WINDOW=3600
+LOG_FILE=/tmp/garden_sensors.log
+LOG_LEVEL=debug
+LOG_MAX_SIZE=10485760
+LOG_MAX_FILES=5
+TESTING=true
+EOF
+    
+    print_status "Test environment file created"
+}
+
 # Function to check if running as root
 check_root() {
     if [ "$EUID" -ne 0 ]; then
@@ -261,7 +286,7 @@ install_php_deps() {
     print_step "Installing PHP dependencies"
     
     print_info "Installing Composer dependencies..."
-    composer install || print_error "Failed to install Composer dependencies"
+    echo "yes" | composer install || print_error "Failed to install Composer dependencies"
     
     print_status "PHP dependencies installed successfully"
 }
@@ -340,6 +365,7 @@ setup_test() {
     
     check_root
     validate_env
+    create_test_env
     deploy_to_web_root
     install_php_deps
     setup_python_env

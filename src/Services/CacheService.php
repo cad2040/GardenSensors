@@ -5,10 +5,12 @@ namespace GardenSensors\Services;
 class CacheService {
     private string $cacheDir;
     private bool $enabled;
+    private int $ttl;
 
     public function __construct() {
-        $this->cacheDir = CACHE_DIR;
-        $this->enabled = CACHE_ENABLED;
+        $this->cacheDir = getenv('CACHE_DIR') ?: '/tmp/cache';
+        $this->enabled = getenv('CACHE_ENABLED') !== 'false';
+        $this->ttl = (int)(getenv('CACHE_TTL') ?: 3600);
         
         if (!file_exists($this->cacheDir)) {
             mkdir($this->cacheDir, 0755, true);
@@ -36,14 +38,14 @@ class CacheService {
         return $cache['data'];
     }
 
-    public function set(string $key, mixed $data, int $ttl = CACHE_TTL): bool {
+    public function set(string $key, mixed $data, int $ttl = null): bool {
         if (!$this->enabled) {
             return false;
         }
 
         $file = $this->getCacheFile($key);
         $cache = [
-            'expires' => time() + $ttl,
+            'expires' => time() + ($ttl ?? $this->ttl),
             'data' => $data
         ];
 

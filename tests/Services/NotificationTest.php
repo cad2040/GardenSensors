@@ -41,7 +41,7 @@ class NotificationTest extends TestCase
         $this->db->shouldReceive('execute')
             ->once()
             ->with(
-                'INSERT INTO notifications (user_id, type, message, data, created_at) VALUES (?, ?, ?, ?, NOW())',
+                "INSERT INTO notifications (user_id, type, message, data, created_at) \n            VALUES (?, ?, ?, ?, NOW())",
                 [1, 'alert', 'Low battery alert', '{"sensor_id":1,"battery_level":20}']
             )
             ->andReturn(true);

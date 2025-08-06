@@ -90,10 +90,11 @@ class LoggingServiceTest extends TestCase
         // Write a test log entry
         $this->loggingService->info("Test log entry");
         
-        // Clear logs by truncating the file
+        // Check that the log file exists and has content
         $logFile = '/tmp/garden_sensors.log';
-        file_put_contents($logFile, '');
+        $this->assertFileExists($logFile);
+        $this->assertGreaterThan(0, filesize($logFile));
         
-        $this->assertEquals(0, filesize($logFile));
+        // Note: LoggingService doesn't have a clear method, so we just verify logging works
     }
 } 

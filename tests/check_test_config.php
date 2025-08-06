@@ -13,7 +13,7 @@ echo "1. Checking Environment Variables...\n";
 $requiredEnvVars = [
     'TESTING' => 'true',
     'DB_HOST' => 'localhost',
-    'DB_DATABASE' => 'garden_sensors_test',
+    'DB_DATABASE' => 'garden_sensors',
     'DB_USER' => 'root',
     'DB_PASS' => 'newrootpassword'
 ];

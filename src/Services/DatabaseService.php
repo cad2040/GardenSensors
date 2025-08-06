@@ -7,23 +7,18 @@ use PDOException;
 use Exception;
 
 class DatabaseService {
-    private string $host = DB_HOST;
-    private string $db_name = DB_NAME;
-    private string $username = DB_USER;
-    private string $password = DB_PASS;
+    private array $config;
     private ?PDO $conn = null;
+
+    public function __construct() {
+        $this->config = require __DIR__ . '/../Config/database.php';
+    }
 
     public function getConnection(): PDO {
         if ($this->conn === null) {
             try {
-                $this->conn = new PDO(
-                    "mysql:host=" . $this->host . ";dbname=" . $this->db_name,
-                    $this->username,
-                    $this->password
-                );
-                $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-                $this->conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+                $dsn = "mysql:host={$this->config['host']};dbname={$this->config['database']};charset={$this->config['charset']}";
+                $this->conn = new PDO($dsn, $this->config['username'], $this->config['password'], $this->config['options']);
             } catch(PDOException $e) {
                 logError("Connection Error: " . $e->getMessage());
                 throw new Exception("Database connection failed");

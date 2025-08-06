@@ -95,6 +95,22 @@ class User extends BaseModel implements \JsonSerializable {
         return $this->save();
     }
 
+    public function setRole(string $role): void {
+        $this->role = $role;
+    }
+
+    public function setStatus(string $status): void {
+        $this->status = $status;
+    }
+
+    public function setUsername(string $username): void {
+        $this->username = $username;
+    }
+
+    public function setEmail(string $email): void {
+        $this->email = $email;
+    }
+
     public static function findByEmail(string $email) {
         $db = Database::getInstance();
         $sql = "SELECT * FROM users WHERE email = :email LIMIT 1";
@@ -142,6 +158,15 @@ class User extends BaseModel implements \JsonSerializable {
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at
         ];
+    }
+
+    public function fill(array $attributes) {
+        parent::fill($attributes);
+        
+        // Handle password field specially - hash it and store as password_hash
+        if (isset($attributes['password'])) {
+            $this->setPassword($attributes['password']);
+        }
     }
 
     public function jsonSerialize(): array {
