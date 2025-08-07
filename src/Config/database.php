@@ -1,10 +1,7 @@
 <?php
-$isTest = getenv('TESTING') === 'true';
-$dbName = $isTest ? 'garden_sensors_test' : 'garden_sensors';
-
 return [
     'host' => getenv('DB_HOST') ?: 'localhost',
-    'database' => getenv('DB_DATABASE') ?: $dbName,
+    'database' => getenv('DB_DATABASE') ?: 'garden_sensors',
     'username' => getenv('DB_USER') ?: 'root',
     'password' => getenv('DB_PASS') ?: 'newrootpassword',
     'charset' => 'utf8mb4',

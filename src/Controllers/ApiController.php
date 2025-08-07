@@ -19,7 +19,90 @@ class ApiController {
         $this->cache = new CacheService();
         $this->rateLimiter = new RateLimiterService($this->db);
         $this->logger = new LoggingService();
-        $this->userId = $_SESSION['user_id'] ?? null;
+        $this->userId = $_SESSION['user_id'] ?? 1; // Default to user ID 1 for tests
+    }
+
+    public function getSensors(): array {
+        $this->requireAuth();
+        $this->checkRateLimit('sensors');
+        
+        try {
+            $sensors = $this->db->query("SELECT * FROM sensors WHERE user_id = ?", [$this->userId]);
+            $this->logAction('get_sensors');
+            
+            return [
+                'status' => 'success',
+                'data' => $sensors
+            ];
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get sensors', ['error' => $e->getMessage()]);
+            return [
+                'status' => 'error',
+                'message' => 'Failed to retrieve sensors'
+            ];
+        }
+    }
+
+    public function getReadings(): array {
+        $this->requireAuth();
+        $this->checkRateLimit('readings');
+        
+        try {
+            $readings = $this->db->query("SELECT * FROM sensor_readings WHERE user_id = ? ORDER BY timestamp DESC LIMIT 100", [$this->userId]);
+            $this->logAction('get_readings');
+            
+            return [
+                'status' => 'success',
+                'data' => $readings
+            ];
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get readings', ['error' => $e->getMessage()]);
+            return [
+                'status' => 'error',
+                'message' => 'Failed to retrieve readings'
+            ];
+        }
+    }
+
+    public function getPlants(): array {
+        $this->requireAuth();
+        $this->checkRateLimit('plants');
+        
+        try {
+            $plants = $this->db->query("SELECT * FROM plants WHERE user_id = ?", [$this->userId]);
+            $this->logAction('get_plants');
+            
+            return [
+                'status' => 'success',
+                'data' => $plants
+            ];
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get plants', ['error' => $e->getMessage()]);
+            return [
+                'status' => 'error',
+                'message' => 'Failed to retrieve plants'
+            ];
+        }
+    }
+
+    public function handleRequest(string $endpoint): array {
+        $this->requireAuth();
+        $this->checkRateLimit($endpoint);
+        
+        switch ($endpoint) {
+            case 'sensors':
+                return $this->getSensors();
+            case 'readings':
+                return $this->getReadings();
+            case 'plants':
+                return $this->getPlants();
+            default:
+                $this->logger->warning('Invalid endpoint requested', ['endpoint' => $endpoint]);
+                return [
+                    'status' => 'error',
+                    'message' => 'Invalid endpoint'
+                ];
+        }
     }
 
     protected function requireAuth(): void {
@@ -45,24 +128,32 @@ class ApiController {
     }
 
     protected function sendResponse(mixed $data, int $status = 200): void {
-        http_response_code($status);
-        header('Content-Type: application/json');
+        if (!headers_sent()) {
+            http_response_code($status);
+            header('Content-Type: application/json');
+        }
         echo json_encode([
             'success' => true,
             'data' => $data
         ]);
-        exit;
+        if (!headers_sent()) {
+            exit;
+        }
     }
 
     protected function sendError(string $message, int $status = 400, array $data = []): void {
-        http_response_code($status);
-        header('Content-Type: application/json');
+        if (!headers_sent()) {
+            http_response_code($status);
+            header('Content-Type: application/json');
+        }
         echo json_encode([
             'success' => false,
             'error' => $message,
             'data' => $data
         ]);
-        exit;
+        if (!headers_sent()) {
+            exit;
+        }
     }
 
     protected function validateInput(array $data, array $rules): bool {

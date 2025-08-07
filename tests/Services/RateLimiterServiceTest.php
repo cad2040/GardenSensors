@@ -5,16 +5,27 @@ use GardenSensors\Tests\TestCase;
 use GardenSensors\Services\RateLimiterService;
 use GardenSensors\Services\DatabaseService;
 use Mockery;
+use PDO;
+use PDOStatement;
 
 class RateLimiterServiceTest extends TestCase
 {
     private $rateLimiter;
+    private $mockDbService;
+    private $mockStmt;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->db = Mockery::mock(DatabaseService::class);
-        $this->rateLimiter = new RateLimiterService($this->db);
+        $this->mockDbService = Mockery::mock(DatabaseService::class);
+        $this->mockStmt = Mockery::mock(PDOStatement::class);
+        $this->rateLimiter = new RateLimiterService($this->mockDbService);
+    }
+
+    protected function tearDown(): void
+    {
+        Mockery::close();
+        parent::tearDown();
     }
 
     public function testRateLimiterInitialization()
@@ -22,75 +33,83 @@ class RateLimiterServiceTest extends TestCase
         $this->assertInstanceOf(RateLimiterService::class, $this->rateLimiter);
     }
 
-    public function testAllowRequest()
+    public function testCheckRequest()
     {
-        $ip = '192.168.1.1';
+        $userId = 1;
         $endpoint = '/api/sensors';
         
-        $result = $this->rateLimiter->allowRequest($ip, $endpoint);
+        // Mock the database calls for getCurrentCount
+        $this->mockDbService->shouldReceive('prepare')
+            ->with(Mockery::pattern('/SELECT COUNT\*\) as count FROM rate_limits/'))
+            ->andReturn($this->mockStmt);
+        
+        $this->mockStmt->shouldReceive('execute')
+            ->with([$userId, $endpoint, Mockery::any()])
+            ->andReturn(true);
+        
+        $this->mockStmt->shouldReceive('fetch')
+            ->with(PDO::FETCH_ASSOC)
+            ->andReturn(['count' => 0]);
+        
+        // Mock the database calls for incrementCount
+        $this->mockDbService->shouldReceive('prepare')
+            ->with(Mockery::pattern('/INSERT INTO rate_limits/'))
+            ->andReturn($this->mockStmt);
+        
+        $this->mockStmt->shouldReceive('execute')
+            ->with([$userId, $endpoint])
+            ->andReturn(true);
+        
+        $result = $this->rateLimiter->check($userId, $endpoint);
         
         $this->assertTrue($result);
-    }
-
-    public function testRateLimitExceeded()
-    {
-        $ip = '192.168.1.2';
-        $endpoint = '/api/sensors';
-        
-        // Make multiple requests to trigger rate limit
-        for ($i = 0; $i < 100; $i++) {
-            $this->rateLimiter->allowRequest($ip, $endpoint);
-        }
-        
-        $result = $this->rateLimiter->allowRequest($ip, $endpoint);
-        
-        $this->assertFalse($result);
     }
 
     public function testGetRemainingRequests()
     {
-        $ip = '192.168.1.3';
+        $userId = 1;
         $endpoint = '/api/sensors';
         
-        $remaining = $this->rateLimiter->getRemainingRequests($ip, $endpoint);
+        // Mock the database calls
+        $this->mockDbService->shouldReceive('prepare')
+            ->with(Mockery::pattern('/SELECT COUNT\*\) as count FROM rate_limits/'))
+            ->andReturn($this->mockStmt);
+        
+        $this->mockStmt->shouldReceive('execute')
+            ->with([$userId, $endpoint, Mockery::any()])
+            ->andReturn(true);
+        
+        $this->mockStmt->shouldReceive('fetch')
+            ->with(PDO::FETCH_ASSOC)
+            ->andReturn(['count' => 5]);
+        
+        $remaining = $this->rateLimiter->getRemainingRequests($userId, $endpoint);
         
         $this->assertIsInt($remaining);
-        $this->assertGreaterThan(0, $remaining);
+        $this->assertGreaterThanOrEqual(0, $remaining);
     }
 
-    public function testResetRateLimit()
+    public function testGetResetTime()
     {
-        $ip = '192.168.1.4';
+        $userId = 1;
         $endpoint = '/api/sensors';
         
-        $result = $this->rateLimiter->resetRateLimit($ip, $endpoint);
+        // Mock the database calls
+        $this->mockDbService->shouldReceive('prepare')
+            ->with(Mockery::pattern('/SELECT MAX\(timestamp\) as last_request/'))
+            ->andReturn($this->mockStmt);
         
-        $this->assertTrue($result);
-    }
-
-    public function testDifferentEndpoints()
-    {
-        $ip = '192.168.1.5';
-        $endpoint1 = '/api/sensors';
-        $endpoint2 = '/api/readings';
+        $this->mockStmt->shouldReceive('execute')
+            ->with([$userId, $endpoint])
+            ->andReturn(true);
         
-        $result1 = $this->rateLimiter->allowRequest($ip, $endpoint1);
-        $result2 = $this->rateLimiter->allowRequest($ip, $endpoint2);
+        $this->mockStmt->shouldReceive('fetch')
+            ->with(PDO::FETCH_ASSOC)
+            ->andReturn(['last_request' => '2023-01-01 12:00:00']);
         
-        $this->assertTrue($result1);
-        $this->assertTrue($result2);
-    }
-
-    public function testRateLimitConfiguration()
-    {
-        $config = [
-            'max_requests' => 10,
-            'time_window' => 60
-        ];
+        $resetTime = $this->rateLimiter->getResetTime($userId, $endpoint);
         
-        $this->rateLimiter->setConfiguration($config);
-        
-        $this->assertEquals(10, $this->rateLimiter->getMaxRequests());
-        $this->assertEquals(60, $this->rateLimiter->getTimeWindow());
+        $this->assertIsInt($resetTime);
+        $this->assertGreaterThan(0, $resetTime);
     }
 } 

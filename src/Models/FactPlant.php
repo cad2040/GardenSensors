@@ -68,9 +68,9 @@ class FactPlant extends BaseModel {
 
     public function getPlantsNeedingWater() {
         $sql = "
-            SELECT fp.*, p.plant, p.species
+            SELECT fp.*, p.name, p.species
             FROM fact_plants fp
-            JOIN dim_plants p ON fp.plant_id = p.id
+            JOIN plants p ON fp.plant_id = p.id
             WHERE fp.nextWatering <= NOW()
             ORDER BY fp.nextWatering ASC
         ";

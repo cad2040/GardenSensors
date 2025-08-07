@@ -6,7 +6,8 @@ class Reading extends BaseModel {
     protected $primaryKey = 'id';
     protected $fillable = [
         'sensor_id',
-        'reading',
+        'value',
+        'unit',
         'temperature',
         'humidity',
         'created_at'
@@ -17,7 +18,8 @@ class Reading extends BaseModel {
     // Add property declarations
     protected $id;
     protected $sensor_id;
-    protected $reading;
+    protected $value;
+    protected $unit;
     protected $temperature;
     protected $humidity;
     protected $created_at;
@@ -43,7 +45,7 @@ class Reading extends BaseModel {
             return 0;
         }
         
-        $sum = array_sum(array_column($readings, 'reading'));
+        $sum = array_sum(array_column($readings, 'value'));
         return $sum / count($readings);
     }
 
@@ -51,15 +53,16 @@ class Reading extends BaseModel {
         $db = $this->db;
         $table = $this->table;
         
-        $columns = ['sensor_id', 'reading', 'temperature', 'humidity', 'created_at'];
+        $columns = ['sensor_id', 'value', 'unit', 'temperature', 'humidity', 'created_at'];
         $values = [];
         $params = [];
         
         foreach ($readings as $reading) {
-            $values[] = '(?, ?, ?, ?, NOW())';
+            $values[] = '(?, ?, ?, ?, ?, NOW())';
             $params = array_merge($params, [
                 $reading['sensor_id'],
-                $reading['reading'],
+                $reading['value'],
+                $reading['unit'] ?? 'units',
                 $reading['temperature'],
                 $reading['humidity']
             ]);

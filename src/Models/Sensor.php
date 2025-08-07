@@ -15,7 +15,6 @@ class Sensor extends BaseModel {
         'description',
         'status',
         'last_reading',
-        'last_reading_time',
         'min_threshold',
         'max_threshold',
         'unit',
@@ -33,7 +32,6 @@ class Sensor extends BaseModel {
     protected $description;
     protected $status;
     protected $last_reading;
-    protected $last_reading_time;
     protected $min_threshold;
     protected $max_threshold;
     protected $unit;
@@ -108,7 +106,7 @@ class Sensor extends BaseModel {
     }
 
     public function getLastReadingTime(): ?string {
-        return $this->last_reading_time;
+        return $this->last_reading;
     }
 
     public function calculateStatus(float $reading): string {
@@ -121,8 +119,7 @@ class Sensor extends BaseModel {
     }
 
     public function updateReading(float $value, string $timestamp): bool {
-        $this->last_reading = $value;
-        $this->last_reading_time = $timestamp;
+        $this->last_reading = $timestamp;
         return $this->save();
     }
 
@@ -163,8 +160,7 @@ class Sensor extends BaseModel {
         ]);
 
         if ($result) {
-            $this->last_reading = $value;
-            $this->last_reading_time = date('Y-m-d H:i:s');
+                    $this->last_reading = date('Y-m-d H:i:s');
             $this->save();
         }
 
@@ -277,7 +273,7 @@ class Sensor extends BaseModel {
             'description' => $this->description,
             'status' => $this->status,
             'last_reading' => $this->last_reading,
-            'last_reading_time' => $this->last_reading_time,
+
             'min_threshold' => $this->min_threshold,
             'max_threshold' => $this->max_threshold,
             'unit' => $this->unit,

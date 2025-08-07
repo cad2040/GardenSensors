@@ -155,6 +155,13 @@ cleanup_databases() {
                 print_info "Removing application user 'garden_user'..."
                 mysql -u root -pnewrootpassword -e "DROP USER IF EXISTS 'garden_user'@'localhost';" || print_warning "Failed to remove application user"
             fi
+            
+            # Remove garden_sensors user if it exists
+            print_info "Checking for garden_sensors user..."
+            if mysql -u root -pnewrootpassword -e "SELECT User FROM mysql.user WHERE User='garden_sensors';" 2>/dev/null | grep -q "garden_sensors"; then
+                print_info "Removing garden_sensors user..."
+                mysql -u root -pnewrootpassword -e "DROP USER IF EXISTS 'garden_sensors'@'localhost';" || print_warning "Failed to remove garden_sensors user"
+            fi
             ;;
             
         "test")

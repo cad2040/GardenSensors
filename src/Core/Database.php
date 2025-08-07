@@ -17,9 +17,7 @@ class Database {
         }
         
         $config = require __DIR__ . '/../Config/database.php';
-        $isTest = getenv('TESTING') === 'true';
-        $dbName = $isTest ? 'garden_sensors_test' : $config['database'];
-        $dsn = "mysql:host={$config['host']};dbname={$dbName};charset={$config['charset']}";
+        $dsn = "mysql:host={$config['host']};dbname={$config['database']};charset={$config['charset']}";
         
         try {
             $this->connection = new PDO($dsn, $config['username'], $config['password'], $config['options']);

@@ -16,14 +16,14 @@ class PinTest extends TestCase
         
         // Create test user
         $this->db->exec("
-            INSERT INTO users (username, email, password, role, status, created_at, updated_at)
-            VALUES ('testuser', 'test@example.com', 'password', 'user', 'active', NOW(), NOW())
+            INSERT INTO users (username, email, password_hash, role, status, created_at, updated_at)
+            VALUES ('testuser', 'test@example.com', '" . password_hash('password', PASSWORD_DEFAULT) . "', 'user', 'active', NOW(), NOW())
         ");
         
         // Create test sensor
         $this->db->exec("
-            INSERT INTO sensors (name, type, description, location, status, min_threshold, max_threshold, unit, user_id, created_at, updated_at)
-            VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', 20, 80, '%', 1, NOW(), NOW())
+            INSERT INTO sensors (name, type, description, location, status, created_at, updated_at)
+            VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', NOW(), NOW())
         ");
         
         $this->sensor = new Sensor([

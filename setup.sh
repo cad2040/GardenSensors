@@ -216,6 +216,12 @@ setup_mysql() {
     
     # Note: Tests now use production database, so no separate test database verification needed
     
+    # Setup database user permissions for testing
+    print_info "Setting up database user permissions..."
+    mysql -u root -pnewrootpassword -e "GRANT ALL PRIVILEGES ON garden_sensors.* TO 'garden_sensors'@'localhost';" 2>/dev/null || print_warning "Failed to grant permissions to garden_sensors user"
+    mysql -u root -pnewrootpassword -e "GRANT ALL PRIVILEGES ON garden_sensors.* TO 'garden_user'@'localhost';" 2>/dev/null || print_warning "Failed to grant permissions to garden_user"
+    mysql -u root -pnewrootpassword -e "FLUSH PRIVILEGES;" || print_warning "Failed to flush privileges"
+    
     print_status "MySQL setup completed"
 }
 
@@ -309,11 +315,11 @@ verify_database() {
         print_warning "Production database tables may be missing"
     fi
     
-    print_info "Checking test database..."
-    if mysql -u root -pnewrootpassword garden_sensors_test -e "SHOW TABLES;" 2>/dev/null | grep -q "users"; then
-        print_status "Test database tables verified"
+    print_info "Checking production database..."
+    if mysql -u root -pnewrootpassword garden_sensors -e "SHOW TABLES;" 2>/dev/null | grep -q "users"; then
+        print_status "Production database tables verified"
     else
-        print_warning "Test database tables may be missing"
+        print_warning "Production database tables may be missing"
     fi
     
     print_info "Checking database permissions..."

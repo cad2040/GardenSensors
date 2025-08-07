@@ -61,15 +61,17 @@ class AuthService {
     }
 
     public function logout(): void {
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
 
-        session_destroy();
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_destroy();
+        }
     }
 
     public function isAuthenticated(): bool {
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
 
@@ -99,6 +101,26 @@ class AuthService {
             header('HTTP/1.1 403 Forbidden');
             exit;
         }
+    }
+
+    public function sendPasswordReset(string $email): bool {
+        $user = User::findByEmail($email);
+        
+        if (!$user) {
+            return false;
+        }
+
+        // Generate reset token
+        $token = bin2hex(random_bytes(32));
+        $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+        // Store reset token in database (you might want to create a password_resets table)
+        $sql = "INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)";
+        $this->db->execute($sql, [$email, $token, $expires]);
+
+        // Send email with reset link (implement email sending)
+        // For now, just return true
+        return true;
     }
 
     public function resetPassword(string $email): bool {
