@@ -1,7 +1,7 @@
 <?php
 namespace GardenSensors\Tests\Models;
 
-use PHPUnit\Framework\TestCase;
+use GardenSensors\Tests\TestCase;
 use GardenSensors\Models\BaseModel;
 
 // Create a test model class that extends BaseModel
@@ -11,8 +11,59 @@ class TestModel extends BaseModel {
     protected $fillable = ['name', 'value'];
     protected $hidden = ['created_at', 'updated_at'];
     
+    // Add property declarations
+    protected $id;
+    protected $name;
+    protected $value;
+    protected $created_at;
+    protected $updated_at;
+    
     public function jsonSerialize(): mixed {
         return $this->toArray();
+    }
+    
+    public function fill(array $attributes) {
+        parent::fill($attributes);
+        
+        // Set properties from attributes
+        if (isset($attributes['id'])) $this->id = $attributes['id'];
+        if (isset($attributes['name'])) $this->name = $attributes['name'];
+        if (isset($attributes['value'])) $this->value = $attributes['value'];
+        if (isset($attributes['created_at'])) $this->created_at = $attributes['created_at'];
+        if (isset($attributes['updated_at'])) $this->updated_at = $attributes['updated_at'];
+    }
+    
+    public function save(): bool {
+        $result = parent::save();
+        
+        // After save, update properties from attributes
+        if (isset($this->attributes['id'])) $this->id = $this->attributes['id'];
+        if (isset($this->attributes['name'])) $this->name = $this->attributes['name'];
+        if (isset($this->attributes['value'])) $this->value = $this->attributes['value'];
+        if (isset($this->attributes['created_at'])) $this->created_at = $this->attributes['created_at'];
+        if (isset($this->attributes['updated_at'])) $this->updated_at = $this->attributes['updated_at'];
+        
+        return $result;
+    }
+    
+    public function getId(): ?int {
+        return $this->id;
+    }
+    
+    public function getName(): ?string {
+        return $this->name;
+    }
+    
+    public function getValue(): ?string {
+        return $this->value;
+    }
+    
+    public function getCreatedAt(): ?string {
+        return $this->created_at;
+    }
+    
+    public function getUpdatedAt(): ?string {
+        return $this->updated_at;
     }
 }
 
@@ -23,9 +74,8 @@ class BaseModelTest extends TestCase {
         parent::setUp();
         
         // Create test table
-        $db = \GardenSensors\Core\Database::getInstance();
-        $db->exec("
-            CREATE TABLE test_models (
+        $this->db->exec("
+            CREATE TABLE IF NOT EXISTS test_models (
                 id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 value TEXT,
@@ -42,24 +92,24 @@ class BaseModelTest extends TestCase {
 
     protected function tearDown(): void {
         // Drop test table
-        $db = \GardenSensors\Core\Database::getInstance();
-        $db->exec("DROP TABLE test_models");
+        $this->db->exec("DROP TABLE IF EXISTS test_models");
         
         parent::tearDown();
     }
 
     public function testModelCreation() {
-        $this->assertNull($this->model->getAttribute('id'));
-        $this->assertEquals('test', $this->model->getAttribute('name'));
-        $this->assertEquals('value', $this->model->getAttribute('value'));
+        $this->assertNull($this->model->getId());
+        $this->assertEquals('test', $this->model->getName());
+        $this->assertEquals('value', $this->model->getValue());
     }
 
     public function testModelSave() {
-        $this->model->save();
+        $result = $this->model->save();
         
-        $this->assertNotNull($this->model->getAttribute('id'));
-        $this->assertNotNull($this->model->getAttribute('created_at'));
-        $this->assertNotNull($this->model->getAttribute('updated_at'));
+        $this->assertTrue($result);
+        $this->assertNotNull($this->model->getId());
+        $this->assertNotNull($this->model->getCreatedAt());
+        $this->assertNotNull($this->model->getUpdatedAt());
     }
 
     public function testModelUpdate() {
@@ -68,27 +118,28 @@ class BaseModelTest extends TestCase {
         $this->model->setAttribute('name', 'updated');
         $this->model->save();
         
-        $updated = (new TestModel())->find($this->model->getAttribute('id'));
-        $this->assertEquals('updated', $updated->getAttribute('name'));
-        $this->assertNotEquals($updated->getAttribute('created_at'), $updated->getAttribute('updated_at'));
+        $updated = TestModel::find($this->model->getId());
+        $this->assertNotNull($updated);
+        $this->assertEquals('updated', $updated->getName());
+        $this->assertNotEquals($updated->getCreatedAt(), $updated->getUpdatedAt());
     }
 
     public function testModelDelete() {
         $this->model->save();
-        $id = $this->model->getAttribute('id');
+        $id = $this->model->getId();
         
         $this->model->delete();
         
-        $deleted = (new TestModel())->find($id);
+        $deleted = TestModel::find($id);
         $this->assertNull($deleted);
     }
 
     public function testModelFind() {
         $this->model->save();
         
-        $found = (new TestModel())->find($this->model->getAttribute('id'));
+        $found = TestModel::find($this->model->getId());
         $this->assertNotNull($found);
-        $this->assertEquals($this->model->getAttribute('id'), $found->getAttribute('id'));
+        $this->assertEquals($this->model->getId(), $found->getId());
     }
 
     public function testModelFindAll() {
@@ -113,9 +164,10 @@ class BaseModelTest extends TestCase {
         ]);
         $model2->save();
         
-        $results = (new TestModel())->where('name', '=', 'test');
+        $testModel = new TestModel();
+        $results = $testModel->where('name', '=', 'test');
         $this->assertCount(1, $results);
-        $this->assertEquals($this->model->getAttribute('id'), $results[0]->getAttribute('id'));
+        $this->assertEquals($this->model->getId(), $results[0]->getId());
     }
 
     public function testModelFillable() {

@@ -3,7 +3,7 @@ namespace GardenSensors\Tests\Services;
 
 use GardenSensors\Tests\TestCase;
 use GardenSensors\Services\RateLimiterService;
-use GardenSensors\Services\DatabaseService;
+use GardenSensors\Core\Database;
 use Mockery;
 use PDO;
 use PDOStatement;
@@ -11,15 +11,15 @@ use PDOStatement;
 class RateLimiterServiceTest extends TestCase
 {
     private $rateLimiter;
-    private $mockDbService;
+    private $mockDb;
     private $mockStmt;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->mockDbService = Mockery::mock(DatabaseService::class);
+        $this->mockDb = Mockery::mock(Database::class);
         $this->mockStmt = Mockery::mock(PDOStatement::class);
-        $this->rateLimiter = new RateLimiterService($this->mockDbService);
+        $this->rateLimiter = new RateLimiterService($this->mockDb);
     }
 
     protected function tearDown(): void
@@ -39,25 +39,13 @@ class RateLimiterServiceTest extends TestCase
         $endpoint = '/api/sensors';
         
         // Mock the database calls for getCurrentCount
-        $this->mockDbService->shouldReceive('prepare')
-            ->with(Mockery::pattern('/SELECT COUNT\*\) as count FROM rate_limits/'))
-            ->andReturn($this->mockStmt);
-        
-        $this->mockStmt->shouldReceive('execute')
-            ->with([$userId, $endpoint, Mockery::any()])
-            ->andReturn(true);
-        
-        $this->mockStmt->shouldReceive('fetch')
-            ->with(PDO::FETCH_ASSOC)
-            ->andReturn(['count' => 0]);
+        $this->mockDb->shouldReceive('query')
+            ->with(Mockery::pattern('/SELECT COUNT\*\) as count FROM rate_limits/'), Mockery::any())
+            ->andReturn([['count' => 0]]);
         
         // Mock the database calls for incrementCount
-        $this->mockDbService->shouldReceive('prepare')
-            ->with(Mockery::pattern('/INSERT INTO rate_limits/'))
-            ->andReturn($this->mockStmt);
-        
-        $this->mockStmt->shouldReceive('execute')
-            ->with([$userId, $endpoint])
+        $this->mockDb->shouldReceive('execute')
+            ->with(Mockery::pattern('/INSERT INTO rate_limits/'), Mockery::any())
             ->andReturn(true);
         
         $result = $this->rateLimiter->check($userId, $endpoint);
@@ -71,17 +59,9 @@ class RateLimiterServiceTest extends TestCase
         $endpoint = '/api/sensors';
         
         // Mock the database calls
-        $this->mockDbService->shouldReceive('prepare')
-            ->with(Mockery::pattern('/SELECT COUNT\*\) as count FROM rate_limits/'))
-            ->andReturn($this->mockStmt);
-        
-        $this->mockStmt->shouldReceive('execute')
-            ->with([$userId, $endpoint, Mockery::any()])
-            ->andReturn(true);
-        
-        $this->mockStmt->shouldReceive('fetch')
-            ->with(PDO::FETCH_ASSOC)
-            ->andReturn(['count' => 5]);
+        $this->mockDb->shouldReceive('query')
+            ->with(Mockery::pattern('/SELECT COUNT\*\) as count FROM rate_limits/'), Mockery::any())
+            ->andReturn([['count' => 5]]);
         
         $remaining = $this->rateLimiter->getRemainingRequests($userId, $endpoint);
         
@@ -94,18 +74,7 @@ class RateLimiterServiceTest extends TestCase
         $userId = 1;
         $endpoint = '/api/sensors';
         
-        // Mock the database calls
-        $this->mockDbService->shouldReceive('prepare')
-            ->with(Mockery::pattern('/SELECT MAX\(timestamp\) as last_request/'))
-            ->andReturn($this->mockStmt);
-        
-        $this->mockStmt->shouldReceive('execute')
-            ->with([$userId, $endpoint])
-            ->andReturn(true);
-        
-        $this->mockStmt->shouldReceive('fetch')
-            ->with(PDO::FETCH_ASSOC)
-            ->andReturn(['last_request' => '2023-01-01 12:00:00']);
+        // Since getResetTime doesn't use database in current implementation, no mocking needed
         
         $resetTime = $this->rateLimiter->getResetTime($userId, $endpoint);
         

@@ -2,20 +2,20 @@
 
 namespace GardenSensors\Controllers;
 
-use GardenSensors\Services\DatabaseService;
+use GardenSensors\Core\Database;
 use GardenSensors\Services\CacheService;
 use GardenSensors\Services\RateLimiterService;
 use GardenSensors\Services\LoggingService;
 
 class ApiController {
-    protected DatabaseService $db;
+    protected Database $db;
     protected CacheService $cache;
     protected RateLimiterService $rateLimiter;
     protected LoggingService $logger;
     protected ?int $userId;
 
     public function __construct() {
-        $this->db = new DatabaseService();
+        $this->db = Database::getInstance();
         $this->cache = new CacheService();
         $this->rateLimiter = new RateLimiterService($this->db);
         $this->logger = new LoggingService();
@@ -27,7 +27,7 @@ class ApiController {
         $this->checkRateLimit('sensors');
         
         try {
-            $sensors = $this->db->query("SELECT * FROM sensors WHERE user_id = ?", [$this->userId]);
+            $sensors = $this->db->query("SELECT * FROM sensors");
             $this->logAction('get_sensors');
             
             return [
@@ -48,7 +48,7 @@ class ApiController {
         $this->checkRateLimit('readings');
         
         try {
-            $readings = $this->db->query("SELECT * FROM sensor_readings WHERE user_id = ? ORDER BY timestamp DESC LIMIT 100", [$this->userId]);
+            $readings = $this->db->query("SELECT * FROM readings WHERE sensor_id IN (SELECT id FROM sensors) ORDER BY created_at DESC LIMIT 100");
             $this->logAction('get_readings');
             
             return [

@@ -3,12 +3,13 @@
 namespace GardenSensors\Services;
 
 use PDO;
+use GardenSensors\Core\Database;
 
 class RateLimiterService {
-    private DatabaseService $db;
+    private Database $db;
     private bool $enabled;
 
-    public function __construct(DatabaseService $db) {
+    public function __construct(Database $db) {
         $this->db = $db;
         $this->enabled = getenv('RATE_LIMIT_ENABLED') !== 'false';
     }
@@ -38,19 +39,16 @@ class RateLimiterService {
                 WHERE user_id = ? AND endpoint = ? 
                 AND timestamp > DATE_SUB(NOW(), INTERVAL ? SECOND)";
         
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([$userId, $endpoint, (int)(getenv('RATE_LIMIT_WINDOW') ?: 3600)]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $result = $this->db->query($sql, [$userId, $endpoint, (int)(getenv('RATE_LIMIT_WINDOW') ?: 3600)]);
         
-        return (int)$result['count'];
+        return (int)($result[0]['count'] ?? 0);
     }
 
     private function incrementCount(int $userId, string $endpoint): bool {
         $sql = "INSERT INTO rate_limits (user_id, endpoint, timestamp) 
                 VALUES (?, ?, NOW())";
         
-        $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$userId, $endpoint]);
+        return $this->db->execute($sql, [$userId, $endpoint]);
     }
 
     public function getRemainingRequests(?int $userId, string $endpoint): int {

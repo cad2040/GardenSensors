@@ -49,6 +49,20 @@ class FactPlant extends BaseModel {
         return $this->save();
     }
 
+    public function fill(array $attributes) {
+        parent::fill($attributes);
+        
+        // Set properties from attributes
+        if (isset($attributes['id'])) $this->id = $attributes['id'];
+        if (isset($attributes['sensor_id'])) $this->sensor_id = $attributes['sensor_id'];
+        if (isset($attributes['plant_id'])) $this->plant_id = $attributes['plant_id'];
+        if (isset($attributes['waterAmount'])) $this->waterAmount = $attributes['waterAmount'];
+        if (isset($attributes['lastWatered'])) $this->lastWatered = $attributes['lastWatered'];
+        if (isset($attributes['nextWatering'])) $this->nextWatering = $attributes['nextWatering'];
+        if (isset($attributes['created_at'])) $this->created_at = $attributes['created_at'];
+        if (isset($attributes['updated_at'])) $this->updated_at = $attributes['updated_at'];
+    }
+    
     public function save(): bool {
         if (!isset($this->attributes['created_at'])) {
             $this->attributes['created_at'] = date('Y-m-d H:i:s');
@@ -75,5 +89,64 @@ class FactPlant extends BaseModel {
             ORDER BY fp.nextWatering ASC
         ";
         return $this->db->query($sql);
+    }
+    
+    // Getter methods
+    public function getId(): ?int {
+        return $this->id;
+    }
+    
+    public function getSensorId(): ?int {
+        return $this->sensor_id;
+    }
+    
+    public function getPlantId(): ?int {
+        return $this->plant_id;
+    }
+    
+    public function getWaterAmount(): ?int {
+        return $this->waterAmount;
+    }
+    
+    public function getLastWatered(): ?string {
+        return $this->lastWatered;
+    }
+    
+    public function getNextWatering(): ?string {
+        return $this->nextWatering;
+    }
+    
+    public function getCreatedAt(): ?string {
+        return $this->created_at;
+    }
+    
+    public function getUpdatedAt(): ?string {
+        return $this->updated_at;
+    }
+    
+    // Setter methods
+    public function setSensorId(int $sensorId): void {
+        $this->sensor_id = $sensorId;
+        $this->attributes['sensor_id'] = $sensorId;
+    }
+    
+    public function setPlantId(int $plantId): void {
+        $this->plant_id = $plantId;
+        $this->attributes['plant_id'] = $plantId;
+    }
+    
+    public function setWaterAmount(int $waterAmount): void {
+        $this->waterAmount = $waterAmount;
+        $this->attributes['waterAmount'] = $waterAmount;
+    }
+    
+    public function setLastWatered(string $lastWatered): void {
+        $this->lastWatered = $lastWatered;
+        $this->attributes['lastWatered'] = $lastWatered;
+    }
+    
+    public function setNextWatering(string $nextWatering): void {
+        $this->nextWatering = $nextWatering;
+        $this->attributes['nextWatering'] = $nextWatering;
     }
 } 

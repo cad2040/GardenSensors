@@ -14,10 +14,11 @@ class PlantTest extends TestCase
     {
         parent::setUp();
         
-        // Create test user
+        // Create test user with unique username
+        $uniqueId = uniqid();
         $this->db->exec("
             INSERT INTO users (username, email, password_hash, role, status, created_at, updated_at)
-            VALUES ('testuser', 'test@example.com', '" . password_hash('password', PASSWORD_DEFAULT) . "', 'user', 'active', NOW(), NOW())
+            VALUES ('testuser_{$uniqueId}', 'test_{$uniqueId}@example.com', '" . password_hash('password', PASSWORD_DEFAULT) . "', 'user', 'active', NOW(), NOW())
         ");
         
         // Create test sensor

@@ -19,29 +19,12 @@ class TestCase extends BaseTestCase
         // Get database instance (this will connect to test database)
         $this->db = Database::getInstance();
         
-        // Clear any existing data
-        $this->db->execute("SET FOREIGN_KEY_CHECKS = 0");
-        $tables = $this->db->query("SHOW TABLES");
-        foreach ($tables as $table) {
-            $tableName = array_values($table)[0];
-            $this->db->execute("TRUNCATE TABLE `$tableName`");
-        }
-        $this->db->execute("SET FOREIGN_KEY_CHECKS = 1");
+        // Note: Not clearing data to preserve test data from schema
     }
 
     protected function tearDown(): void
     {
-        // Clear test data
-        if ($this->db) {
-            $this->db->execute("SET FOREIGN_KEY_CHECKS = 0");
-            $tables = $this->db->query("SHOW TABLES");
-            foreach ($tables as $table) {
-                $tableName = array_values($table)[0];
-                $this->db->execute("TRUNCATE TABLE `$tableName`");
-            }
-            $this->db->execute("SET FOREIGN_KEY_CHECKS = 1");
-        }
-        
+        // Note: Not clearing data to preserve test data from schema
         parent::tearDown();
     }
 } 

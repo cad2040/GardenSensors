@@ -297,6 +297,36 @@ install_php_deps() {
     print_status "PHP dependencies installed successfully"
 }
 
+# Function to seed default data
+seed_default_data() {
+    print_step "Seeding default data"
+
+    # Ensure admin user exists with id 1
+    print_info "Ensuring default admin user exists..."
+    mysql -u root -pnewrootpassword garden_sensors -e "\
+        INSERT INTO users (username, password_hash, email)\
+        SELECT 'admin', '\$2y\$10\$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@example.com'\
+        WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 1 OR username = 'admin');\
+        UPDATE users SET id = 1 WHERE username = 'admin' AND id <> 1;\
+    " 2>/dev/null || print_warning "Failed to seed admin user"
+
+    # Optionally seed sample sensors if table is empty
+    print_info "Seeding sample sensors if none exist..."
+    mysql -u root -pnewrootpassword garden_sensors -e "\
+        INSERT INTO sensors (name, type, location, description)\
+        SELECT 'Temperature Sensor 1', 'temperature', 'Greenhouse 1', 'Main temperature sensor in greenhouse 1'\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors);\
+        INSERT INTO sensors (name, type, location, description)\
+        SELECT 'Humidity Sensor 1', 'humidity', 'Greenhouse 1', 'Main humidity sensor in greenhouse 1'\
+        WHERE (SELECT COUNT(*) FROM sensors) = 1;\
+        INSERT INTO sensors (name, type, location, description)\
+        SELECT 'Soil Moisture 1', 'moisture', 'Greenhouse 1', 'Soil moisture sensor for plant bed 1'\
+        WHERE (SELECT COUNT(*) FROM sensors) = 2;\
+    " 2>/dev/null || print_warning "Failed to seed sample sensors"
+
+    print_status "Default data seeding completed"
+}
+
 # Function to verify database setup
 verify_database() {
     print_step "Verifying database setup"
@@ -355,6 +385,7 @@ setup_production() {
     install_system_deps
     setup_python_env
     setup_mysql
+    seed_default_data
     verify_database
     deploy_to_web_root
     install_php_deps
@@ -376,6 +407,7 @@ setup_test() {
     install_php_deps
     setup_python_env
     setup_mysql
+    seed_default_data
     verify_database
     setup_apache
     run_tests
@@ -394,6 +426,7 @@ setup_local() {
     setup_python_env
     install_php_deps
     setup_mysql
+    seed_default_data
     verify_database
     
     print_step "Local Development Setup Completed Successfully"

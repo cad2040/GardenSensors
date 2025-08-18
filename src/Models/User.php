@@ -113,15 +113,15 @@ class User extends BaseModel implements \JsonSerializable {
 
     public static function findByEmail(string $email) {
         $db = Database::getInstance();
-        $sql = "SELECT * FROM users WHERE email = :email LIMIT 1";
-        $result = $db->query($sql, [':email' => $email]);
+        $sql = "SELECT * FROM users WHERE email = ? LIMIT 1";
+        $result = $db->query($sql, [$email]);
         return !empty($result) ? new static($result[0]) : null;
     }
 
     public static function findByUsername(string $username) {
         $db = Database::getInstance();
-        $sql = "SELECT * FROM users WHERE username = :username LIMIT 1";
-        $result = $db->query($sql, [':username' => $username]);
+        $sql = "SELECT * FROM users WHERE username = ? LIMIT 1";
+        $result = $db->query($sql, [$username]);
         return !empty($result) ? new static($result[0]) : null;
     }
 
@@ -162,6 +162,17 @@ class User extends BaseModel implements \JsonSerializable {
 
     public function fill(array $attributes) {
         parent::fill($attributes);
+        
+        // Set properties from attributes
+        if (isset($attributes['id'])) $this->id = $attributes['id'];
+        if (isset($attributes['username'])) $this->username = $attributes['username'];
+        if (isset($attributes['email'])) $this->email = $attributes['email'];
+        if (isset($attributes['password_hash'])) $this->password_hash = $attributes['password_hash'];
+        if (isset($attributes['role'])) $this->role = $attributes['role'];
+        if (isset($attributes['status'])) $this->status = $attributes['status'];
+        if (isset($attributes['last_login'])) $this->last_login = $attributes['last_login'];
+        if (isset($attributes['created_at'])) $this->created_at = $attributes['created_at'];
+        if (isset($attributes['updated_at'])) $this->updated_at = $attributes['updated_at'];
         
         // Handle password field specially - hash it and store as password_hash
         if (isset($attributes['password'])) {

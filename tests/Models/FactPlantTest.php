@@ -14,10 +14,11 @@ class FactPlantTest extends TestCase {
     protected function setUp(): void {
         parent::setUp();
         
-        // Create test user
+        // Create test user with unique username
+        $uniqueId = uniqid();
         $this->db->exec("
             INSERT INTO users (username, email, password_hash, role, status, created_at, updated_at)
-            VALUES ('testuser', 'test@example.com', '" . password_hash('password', PASSWORD_DEFAULT) . "', 'user', 'active', NOW(), NOW())
+            VALUES ('testuser_{$uniqueId}', 'test_{$uniqueId}@example.com', '" . password_hash('password', PASSWORD_DEFAULT) . "', 'user', 'active', NOW(), NOW())
         ");
         
         // Create test sensor
@@ -26,10 +27,11 @@ class FactPlantTest extends TestCase {
             VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', NOW(), NOW())
         ");
         
-        // Create test plant
+        // Create test plant with unique name
+        $uniqueId = uniqid();
         $this->db->exec("
-            INSERT INTO dim_plants (name, species, description, location, planting_date, harvest_date, status, user_id, created_at, updated_at)
-            VALUES ('Test Plant', 'Test Species', 'Test Description', 'Garden Bed 1', NOW(), NULL, 'active', 1, NOW(), NOW())
+            INSERT INTO plants (name, species, min_soil_moisture, max_soil_moisture, watering_frequency, location, status, user_id, created_at, updated_at)
+            VALUES ('Test Plant {$uniqueId}', 'Test Species', 20, 80, 24, 'Garden Bed 1', 'active', 1, NOW(), NOW())
         ");
         
         $this->sensor = new Sensor([
@@ -98,7 +100,7 @@ class FactPlantTest extends TestCase {
         
         $plant = $this->factPlant->getPlant();
         $this->assertNotNull($plant);
-        $this->assertEquals('Test Plant', $plant->getName());
+        $this->assertStringStartsWith('Test Plant', $plant->getName());
         
         $sensor = $this->factPlant->getSensor();
         $this->assertNotNull($sensor);

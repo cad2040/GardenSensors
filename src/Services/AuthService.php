@@ -114,9 +114,9 @@ class AuthService {
         $token = bin2hex(random_bytes(32));
         $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
-        // Store reset token in database (you might want to create a password_resets table)
-        $sql = "INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)";
-        $this->db->execute($sql, [$email, $token, $expires]);
+        // Store reset token in database
+        $sql = "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)";
+        $this->db->execute($sql, [$user->getId(), $token, $expires]);
 
         // Send email with reset link (implement email sending)
         // For now, just return true
@@ -134,28 +134,28 @@ class AuthService {
         $token = bin2hex(random_bytes(32));
         $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
-        // Store reset token in database (you might want to create a password_resets table)
-        $sql = "INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)";
-        $this->db->execute($sql, [$email, $token, $expires]);
+        // Store reset token in database
+        $sql = "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)";
+        $this->db->execute($sql, [$user->getId(), $token, $expires]);
 
         // Send email with reset link (implement email sending)
         // For now, just return true
         return true;
     }
 
-    public function validateResetToken(string $token): ?string {
-        $sql = "SELECT email FROM password_resets WHERE token = ? AND expires_at > NOW() AND used = 0";
+    public function validateResetToken(string $token): ?int {
+        $sql = "SELECT user_id FROM password_resets WHERE token = ? AND expires_at > NOW()";
         $result = $this->db->query($sql, [$token]);
         
         if (empty($result)) {
             return null;
         }
 
-        return $result[0]['email'];
+        return (int)$result[0]['user_id'];
     }
 
-    public function updatePassword(string $email, string $newPassword): bool {
-        $user = User::findByEmail($email);
+    public function updatePassword(int $userId, string $newPassword): bool {
+        $user = User::find($userId);
         
         if (!$user) {
             return false;
@@ -165,9 +165,9 @@ class AuthService {
         $result = $user->save();
 
         if ($result) {
-            // Mark reset token as used
-            $sql = "UPDATE password_resets SET used = 1 WHERE email = ?";
-            $this->db->execute($sql, [$email]);
+            // Delete used reset tokens
+            $sql = "DELETE FROM password_resets WHERE user_id = ?";
+            $this->db->execute($sql, [$userId]);
         }
 
         return $result;

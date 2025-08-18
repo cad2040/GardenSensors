@@ -13,9 +13,11 @@ class UserTest extends TestCase {
         
         putenv('TESTING=true');
         
+        // Use unique username to avoid conflicts with existing data
+        $uniqueId = uniqid();
         $this->user = new User([
-            'username' => 'testuser',
-            'email' => 'test@example.com',
+            'username' => 'testuser_' . $uniqueId,
+            'email' => 'test_' . $uniqueId . '@example.com',
             'password' => 'password123',
             'role' => 'user',
             'status' => 'active'
@@ -31,8 +33,8 @@ class UserTest extends TestCase {
         $this->user->save();
         
         $this->assertNotNull($this->user->getId());
-        $this->assertEquals('testuser', $this->user->getUsername());
-        $this->assertEquals('test@example.com', $this->user->getEmail());
+        $this->assertStringStartsWith('testuser_', $this->user->getUsername());
+        $this->assertStringStartsWith('test_', $this->user->getEmail());
         $this->assertEquals('user', $this->user->getRole());
         $this->assertEquals('active', $this->user->getStatus());
     }
@@ -115,7 +117,7 @@ class UserTest extends TestCase {
     public function testUserFindByEmail() {
         $this->user->save();
         
-        $found = User::findByEmail('test@example.com');
+        $found = User::findByEmail($this->user->getEmail());
         $this->assertNotNull($found);
         $this->assertEquals($this->user->getId(), $found->getId());
     }
@@ -123,7 +125,7 @@ class UserTest extends TestCase {
     public function testUserFindByUsername() {
         $this->user->save();
         
-        $found = User::findByUsername('testuser');
+        $found = User::findByUsername($this->user->getUsername());
         $this->assertNotNull($found);
         $this->assertEquals($this->user->getId(), $found->getId());
     }

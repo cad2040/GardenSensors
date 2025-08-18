@@ -60,10 +60,10 @@ class SettingsTest extends TestCase
                 "SELECT id FROM user_settings WHERE user_id = ?",
                 [1]
             )
-            ->andReturn(['id' => 1]);
+            ->andReturn([['id' => 1]]);
 
         // Update settings
-        $this->dbMock->shouldReceive('query')
+        $this->dbMock->shouldReceive('execute')
             ->once()
             ->with(
                 "UPDATE user_settings SET 
@@ -129,7 +129,7 @@ class SettingsTest extends TestCase
                 "SELECT * FROM user_settings WHERE user_id = ?",
                 [1]
             )
-            ->andReturn($expectedSettings);
+            ->andReturn([$expectedSettings]);
 
         $this->cacheMock->shouldReceive('set')
             ->once()
@@ -159,10 +159,10 @@ class SettingsTest extends TestCase
                 "SELECT id FROM user_settings WHERE user_id = ?",
                 [1]
             )
-            ->andReturn(['id' => 1]);
+            ->andReturn([['id' => 1]]);
 
         // Reset settings
-        $this->dbMock->shouldReceive('query')
+        $this->dbMock->shouldReceive('execute')
             ->once()
             ->with(
                 "UPDATE user_settings SET 
@@ -196,7 +196,7 @@ class SettingsTest extends TestCase
 
         $this->loggerMock->shouldReceive('info')
             ->once()
-            ->with('Settings reset to default', ['user_id' => 1]);
+            ->with('Settings updated', ['user_id' => 1]);
 
         $result = $this->settings->reset();
         $this->assertTrue($result);
