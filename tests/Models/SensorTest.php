@@ -33,7 +33,9 @@ class SensorTest extends TestCase
             'location' => 'Garden Bed 1',
             'status' => 'active',
             'last_reading' => 45,
-            'last_reading_time' => '2023-04-03 12:00:00'
+            'last_reading_time' => '2023-04-03 12:00:00',
+            'min_threshold' => 20,
+            'max_threshold' => 80
         ]);
     }
 

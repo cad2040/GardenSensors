@@ -86,6 +86,82 @@ class Reading extends BaseModel {
             $this->attributes['created_at'] = date('Y-m-d H:i:s');
         }
         
-        return parent::save();
+        $result = parent::save();
+        
+        if ($result) {
+            // Update object properties from database
+            if (isset($this->attributes['id'])) $this->id = $this->attributes['id'];
+            if (isset($this->attributes['sensor_id'])) $this->sensor_id = $this->attributes['sensor_id'];
+            if (isset($this->attributes['value'])) $this->value = $this->attributes['value'];
+            if (isset($this->attributes['unit'])) $this->unit = $this->attributes['unit'];
+            if (isset($this->attributes['temperature'])) $this->temperature = $this->attributes['temperature'];
+            if (isset($this->attributes['humidity'])) $this->humidity = $this->attributes['humidity'];
+            if (isset($this->attributes['created_at'])) $this->created_at = $this->attributes['created_at'];
+        }
+        
+        return $result;
+    }
+
+    public function fill(array $attributes) {
+        parent::fill($attributes);
+        
+        // Set properties from attributes
+        if (isset($attributes['id'])) $this->id = $attributes['id'];
+        if (isset($attributes['sensor_id'])) $this->sensor_id = $attributes['sensor_id'];
+        if (isset($attributes['value'])) $this->value = $attributes['value'];
+        if (isset($attributes['unit'])) $this->unit = $attributes['unit'];
+        if (isset($attributes['temperature'])) $this->temperature = $attributes['temperature'];
+        if (isset($attributes['humidity'])) $this->humidity = $attributes['humidity'];
+        if (isset($attributes['created_at'])) $this->created_at = $attributes['created_at'];
+    }
+
+    // Getter methods
+    public function getId(): ?int {
+        return $this->id;
+    }
+
+    public function getSensorId(): ?int {
+        return $this->sensor_id;
+    }
+
+    public function getValue(): ?float {
+        return $this->value;
+    }
+
+    public function getUnit(): ?string {
+        return $this->unit;
+    }
+
+    public function getTemperature(): ?float {
+        return $this->temperature;
+    }
+
+    public function getHumidity(): ?float {
+        return $this->humidity;
+    }
+
+    public function getCreatedAt(): ?string {
+        return $this->created_at;
+    }
+
+    // Setter methods
+    public function setSensorId(int $sensorId): void {
+        $this->sensor_id = $sensorId;
+    }
+
+    public function setValue(float $value): void {
+        $this->value = $value;
+    }
+
+    public function setUnit(string $unit): void {
+        $this->unit = $unit;
+    }
+
+    public function setTemperature(float $temperature): void {
+        $this->temperature = $temperature;
+    }
+
+    public function setHumidity(float $humidity): void {
+        $this->humidity = $humidity;
     }
 } 

@@ -39,7 +39,8 @@ class ReadingTest extends TestCase
         
         $this->reading = new Reading([
             'sensor_id' => 1,
-            'reading' => 45,
+            'value' => 45,
+            'unit' => 'percentage',
             'temperature' => 25.5,
             'humidity' => 60.0
         ]);
@@ -51,7 +52,7 @@ class ReadingTest extends TestCase
         
         $this->assertNotNull($this->reading->getId());
         $this->assertEquals(1, $this->reading->getSensorId());
-        $this->assertEquals(45, $this->reading->getReading());
+        $this->assertEquals(45, $this->reading->getValue());
         $this->assertEquals(25.5, $this->reading->getTemperature());
         $this->assertEquals(60.0, $this->reading->getHumidity());
     }
@@ -78,7 +79,7 @@ class ReadingTest extends TestCase
         
         new Reading([
             'sensor_id' => 1,
-            'reading' => null
+            'value' => null
         ]);
     }
 
@@ -86,9 +87,9 @@ class ReadingTest extends TestCase
     {
         $this->reading->save();
         
-        $readings = Reading::findBySensor(1);
+        $readings = (new Reading())->findBySensor(1);
         $this->assertCount(1, $readings);
-        $this->assertEquals(45, $readings[0]->getReading());
+        $this->assertEquals(45, $readings[0]->getValue());
     }
 
     public function testReadingFindByDateRange()
@@ -98,9 +99,9 @@ class ReadingTest extends TestCase
         $startDate = date('Y-m-d H:i:s', strtotime('-1 day'));
         $endDate = date('Y-m-d H:i:s', strtotime('+1 day'));
         
-        $readings = Reading::findByDateRange(1, $startDate, $endDate);
+        $readings = (new Reading())->findByDateRange(1, $startDate, $endDate);
         $this->assertCount(1, $readings);
-        $this->assertEquals(45, $readings[0]->getReading());
+        $this->assertEquals(45, $readings[0]->getValue());
     }
 
     public function testReadingAverage()
@@ -110,7 +111,8 @@ class ReadingTest extends TestCase
         // Add another reading
         $reading2 = new Reading([
             'sensor_id' => 1,
-            'reading' => 55,
+            'value' => 55,
+            'unit' => 'percentage',
             'temperature' => 26.0,
             'humidity' => 65.0
         ]);
@@ -119,7 +121,7 @@ class ReadingTest extends TestCase
         $startDate = date('Y-m-d H:i:s', strtotime('-1 day'));
         $endDate = date('Y-m-d H:i:s', strtotime('+1 day'));
         
-        $average = Reading::getAverage(1, $startDate, $endDate);
+        $average = (new Reading())->getAverage(1, $startDate, $endDate);
         $this->assertEquals(50, $average);
     }
 
@@ -139,22 +141,24 @@ class ReadingTest extends TestCase
         $readings = [
             [
                 'sensor_id' => 1,
-                'reading' => 45,
+                'value' => 45,
+                'unit' => 'percentage',
                 'temperature' => 25.5,
                 'humidity' => 60.0
             ],
             [
                 'sensor_id' => 1,
-                'reading' => 55,
+                'value' => 55,
+                'unit' => 'percentage',
                 'temperature' => 26.0,
                 'humidity' => 65.0
             ]
         ];
         
-        $result = Reading::batchInsert($readings);
+        $result = (new Reading())->batchInsert($readings);
         $this->assertTrue($result);
         
-        $allReadings = Reading::findBySensor(1);
+        $allReadings = (new Reading())->findBySensor(1);
         $this->assertCount(2, $allReadings);
     }
 
@@ -163,7 +167,8 @@ class ReadingTest extends TestCase
         // Create old reading
         $oldReading = new Reading([
             'sensor_id' => 1,
-            'reading' => 45,
+            'value' => 45,
+            'unit' => 'percentage',
             'temperature' => 25.5,
             'humidity' => 60.0,
             'created_at' => date('Y-m-d H:i:s', strtotime('-31 days'))
@@ -173,17 +178,18 @@ class ReadingTest extends TestCase
         // Create new reading
         $newReading = new Reading([
             'sensor_id' => 1,
-            'reading' => 55,
+            'value' => 55,
+            'unit' => 'percentage',
             'temperature' => 26.0,
             'humidity' => 65.0
         ]);
         $newReading->save();
         
         // Clean up readings older than 30 days
-        Reading::cleanup(30);
+        (new Reading())->cleanup(30);
         
-        $allReadings = Reading::findBySensor(1);
+        $allReadings = (new Reading())->findBySensor(1);
         $this->assertCount(1, $allReadings);
-        $this->assertEquals(55, $allReadings[0]->getReading());
+        $this->assertEquals(55, $allReadings[0]->getValue());
     }
 } 

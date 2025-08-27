@@ -70,7 +70,8 @@ class User extends BaseModel implements \JsonSerializable {
     }
 
     public function setPassword(string $password): void {
-        $this->attributes['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+        $this->password_hash = password_hash($password, PASSWORD_DEFAULT);
+        $this->attributes['password_hash'] = $this->password_hash;
     }
 
     public function verifyPassword(string $password): bool {
@@ -136,7 +137,16 @@ class User extends BaseModel implements \JsonSerializable {
         }
         $this->attributes['updated_at'] = date('Y-m-d H:i:s');
         
-        return parent::save();
+        $result = parent::save();
+        
+        if ($result) {
+            // Update object properties from database
+            if (isset($this->attributes['id'])) $this->id = $this->attributes['id'];
+            if (isset($this->attributes['created_at'])) $this->created_at = $this->attributes['created_at'];
+            if (isset($this->attributes['updated_at'])) $this->updated_at = $this->attributes['updated_at'];
+        }
+        
+        return $result;
     }
 
     public function sensors() {

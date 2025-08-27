@@ -22,6 +22,21 @@ class Plant extends BaseModel implements \JsonSerializable {
     ];
     protected $hidden = ['created_at', 'updated_at'];
 
+    // Property declarations
+    protected $id;
+    protected $name;
+    protected $species;
+    protected $min_soil_moisture;
+    protected $max_soil_moisture;
+    protected $watering_frequency;
+    protected $location;
+    protected $min_temperature;
+    protected $max_temperature;
+    protected $status;
+    protected $user_id;
+    protected $created_at;
+    protected $updated_at;
+
     protected $db;
     protected $cache;
     // protected $logger;
@@ -39,6 +54,25 @@ class Plant extends BaseModel implements \JsonSerializable {
         $this->userId = $userId;
         
         parent::__construct($attributes);
+    }
+    
+    public function fill(array $attributes) {
+        parent::fill($attributes);
+        
+        // Set properties from attributes
+        if (isset($attributes['id'])) $this->id = $attributes['id'];
+        if (isset($attributes['name'])) $this->name = $attributes['name'];
+        if (isset($attributes['species'])) $this->species = $attributes['species'];
+        if (isset($attributes['min_soil_moisture'])) $this->min_soil_moisture = $attributes['min_soil_moisture'];
+        if (isset($attributes['max_soil_moisture'])) $this->max_soil_moisture = $attributes['max_soil_moisture'];
+        if (isset($attributes['watering_frequency'])) $this->watering_frequency = $attributes['watering_frequency'];
+        if (isset($attributes['location'])) $this->location = $attributes['location'];
+        if (isset($attributes['min_temperature'])) $this->min_temperature = $attributes['min_temperature'];
+        if (isset($attributes['max_temperature'])) $this->max_temperature = $attributes['max_temperature'];
+        if (isset($attributes['status'])) $this->status = $attributes['status'];
+        if (isset($attributes['user_id'])) $this->user_id = $attributes['user_id'];
+        if (isset($attributes['created_at'])) $this->created_at = $attributes['created_at'];
+        if (isset($attributes['updated_at'])) $this->updated_at = $attributes['updated_at'];
     }
 
     public function sensors() {
@@ -150,6 +184,13 @@ class Plant extends BaseModel implements \JsonSerializable {
         
         $result = parent::save();
         
+        if ($result) {
+            // Update object properties from database
+            if (isset($this->attributes['id'])) $this->id = $this->attributes['id'];
+            if (isset($this->attributes['created_at'])) $this->created_at = $this->attributes['created_at'];
+            if (isset($this->attributes['updated_at'])) $this->updated_at = $this->attributes['updated_at'];
+        }
+        
         if ($result && $this->cache) {
             $this->cache->clear("plant:{$this->id}");
         }
@@ -222,5 +263,58 @@ class Plant extends BaseModel implements \JsonSerializable {
 
     public function getSensors(): array {
         return $this->sensors();
+    }
+    
+    // Getter methods
+    public function getId(): ?int {
+        return $this->id ?? null;
+    }
+    
+    public function getName(): ?string {
+        return $this->name ?? null;
+    }
+    
+    public function getSpecies(): ?string {
+        return $this->species ?? null;
+    }
+    
+    public function getMinSoilMoisture(): ?int {
+        return $this->min_soil_moisture ?? null;
+    }
+    
+    public function getMaxSoilMoisture(): ?int {
+        return $this->max_soil_moisture ?? null;
+    }
+    
+    public function getWateringFrequency(): ?int {
+        return $this->watering_frequency ?? null;
+    }
+    
+    public function getLocation(): ?string {
+        return $this->location ?? null;
+    }
+    
+    public function getMinTemperature(): ?int {
+        return $this->min_temperature ?? null;
+    }
+    
+    public function getMaxTemperature(): ?int {
+        return $this->max_temperature ?? null;
+    }
+    
+    public function getStatus(): ?string {
+        return $this->status ?? null;
+    }
+    
+    public function getUserId(): ?int {
+        return $this->user_id ?? null;
+    }
+    
+    public function getCreatedAt(): ?string {
+        return $this->created_at ?? null;
+    }
+    
+    public function getUpdatedAt(): ?string {
+        return $this->updated_at ?? null;
     }
 } 

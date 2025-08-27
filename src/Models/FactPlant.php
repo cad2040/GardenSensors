@@ -69,7 +69,19 @@ class FactPlant extends BaseModel {
         }
         $this->attributes['updated_at'] = date('Y-m-d H:i:s');
         
-        return parent::save();
+        $result = parent::save();
+        
+        // After save, update properties from attributes
+        if (isset($this->attributes['id'])) $this->id = $this->attributes['id'];
+        if (isset($this->attributes['sensor_id'])) $this->sensor_id = $this->attributes['sensor_id'];
+        if (isset($this->attributes['plant_id'])) $this->plant_id = $this->attributes['plant_id'];
+        if (isset($this->attributes['waterAmount'])) $this->waterAmount = $this->attributes['waterAmount'];
+        if (isset($this->attributes['lastWatered'])) $this->lastWatered = $this->attributes['lastWatered'];
+        if (isset($this->attributes['nextWatering'])) $this->nextWatering = $this->attributes['nextWatering'];
+        if (isset($this->attributes['created_at'])) $this->created_at = $this->attributes['created_at'];
+        if (isset($this->attributes['updated_at'])) $this->updated_at = $this->attributes['updated_at'];
+        
+        return $result;
     }
 
     public function findBySensor($sensorId) {

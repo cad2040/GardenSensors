@@ -40,15 +40,19 @@ class PlantTest extends TestCase
             'user_id' => 1
         ]);
         
+        $uniqueId = uniqid();
         $this->plant = new Plant([
-            'name' => 'Test Plant',
+            'name' => 'Test Plant ' . $uniqueId,
             'species' => 'Test Species',
             'description' => 'Test Description',
             'location' => 'Garden Bed 1',
             'planting_date' => date('Y-m-d'),
             'harvest_date' => null,
             'status' => 'active',
-            'user_id' => 1
+            'user_id' => 1,
+            'min_soil_moisture' => 30,
+            'max_soil_moisture' => 70,
+            'watering_frequency' => 24
         ]);
     }
 
@@ -57,7 +61,7 @@ class PlantTest extends TestCase
         $this->plant->save();
         
         $this->assertNotNull($this->plant->getId());
-        $this->assertEquals('Test Plant', $this->plant->getName());
+        $this->assertStringStartsWith('Test Plant', $this->plant->getName());
         $this->assertEquals('Test Species', $this->plant->getSpecies());
         $this->assertEquals('Test Description', $this->plant->getDescription());
         $this->assertEquals('Garden Bed 1', $this->plant->getLocation());
