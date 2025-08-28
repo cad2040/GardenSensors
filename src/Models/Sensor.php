@@ -73,6 +73,26 @@ class Sensor extends BaseModel {
         return $this->status === self::STATUS_MAINTENANCE;
     }
 
+    public function fill(array $attributes) {
+        parent::fill($attributes);
+        // Set properties from attributes
+        if (isset($attributes['id'])) $this->id = $attributes['id'];
+        if (isset($attributes['name'])) $this->name = $attributes['name'];
+        if (isset($attributes['type'])) $this->type = $attributes['type'];
+        if (isset($attributes['location'])) $this->location = $attributes['location'];
+        if (isset($attributes['description'])) $this->description = $attributes['description'];
+        if (isset($attributes['status'])) $this->status = $attributes['status'];
+        if (isset($attributes['last_reading'])) $this->last_reading = $attributes['last_reading'];
+        if (isset($attributes['min_threshold'])) $this->min_threshold = $attributes['min_threshold'];
+        if (isset($attributes['max_threshold'])) $this->max_threshold = $attributes['max_threshold'];
+        if (isset($attributes['unit'])) $this->unit = $attributes['unit'];
+        if (isset($attributes['plot_url'])) $this->plot_url = $attributes['plot_url'];
+        if (isset($attributes['plot_type'])) $this->plot_type = $attributes['plot_type'];
+        if (isset($attributes['user_id'])) $this->user_id = $attributes['user_id'];
+        if (isset($attributes['created_at'])) $this->created_at = $attributes['created_at'];
+        if (isset($attributes['updated_at'])) $this->updated_at = $attributes['updated_at'];
+    }
+
     public function getId(): ?int {
         return $this->id;
     }
@@ -219,6 +239,25 @@ class Sensor extends BaseModel {
         }
         
         $result = parent::save();
+        
+        if ($result) {
+            // Update object properties from attributes
+            if (isset($this->attributes['id'])) $this->id = $this->attributes['id'];
+            if (isset($this->attributes['name'])) $this->name = $this->attributes['name'];
+            if (isset($this->attributes['type'])) $this->type = $this->attributes['type'];
+            if (isset($this->attributes['location'])) $this->location = $this->attributes['location'];
+            if (isset($this->attributes['description'])) $this->description = $this->attributes['description'];
+            if (isset($this->attributes['status'])) $this->status = $this->attributes['status'];
+            if (isset($this->attributes['last_reading'])) $this->last_reading = $this->attributes['last_reading'];
+            if (isset($this->attributes['min_threshold'])) $this->min_threshold = $this->attributes['min_threshold'];
+            if (isset($this->attributes['max_threshold'])) $this->max_threshold = $this->attributes['max_threshold'];
+            if (isset($this->attributes['unit'])) $this->unit = $this->attributes['unit'];
+            if (isset($this->attributes['plot_url'])) $this->plot_url = $this->attributes['plot_url'];
+            if (isset($this->attributes['plot_type'])) $this->plot_type = $this->attributes['plot_type'];
+            if (isset($this->attributes['user_id'])) $this->user_id = $this->attributes['user_id'];
+            if (isset($this->attributes['created_at'])) $this->created_at = $this->attributes['created_at'];
+            if (isset($this->attributes['updated_at'])) $this->updated_at = $this->attributes['updated_at'];
+        }
         
         if ($result && $this->cache) {
             $this->cache->clear("sensor:{$this->id}");

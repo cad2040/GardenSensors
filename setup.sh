@@ -424,14 +424,16 @@ setup_local() {
     
     validate_env
     setup_python_env
+    deploy_to_web_root
     install_php_deps
     setup_mysql
     seed_default_data
     verify_database
     
     print_step "Local Development Setup Completed Successfully"
-    print_info "You can run tests with: ./vendor/bin/phpunit"
-    print_info "You can run Python tests with: source venv/bin/activate && pytest"
+    print_info "Application is deployed at /var/www/html/garden-sensors"
+    print_info "You can run tests with: cd /var/www/html/garden-sensors && ./vendor/bin/phpunit"
+    print_info "You can run Python tests with: cd /var/www/html/garden-sensors && source venv/bin/activate && pytest"
 }
 
 # Main script

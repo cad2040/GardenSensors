@@ -11,6 +11,9 @@ class Plant extends BaseModel implements \JsonSerializable {
     protected $fillable = [
         'name',
         'species',
+        'description',
+        'planting_date',
+        'harvest_date',
         'min_soil_moisture',
         'max_soil_moisture',
         'watering_frequency',
@@ -26,6 +29,9 @@ class Plant extends BaseModel implements \JsonSerializable {
     protected $id;
     protected $name;
     protected $species;
+    protected $description;
+    protected $planting_date;
+    protected $harvest_date;
     protected $min_soil_moisture;
     protected $max_soil_moisture;
     protected $watering_frequency;
@@ -54,6 +60,13 @@ class Plant extends BaseModel implements \JsonSerializable {
         $this->userId = $userId;
         
         parent::__construct($attributes);
+        
+        // Validate required fields
+        if (!empty($attributes)) {
+            if (isset($attributes['name']) && empty($attributes['name'])) {
+                throw new \InvalidArgumentException('Plant name cannot be empty');
+            }
+        }
     }
     
     public function fill(array $attributes) {
@@ -63,6 +76,9 @@ class Plant extends BaseModel implements \JsonSerializable {
         if (isset($attributes['id'])) $this->id = $attributes['id'];
         if (isset($attributes['name'])) $this->name = $attributes['name'];
         if (isset($attributes['species'])) $this->species = $attributes['species'];
+        if (isset($attributes['description'])) $this->description = $attributes['description'];
+        if (isset($attributes['planting_date'])) $this->planting_date = $attributes['planting_date'];
+        if (isset($attributes['harvest_date'])) $this->harvest_date = $attributes['harvest_date'];
         if (isset($attributes['min_soil_moisture'])) $this->min_soil_moisture = $attributes['min_soil_moisture'];
         if (isset($attributes['max_soil_moisture'])) $this->max_soil_moisture = $attributes['max_soil_moisture'];
         if (isset($attributes['watering_frequency'])) $this->watering_frequency = $attributes['watering_frequency'];
@@ -76,12 +92,28 @@ class Plant extends BaseModel implements \JsonSerializable {
     }
 
     public function sensors() {
-        return $this->hasMany(Sensor::class, 'plant_sensors', 'plant_id', 'sensor_id');
+        $sql = "
+            SELECT s.* 
+            FROM sensors s
+            JOIN fact_plants fp ON s.id = fp.sensor_id
+            WHERE fp.plant_id = ?
+        ";
+        
+        $results = $this->db->query($sql, [$this->id]);
+        
+        $sensors = [];
+        foreach ($results as $result) {
+            $sensor = new Sensor();
+            $sensor->fill($result);
+            $sensors[] = $sensor;
+        }
+        
+        return $sensors;
     }
 
     public function addSensor(Sensor $sensor): bool {
         $sql = "
-            INSERT INTO plant_sensors (plant_id, sensor_id, water_amount)
+            INSERT INTO fact_plants (plant_id, sensor_id, waterAmount)
             VALUES (:plant_id, :sensor_id, :water_amount)
         ";
         
@@ -94,7 +126,7 @@ class Plant extends BaseModel implements \JsonSerializable {
 
     public function removeSensor(Sensor $sensor): bool {
         $sql = "
-            DELETE FROM plant_sensors 
+            DELETE FROM fact_plants 
             WHERE plant_id = :plant_id AND sensor_id = :sensor_id
         ";
         
@@ -106,8 +138,8 @@ class Plant extends BaseModel implements \JsonSerializable {
 
     public function updateWatering(): bool {
         $sql = "
-            UPDATE plant_sensors 
-            SET last_watered = NOW(), next_watering = DATE_ADD(NOW(), INTERVAL :hours HOUR)
+            UPDATE fact_plants 
+            SET lastWatered = NOW(), nextWatering = DATE_ADD(NOW(), INTERVAL :hours HOUR)
             WHERE plant_id = :plant_id
         ";
         
@@ -120,7 +152,7 @@ class Plant extends BaseModel implements \JsonSerializable {
     public function needsWatering(): bool {
         $sql = "
             SELECT ps.*, p.min_soil_moisture, p.max_soil_moisture, p.watering_frequency
-            FROM plant_sensors ps
+            FROM fact_plants ps
             JOIN plants p ON ps.plant_id = p.id
             WHERE ps.plant_id = :plant_id
         ";
@@ -131,14 +163,14 @@ class Plant extends BaseModel implements \JsonSerializable {
         }
 
         // Check if next watering time has passed
-        $nextWatering = strtotime($plant[0]['next_watering']);
+        $nextWatering = strtotime($plant[0]['nextWatering']);
         return $nextWatering <= time();
     }
 
     public function getEnvironmentalConditions(): array {
         $sql = "
             SELECT s.*, r.value, r.created_at as timestamp
-            FROM plant_sensors ps
+            FROM fact_plants ps
             JOIN sensors s ON ps.sensor_id = s.id
             JOIN readings r ON s.id = r.sensor_id
             WHERE ps.plant_id = :plant_id
@@ -208,7 +240,7 @@ class Plant extends BaseModel implements \JsonSerializable {
         $db = $this->db ?? Database::getInstance();
         $plantId = $id ?? $this->id;
         // Delete related records first
-        $db->execute("DELETE FROM plant_sensors WHERE plant_id = :plant_id", [':plant_id' => $plantId]);
+        $db->execute("DELETE FROM fact_plants WHERE plant_id = :plant_id", [':plant_id' => $plantId]);
         // Then delete the plant
         return parent::delete($plantId);
     }
@@ -227,7 +259,7 @@ class Plant extends BaseModel implements \JsonSerializable {
         $result = $db->query("
             SELECT p.*
             FROM plants p
-            JOIN plant_sensors ps ON p.id = ps.plant_id
+            JOIN fact_plants ps ON p.id = ps.plant_id
             WHERE ps.sensor_id = :sensor_id
         ", [':sensor_id' => $sensorId]);
         return !empty($result) ? new static($result[0]) : null;
@@ -278,6 +310,18 @@ class Plant extends BaseModel implements \JsonSerializable {
         return $this->species ?? null;
     }
     
+    public function getDescription(): ?string {
+        return $this->description ?? null;
+    }
+    
+    public function getPlantingDate(): ?string {
+        return $this->planting_date ?? null;
+    }
+    
+    public function getHarvestDate(): ?string {
+        return $this->harvest_date ?? null;
+    }
+    
     public function getMinSoilMoisture(): ?int {
         return $this->min_soil_moisture ?? null;
     }
@@ -316,5 +360,92 @@ class Plant extends BaseModel implements \JsonSerializable {
     
     public function getUpdatedAt(): ?string {
         return $this->updated_at ?? null;
+    }
+    
+    // Setter methods
+    public function setName(string $name): void {
+        $this->name = $name;
+        $this->attributes['name'] = $name;
+    }
+    
+    public function setSpecies(string $species): void {
+        $this->species = $species;
+        $this->attributes['species'] = $species;
+    }
+    
+    public function setDescription(string $description): void {
+        $this->description = $description;
+        $this->attributes['description'] = $description;
+    }
+    
+    public function setLocation(string $location): void {
+        $this->location = $location;
+        $this->attributes['location'] = $location;
+    }
+    
+    public function setStatus(string $status): void {
+        $this->status = $status;
+        $this->attributes['status'] = $status;
+    }
+    
+        // Static finder methods
+    public static function findByUser(int $userId): array {
+        $db = Database::getInstance();
+        $results = $db->query("SELECT * FROM plants WHERE user_id = ?", [$userId]);
+        
+        $plants = [];
+        foreach ($results as $result) {
+            $plant = new Plant();
+            $plant->fill($result);
+            $plants[] = $plant;
+        }
+        return $plants;
+    }
+
+    public static function findByLocation(string $location): array {
+        $db = Database::getInstance();
+        $results = $db->query("SELECT * FROM plants WHERE location = ?", [$location]);
+        
+        $plants = [];
+        foreach ($results as $result) {
+            $plant = new Plant();
+            $plant->fill($result);
+            $plants[] = $plant;
+        }
+        return $plants;
+    }
+
+    public static function findByStatus(string $status): array {
+        $db = Database::getInstance();
+        $results = $db->query("SELECT * FROM plants WHERE status = ?", [$status]);
+        
+        $plants = [];
+        foreach ($results as $result) {
+            $plant = new Plant();
+            $plant->fill($result);
+            $plants[] = $plant;
+        }
+        return $plants;
+    }
+
+    public static function findByDateRange(string $startDate, string $endDate): array {
+        $db = Database::getInstance();
+        $results = $db->query("SELECT * FROM plants WHERE created_at BETWEEN ? AND ?", [$startDate, $endDate]);
+        
+        $plants = [];
+        foreach ($results as $result) {
+            $plant = new Plant();
+            $plant->fill($result);
+            $plants[] = $plant;
+        }
+        return $plants;
+    }
+    
+    public function harvest(): bool {
+        $this->status = 'harvested';
+        $this->harvest_date = date('Y-m-d');
+        $this->attributes['status'] = 'harvested';
+        $this->attributes['harvest_date'] = date('Y-m-d');
+        return $this->save();
     }
 } 

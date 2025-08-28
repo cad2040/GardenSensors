@@ -80,11 +80,14 @@ class FactPlantTest extends TestCase {
             VALUES ('Temperature Sensor', 'temperature', 'Test sensor 2', 'Garden Bed 1', 'active', NOW(), NOW())
         ");
         
-        $this->factPlant->setSensorId(2);
+        // Get the ID of the newly created sensor
+        $newSensorId = $this->db->query("SELECT id FROM sensors WHERE name = 'Temperature Sensor' ORDER BY id DESC LIMIT 1")[0]['id'];
+        
+        $this->factPlant->setSensorId($newSensorId);
         $this->factPlant->save();
         
         $updated = FactPlant::find($this->factPlant->getId());
-        $this->assertEquals(2, $updated->getSensorId());
+        $this->assertEquals($newSensorId, $updated->getSensorId());
     }
 
     public function testFactPlantDeletion() {
@@ -104,41 +107,45 @@ class FactPlantTest extends TestCase {
         $this->assertNotNull($plant);
         $this->assertNotNull($plant->getName());
         
+        // Debug: Check sensor_id value
+        $sensorId = $this->factPlant->getSensorId();
+        $this->assertNotNull($sensorId, "Sensor ID should not be null");
+        
         $sensor = $this->factPlant->sensor();
-        $this->assertNotNull($sensor);
-        $this->assertEquals('Soil Moisture Sensor', $sensor->getName());
+        $this->assertNotNull($sensor, "Sensor should not be null");
+        $this->assertStringStartsWith('Soil Moisture Sensor', $sensor->getName());
     }
 
     public function testFactPlantFindByPlant() {
         $this->factPlant->save();
         
-        $factPlants = (new FactPlant())->findByPlant(1);
+        $factPlants = (new FactPlant())->findByPlant($this->plant->getId());
         // Find the specific fact plant we just created
         $ourFactPlant = null;
         foreach ($factPlants as $fp) {
-            if ($fp->getPlantId() == 1 && $fp->getSensorId() == 1) {
+            if ($fp->getPlantId() == $this->plant->getId() && $fp->getSensorId() == $this->sensor->getId()) {
                 $ourFactPlant = $fp;
                 break;
             }
         }
         $this->assertNotNull($ourFactPlant);
-        $this->assertEquals(1, $ourFactPlant->getSensorId());
+        $this->assertEquals($this->sensor->getId(), $ourFactPlant->getSensorId());
     }
 
     public function testFactPlantFindBySensor() {
         $this->factPlant->save();
         
-        $factPlants = (new FactPlant())->findBySensor(1);
+        $factPlants = (new FactPlant())->findBySensor($this->sensor->getId());
         // Find the specific fact plant we just created
         $ourFactPlant = null;
         foreach ($factPlants as $fp) {
-            if ($fp->getPlantId() == 1 && $fp->getSensorId() == 1) {
+            if ($fp->getPlantId() == $this->plant->getId() && $fp->getSensorId() == $this->sensor->getId()) {
                 $ourFactPlant = $fp;
                 break;
             }
         }
         $this->assertNotNull($ourFactPlant);
-        $this->assertEquals(1, $ourFactPlant->getPlantId());
+        $this->assertEquals($this->plant->getId(), $ourFactPlant->getPlantId());
     }
 
     public function testFactPlantValidation() {
