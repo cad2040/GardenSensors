@@ -15,6 +15,7 @@ class Sensor extends BaseModel {
         'description',
         'status',
         'last_reading',
+        'last_reading_time',
         'min_threshold',
         'max_threshold',
         'unit',
@@ -32,6 +33,7 @@ class Sensor extends BaseModel {
     protected $description;
     protected $status;
     protected $last_reading;
+    protected $last_reading_time;
     protected $min_threshold;
     protected $max_threshold;
     protected $unit;
@@ -83,6 +85,7 @@ class Sensor extends BaseModel {
         if (isset($attributes['description'])) $this->description = $attributes['description'];
         if (isset($attributes['status'])) $this->status = $attributes['status'];
         if (isset($attributes['last_reading'])) $this->last_reading = $attributes['last_reading'];
+        if (isset($attributes['last_reading_time'])) $this->last_reading_time = $attributes['last_reading_time'];
         if (isset($attributes['min_threshold'])) $this->min_threshold = $attributes['min_threshold'];
         if (isset($attributes['max_threshold'])) $this->max_threshold = $attributes['max_threshold'];
         if (isset($attributes['unit'])) $this->unit = $attributes['unit'];
@@ -126,7 +129,7 @@ class Sensor extends BaseModel {
     }
 
     public function getLastReadingTime(): ?string {
-        return $this->last_reading;
+        return $this->last_reading_time;
     }
 
     public function calculateStatus(float $reading): string {
@@ -139,7 +142,10 @@ class Sensor extends BaseModel {
     }
 
     public function updateReading(float $value, string $timestamp): bool {
-        $this->last_reading = $timestamp;
+        $this->last_reading = $value;
+        $this->last_reading_time = $timestamp;
+        $this->attributes['last_reading'] = $value;
+        $this->attributes['last_reading_time'] = $timestamp;
         return $this->save();
     }
 
@@ -249,6 +255,7 @@ class Sensor extends BaseModel {
             if (isset($this->attributes['description'])) $this->description = $this->attributes['description'];
             if (isset($this->attributes['status'])) $this->status = $this->attributes['status'];
             if (isset($this->attributes['last_reading'])) $this->last_reading = $this->attributes['last_reading'];
+            if (isset($this->attributes['last_reading_time'])) $this->last_reading_time = $this->attributes['last_reading_time'];
             if (isset($this->attributes['min_threshold'])) $this->min_threshold = $this->attributes['min_threshold'];
             if (isset($this->attributes['max_threshold'])) $this->max_threshold = $this->attributes['max_threshold'];
             if (isset($this->attributes['unit'])) $this->unit = $this->attributes['unit'];

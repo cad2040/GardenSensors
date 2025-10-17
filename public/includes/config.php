@@ -2,8 +2,8 @@
 // Database configuration
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'garden_sensors');
-define('DB_USER', 'garden_user');
-define('DB_PASS', '');
+define('DB_USER', 'garden_sensors');
+define('DB_PASS', 'garden_sensors');
 define('DB_CHARSET', 'utf8mb4');
 
 // Application configuration

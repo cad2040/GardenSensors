@@ -21,15 +21,19 @@ class PinTest extends TestCase
             VALUES ('testuser_{$uniqueId}', 'test_{$uniqueId}@example.com', '" . password_hash('password', PASSWORD_DEFAULT) . "', 'user', 'active', NOW(), NOW())
         ");
         
-        // Create test sensor
+        // Create test sensor with unique name
         $this->db->exec("
             INSERT INTO sensors (name, type, description, location, status, created_at, updated_at)
-            VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', NOW(), NOW())
+            VALUES ('Test Pin Sensor {$uniqueId}', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', NOW(), NOW())
         ");
         
+        // Get the sensor ID
+        $sensorResult = $this->db->query("SELECT id FROM sensors WHERE name = 'Test Pin Sensor {$uniqueId}'");
+        $sensorId = $sensorResult[0]['id'];
+        
         $this->sensor = new Sensor([
-            'id' => 1,
-            'name' => 'Soil Moisture Sensor',
+            'id' => $sensorId,
+            'name' => "Test Pin Sensor {$uniqueId}",
             'type' => 'moisture',
             'description' => 'Test sensor',
             'location' => 'Garden Bed 1',
@@ -47,7 +51,7 @@ class PinTest extends TestCase
             'pin' => 'D' . $uniquePinNumber,
             'pinType' => 'sensor',
             'pin_type' => 'sensor',
-            'sensor_id' => 1,
+            'sensor_id' => $sensorId,
             'status' => 'active'
         ]);
     }
@@ -60,7 +64,7 @@ class PinTest extends TestCase
         $this->assertNotNull($this->pin->getPinNumber());
         $this->assertNotNull($this->pin->getPin());
         $this->assertEquals('sensor', $this->pin->getPinType());
-        $this->assertEquals(1, $this->pin->getSensorId());
+        $this->assertEquals($this->sensor->getId(), $this->pin->getSensorId());
         $this->assertEquals('active', $this->pin->getStatus());
     }
 
@@ -94,14 +98,14 @@ class PinTest extends TestCase
         
         $sensor = $this->pin->getSensor();
         $this->assertNotNull($sensor);
-        $this->assertEquals('Soil Moisture Sensor', $sensor->getName());
+        $this->assertStringStartsWith('Test Pin Sensor', $sensor->getName());
     }
 
     public function testPinFindBySensor()
     {
         $this->pin->save();
         
-        $pins = (new Pin())->findBySensor(1);
+        $pins = (new Pin())->findBySensor($this->sensor->getId());
         $this->assertGreaterThan(0, count($pins));
         $foundPin = null;
         foreach ($pins as $pin) {

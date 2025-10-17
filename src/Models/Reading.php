@@ -24,19 +24,50 @@ class Reading extends BaseModel {
     protected $humidity;
     protected $created_at;
 
+    public function __construct(array $attributes = []) {
+        parent::__construct($attributes);
+        
+        // Validate required fields
+        if (array_key_exists('value', $attributes) && ($attributes['value'] === null || $attributes['value'] === '')) {
+            throw new \InvalidArgumentException('Reading value cannot be null or empty');
+        }
+    }
+
     public function sensor() {
         return Sensor::find($this->sensor_id);
     }
 
+    public function getSensor() {
+        return Sensor::find($this->sensor_id);
+    }
+
     public function findBySensor($sensorId) {
-        return $this->where('sensor_id', '=', $sensorId);
+        $results = $this->where('sensor_id', '=', $sensorId);
+        $readings = [];
+        foreach ($results as $result) {
+            if (is_array($result)) {
+                $reading = new Reading();
+                $reading->fill($result);
+                $readings[] = $reading;
+            } else {
+                // If it's already a Reading object, just add it
+                $readings[] = $result;
+            }
+        }
+        return $readings;
     }
 
     public function findByDateRange($sensorId, $startDate, $endDate) {
-        return $this->where(
-            'sensor_id = ? AND created_at BETWEEN ? AND ?',
-            [$sensorId, $startDate, $endDate]
-        );
+        $sql = "SELECT * FROM {$this->table} WHERE sensor_id = ? AND created_at BETWEEN ? AND ?";
+        $results = $this->db->query($sql, [$sensorId, $startDate, $endDate]);
+        
+        $readings = [];
+        foreach ($results as $result) {
+            $reading = new Reading();
+            $reading->fill($result);
+            $readings[] = $reading;
+        }
+        return $readings;
     }
 
     public function getAverage($sensorId, $startDate, $endDate) {
@@ -45,7 +76,10 @@ class Reading extends BaseModel {
             return 0;
         }
         
-        $sum = array_sum(array_column($readings, 'value'));
+        $sum = 0;
+        foreach ($readings as $reading) {
+            $sum += $reading->getValue();
+        }
         return $sum / count($readings);
     }
 

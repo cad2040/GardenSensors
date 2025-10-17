@@ -75,12 +75,14 @@ class PlantTest extends TestCase
     {
         $this->plant->save();
         
-        $this->plant->setName('Updated Plant');
+        $uniqueId = uniqid();
+        $updatedName = 'Updated Plant ' . $uniqueId;
+        $this->plant->setName($updatedName);
         $this->plant->setDescription('Updated Description');
         $this->plant->save();
         
         $updated = Plant::find($this->plant->getId());
-        $this->assertEquals('Updated Plant', $updated->getName());
+        $this->assertEquals($updatedName, $updated->getName());
         $this->assertEquals('Updated Description', $updated->getDescription());
     }
 

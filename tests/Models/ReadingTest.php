@@ -22,15 +22,19 @@ class ReadingTest extends TestCase
             VALUES ('testuser_{$uniqueId}', 'test_{$uniqueId}@example.com', '" . password_hash('password', PASSWORD_DEFAULT) . "', 'user', 'active', NOW(), NOW())
         ");
         
-        // Create test sensor
+        // Create test sensor with unique name
         $this->db->exec("
             INSERT INTO sensors (name, type, description, location, status, created_at, updated_at)
-            VALUES ('Soil Moisture Sensor', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', NOW(), NOW())
+            VALUES ('Test Reading Sensor {$uniqueId}', 'moisture', 'Test sensor', 'Garden Bed 1', 'active', NOW(), NOW())
         ");
         
+        // Get the sensor ID
+        $sensorResult = $this->db->query("SELECT id FROM sensors WHERE name = 'Test Reading Sensor {$uniqueId}'");
+        $sensorId = $sensorResult[0]['id'];
+        
         $this->sensor = new Sensor([
-            'id' => 1,
-            'name' => 'Soil Moisture Sensor',
+            'id' => $sensorId,
+            'name' => "Test Reading Sensor {$uniqueId}",
             'type' => 'moisture',
             'description' => 'Test sensor',
             'location' => 'Garden Bed 1',
@@ -38,7 +42,7 @@ class ReadingTest extends TestCase
         ]);
         
         $this->reading = new Reading([
-            'sensor_id' => 1,
+            'sensor_id' => $sensorId,
             'value' => 45,
             'unit' => 'percentage',
             'temperature' => 25.5,
@@ -51,7 +55,7 @@ class ReadingTest extends TestCase
         $this->reading->save();
         
         $this->assertNotNull($this->reading->getId());
-        $this->assertEquals(1, $this->reading->getSensorId());
+        $this->assertEquals($this->sensor->getId(), $this->reading->getSensorId());
         $this->assertEquals(45, $this->reading->getValue());
         $this->assertEquals(25.5, $this->reading->getTemperature());
         $this->assertEquals(60.0, $this->reading->getHumidity());
@@ -63,7 +67,7 @@ class ReadingTest extends TestCase
         
         $sensor = $this->reading->getSensor();
         $this->assertNotNull($sensor);
-        $this->assertEquals('Soil Moisture Sensor', $sensor->getName());
+        $this->assertStringStartsWith('Test Reading Sensor', $sensor->getName());
     }
 
     public function testReadingTimestamps()
@@ -78,7 +82,7 @@ class ReadingTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         
         new Reading([
-            'sensor_id' => 1,
+            'sensor_id' => $this->sensor->getId(),
             'value' => null
         ]);
     }
@@ -87,7 +91,7 @@ class ReadingTest extends TestCase
     {
         $this->reading->save();
         
-        $readings = (new Reading())->findBySensor(1);
+        $readings = (new Reading())->findBySensor($this->sensor->getId());
         $this->assertCount(1, $readings);
         $this->assertEquals(45, $readings[0]->getValue());
     }
@@ -99,7 +103,7 @@ class ReadingTest extends TestCase
         $startDate = date('Y-m-d H:i:s', strtotime('-1 day'));
         $endDate = date('Y-m-d H:i:s', strtotime('+1 day'));
         
-        $readings = (new Reading())->findByDateRange(1, $startDate, $endDate);
+        $readings = (new Reading())->findByDateRange($this->sensor->getId(), $startDate, $endDate);
         $this->assertCount(1, $readings);
         $this->assertEquals(45, $readings[0]->getValue());
     }
@@ -110,7 +114,7 @@ class ReadingTest extends TestCase
         
         // Add another reading
         $reading2 = new Reading([
-            'sensor_id' => 1,
+            'sensor_id' => $this->sensor->getId(),
             'value' => 55,
             'unit' => 'percentage',
             'temperature' => 26.0,
@@ -121,7 +125,7 @@ class ReadingTest extends TestCase
         $startDate = date('Y-m-d H:i:s', strtotime('-1 day'));
         $endDate = date('Y-m-d H:i:s', strtotime('+1 day'));
         
-        $average = (new Reading())->getAverage(1, $startDate, $endDate);
+        $average = (new Reading())->getAverage($this->sensor->getId(), $startDate, $endDate);
         $this->assertEquals(50, $average);
     }
 
@@ -140,14 +144,14 @@ class ReadingTest extends TestCase
     {
         $readings = [
             [
-                'sensor_id' => 1,
+                'sensor_id' => $this->sensor->getId(),
                 'value' => 45,
                 'unit' => 'percentage',
                 'temperature' => 25.5,
                 'humidity' => 60.0
             ],
             [
-                'sensor_id' => 1,
+                'sensor_id' => $this->sensor->getId(),
                 'value' => 55,
                 'unit' => 'percentage',
                 'temperature' => 26.0,
@@ -158,7 +162,7 @@ class ReadingTest extends TestCase
         $result = (new Reading())->batchInsert($readings);
         $this->assertTrue($result);
         
-        $allReadings = (new Reading())->findBySensor(1);
+        $allReadings = (new Reading())->findBySensor($this->sensor->getId());
         $this->assertCount(2, $allReadings);
     }
 
@@ -166,7 +170,7 @@ class ReadingTest extends TestCase
     {
         // Create old reading
         $oldReading = new Reading([
-            'sensor_id' => 1,
+            'sensor_id' => $this->sensor->getId(),
             'value' => 45,
             'unit' => 'percentage',
             'temperature' => 25.5,
@@ -177,7 +181,7 @@ class ReadingTest extends TestCase
         
         // Create new reading
         $newReading = new Reading([
-            'sensor_id' => 1,
+            'sensor_id' => $this->sensor->getId(),
             'value' => 55,
             'unit' => 'percentage',
             'temperature' => 26.0,
@@ -188,7 +192,7 @@ class ReadingTest extends TestCase
         // Clean up readings older than 30 days
         (new Reading())->cleanup(30);
         
-        $allReadings = (new Reading())->findBySensor(1);
+        $allReadings = (new Reading())->findBySensor($this->sensor->getId());
         $this->assertCount(1, $allReadings);
         $this->assertEquals(55, $allReadings[0]->getValue());
     }

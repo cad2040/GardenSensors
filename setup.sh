@@ -203,6 +203,17 @@ setup_mysql() {
         mysql -u root -pnewrootpassword garden_sensors < database/schema.sql || print_warning "Failed to deploy production schema"
     fi
     
+    # Run migrations if they exist
+    if [ -d "database/migrations" ]; then
+        print_info "Running database migrations..."
+        for migration in database/migrations/*.sql; do
+            if [ -f "$migration" ]; then
+                print_info "Running migration: $(basename "$migration")"
+                mysql -u root -pnewrootpassword garden_sensors < "$migration" || print_warning "Failed to run migration: $(basename "$migration")"
+            fi
+        done
+    fi
+    
     # Note: PHP setup script is not used as it uses production schema
     # Test database setup is handled directly by this script
     
@@ -258,22 +269,29 @@ setup_apache() {
     print_info "Enabling required Apache modules..."
     a2enmod rewrite || print_error "Failed to enable rewrite module"
     a2enmod headers || print_error "Failed to enable headers module"
+    a2enmod php8.3 || print_error "Failed to enable PHP module"
     
     # Create Apache virtual host configuration
     print_info "Creating Apache virtual host configuration..."
     cat > /etc/apache2/sites-available/garden-sensors.conf << EOF
 <VirtualHost *:80>
-    ServerName garden-sensors.local
+    ServerName localhost
     DocumentRoot /var/www/html/garden-sensors/public
     
     <Directory /var/www/html/garden-sensors/public>
-        Options Indexes FollowSymLinks
         AllowOverride All
         Require all granted
+        DirectoryIndex index.php index.html
     </Directory>
     
-    ErrorLog \${APACHE_LOG_DIR}/garden-sensors-error.log
-    CustomLog \${APACHE_LOG_DIR}/garden-sensors-access.log combined
+    # Security headers
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+    
+    # Logging
+    ErrorLog \${APACHE_LOG_DIR}/garden-sensors_error.log
+    CustomLog \${APACHE_LOG_DIR}/garden-sensors_access.log combined
 </VirtualHost>
 EOF
     
@@ -429,9 +447,11 @@ setup_local() {
     setup_mysql
     seed_default_data
     verify_database
+    setup_apache
     
     print_step "Local Development Setup Completed Successfully"
     print_info "Application is deployed at /var/www/html/garden-sensors"
+    print_info "You can access the web interface at http://localhost/garden-sensors"
     print_info "You can run tests with: cd /var/www/html/garden-sensors && ./vendor/bin/phpunit"
     print_info "You can run Python tests with: cd /var/www/html/garden-sensors && source venv/bin/activate && pytest"
 }

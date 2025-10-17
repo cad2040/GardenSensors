@@ -19,8 +19,8 @@ require_once __DIR__ . '/includes/config.php';
 // Database configuration
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'garden_sensors');
-define('DB_USER', 'garden_user');
-define('DB_PASS', '');
+define('DB_USER', 'garden_sensors');
+define('DB_PASS', 'garden_sensors');
 
 // Application paths
 define('APP_ROOT', dirname(__DIR__));

@@ -83,6 +83,13 @@ $page_title = 'Login';
                         <i class="fas fa-sign-in-alt"></i> Login
                     </button>
                 </form>
+                
+                <div class="mt-3 text-center">
+                    <p class="mb-2">Don't have an account?</p>
+                    <a href="register.php" class="btn btn-outline-secondary">
+                        <i class="fas fa-user-plus"></i> Register New User
+                    </a>
+                </div>
             </div>
         </div>
     </div>
