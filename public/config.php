@@ -16,11 +16,11 @@ ini_set('display_errors', 1);
 // Include the main configuration file
 require_once __DIR__ . '/includes/config.php';
 
-// Database configuration
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'garden_sensors');
-define('DB_USER', 'garden_sensors');
-define('DB_PASS', 'garden_sensors');
+// Database configuration (only define if not already defined)
+if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
+if (!defined('DB_NAME')) define('DB_NAME', 'garden_sensors');
+if (!defined('DB_USER')) define('DB_USER', 'garden_sensors');
+if (!defined('DB_PASS')) define('DB_PASS', 'garden_sensors');
 
 // Application paths
 define('APP_ROOT', dirname(__DIR__));
@@ -29,9 +29,9 @@ define('INCLUDES_PATH', APP_ROOT . '/public/includes');
 // Include required files
 require_once(INCLUDES_PATH . '/functions.php');
 
-// Application configuration
-define('APP_NAME', 'Garden Sensors');
-define('APP_VERSION', '1.0.0');
+// Application configuration (only define if not already defined)
+if (!defined('APP_NAME')) define('APP_NAME', 'Garden Sensors');
+if (!defined('APP_VERSION')) define('APP_VERSION', '1.0.0');
 
 // File paths (only define if not already defined)
 if (!defined('ROOT_PATH')) define('ROOT_PATH', '/var/www/html/garden-sensors');
@@ -57,23 +57,23 @@ date_default_timezone_set('UTC');
 if (!defined('DEBUG_MODE')) define('DEBUG_MODE', true); // Enable debug mode temporarily
 if (!defined('TIMEZONE')) define('TIMEZONE', 'UTC');
 
-// Security configuration
-define('SESSION_LIFETIME', 3600);
-define('CSRF_TOKEN_NAME', 'csrf_token');
-define('CSRF_TOKEN_LENGTH', 32);
-define('MAX_LOGIN_ATTEMPTS', 5);
-define('LOGIN_TIMEOUT', 900);
+// Security configuration (only define if not already defined)
+if (!defined('SESSION_LIFETIME')) define('SESSION_LIFETIME', 3600);
+if (!defined('CSRF_TOKEN_NAME')) define('CSRF_TOKEN_NAME', 'csrf_token');
+if (!defined('CSRF_TOKEN_LENGTH')) define('CSRF_TOKEN_LENGTH', 32);
+if (!defined('MAX_LOGIN_ATTEMPTS')) define('MAX_LOGIN_ATTEMPTS', 5);
+if (!defined('LOGIN_TIMEOUT')) define('LOGIN_TIMEOUT', 900);
 
-// Cache configuration
-define('CACHE_ENABLED', true);
-define('CACHE_DIR', APP_ROOT . '/cache');
-define('CACHE_TTL', 300);
+// Cache configuration (only define if not already defined)
+if (!defined('CACHE_ENABLED')) define('CACHE_ENABLED', true);
+if (!defined('CACHE_DIR')) define('CACHE_DIR', APP_ROOT . '/cache');
+if (!defined('CACHE_TTL')) define('CACHE_TTL', 300);
 
-// Logging configuration
-define('LOG_LEVEL', 'debug');
-define('LOG_FILE', APP_ROOT . '/logs/app.log');
-define('LOG_MAX_SIZE', 5242880);
-define('LOG_MAX_FILES', 5);
+// Logging configuration (only define if not already defined)
+if (!defined('LOG_LEVEL')) define('LOG_LEVEL', 'debug');
+if (!defined('LOG_FILE')) define('LOG_FILE', APP_ROOT . '/logs/app.log');
+if (!defined('LOG_MAX_SIZE')) define('LOG_MAX_SIZE', 5242880);
+if (!defined('LOG_MAX_FILES')) define('LOG_MAX_FILES', 5);
 
 // Email settings
 if (!defined('SMTP_HOST')) define('SMTP_HOST', 'smtp.gmail.com');

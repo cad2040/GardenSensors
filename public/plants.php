@@ -2,10 +2,16 @@
 require_once 'config.php';
 require_once 'includes/functions.php';
 
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
 // Initialize database connection
 try {
     $pdo = new PDO(
-        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME,
+        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET,
         DB_USER,
         DB_PASS,
         array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
@@ -14,29 +20,43 @@ try {
     $error = "Database connection failed: " . $e->getMessage();
 }
 
-// Fetch all sensors with their latest readings
-$sensors = [];
+// Fetch all plants with their linked sensors
+$plants = [];
 if (!isset($error)) {
     try {
-        $stmt = $pdo->query("
-            SELECT s.*, 
-                   COALESCE(lr.reading_value, 'N/A') as last_reading,
-                   COALESCE(lr.reading_timestamp, 'Never') as last_reading_time
-            FROM sensors s
-            LEFT JOIN (
-                SELECT sensor_id, reading_value, reading_timestamp
-                FROM sensor_readings sr1
-                WHERE reading_timestamp = (
-                    SELECT MAX(reading_timestamp)
-                    FROM sensor_readings sr2
-                    WHERE sr1.sensor_id = sr2.sensor_id
-                )
-            ) lr ON s.id = lr.sensor_id
-            ORDER BY s.id ASC
+        // First try to get plants for the current user
+        $stmt = $pdo->prepare("
+            SELECT p.*, 
+                   COUNT(ps.sensor_id) as sensor_count,
+                   GROUP_CONCAT(s.name SEPARATOR ', ') as sensor_names
+            FROM plants p
+            LEFT JOIN plant_sensors ps ON p.id = ps.plant_id
+            LEFT JOIN sensors s ON ps.sensor_id = s.id
+            WHERE p.user_id = ?
+            GROUP BY p.id
+            ORDER BY p.name ASC
         ");
-        $sensors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute([$_SESSION['user_id']]);
+        $plants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // If no plants found and user is not admin, also show test plants (user_id = 1) for development
+        if (empty($plants) && $_SESSION['user_id'] != 1) {
+            $stmt = $pdo->prepare("
+                SELECT p.*, 
+                       COUNT(ps.sensor_id) as sensor_count,
+                       GROUP_CONCAT(s.name SEPARATOR ', ') as sensor_names
+                FROM plants p
+                LEFT JOIN plant_sensors ps ON p.id = ps.plant_id
+                LEFT JOIN sensors s ON ps.sensor_id = s.id
+                WHERE p.user_id = 1 AND p.name IN ('Tomato Plant', 'Basil Plant', 'Lettuce Plant')
+                GROUP BY p.id
+                ORDER BY p.name ASC
+            ");
+            $stmt->execute();
+            $plants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
     } catch (PDOException $e) {
-        $error = "Failed to fetch sensors: " . $e->getMessage();
+        $error = "Failed to fetch plants: " . $e->getMessage();
     }
 }
 ?>
@@ -45,7 +65,7 @@ if (!isset($error)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sensors - <?php echo htmlspecialchars(APP_NAME); ?></title>
+    <title>Plants - <?php echo htmlspecialchars(APP_NAME); ?></title>
     
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -68,11 +88,11 @@ if (!isset($error)) {
                     <i class="fas fa-home"></i>
                     <span>Dashboard</span>
                 </a>
-                <a href="/sensors.php" class="nav-link active">
+                <a href="/sensors.php" class="nav-link">
                     <i class="fas fa-microchip"></i>
                     <span>Sensors</span>
                 </a>
-                <a href="/plants.php" class="nav-link">
+                <a href="/plants.php" class="nav-link active">
                     <i class="fas fa-seedling"></i>
                     <span>Plants</span>
                 </a>
@@ -101,88 +121,74 @@ if (!isset($error)) {
             <?php endif; ?>
 
             <div class="dashboard-header">
-                <h1 class="dashboard-title">Sensors</h1>
-                <p class="dashboard-subtitle">Manage and monitor your garden sensors</p>
+                <h1 class="dashboard-title">Plants</h1>
+                <p class="dashboard-subtitle">Manage your plants and their watering thresholds</p>
             </div>
 
-            <!-- Sensors List -->
+            <!-- Plants List -->
             <section class="readings-section">
                 <div class="readings-header">
-                    <h2 class="readings-title">Available Sensors</h2>
+                    <h2 class="readings-title">Your Plants</h2>
                     <div class="readings-actions">
-                        <a href="add_sensor.php" class="btn btn-primary">
+                        <a href="add_plant.php" class="btn btn-primary">
                             <i class="fas fa-plus"></i>
-                            Add New Sensor
+                            Add New Plant
                         </a>
                     </div>
                 </div>
-                <?php if (!empty($sensors)): ?>
+                <?php if (!empty($plants)): ?>
                     <table class="readings-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
                                 <th>Name</th>
-                                <th>Type</th>
+                                <th>Species</th>
                                 <th>Location</th>
-                                <th>Last Reading</th>
-                                <th>Last Update</th>
+                                <th>Moisture Range</th>
+                                <th>Watering Frequency</th>
+                                <th>Linked Sensors</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($sensors as $sensor): ?>
-                                <?php
-                                $status = 'active';
-                                $statusClass = 'status-active';
-                                if ($sensor['last_reading_time'] === 'Never' || 
-                                    strtotime($sensor['last_reading_time']) < strtotime('-1 hour')) {
-                                    $status = 'inactive';
-                                    $statusClass = 'status-inactive';
-                                }
-                                ?>
+                            <?php foreach ($plants as $plant): ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($sensor['id']); ?></td>
-                                    <td><?php echo htmlspecialchars($sensor['name']); ?></td>
-                                    <td><?php echo htmlspecialchars(ucfirst($sensor['type'])); ?></td>
-                                    <td><?php echo htmlspecialchars($sensor['location']); ?></td>
+                                    <td><strong><?php echo htmlspecialchars($plant['name']); ?></strong></td>
+                                    <td><?php echo htmlspecialchars($plant['species'] ?: 'N/A'); ?></td>
+                                    <td><?php echo htmlspecialchars($plant['location'] ?: 'N/A'); ?></td>
                                     <td>
-                                        <?php 
-                                        if ($sensor['last_reading'] !== 'N/A') {
-                                            echo htmlspecialchars($sensor['last_reading']);
-                                            echo $sensor['type'] === 'temperature' ? '°C' : '%';
-                                        } else {
-                                            echo 'N/A';
-                                        }
-                                        ?>
+                                        <?php echo htmlspecialchars($plant['min_soil_moisture']); ?>% - 
+                                        <?php echo htmlspecialchars($plant['max_soil_moisture']); ?>%
+                                    </td>
+                                    <td><?php echo htmlspecialchars($plant['watering_frequency']); ?> hours</td>
+                                    <td>
+                                        <?php if ($plant['sensor_count'] > 0): ?>
+                                            <span class="badge"><?php echo $plant['sensor_count']; ?> sensor(s)</span>
+                                            <small style="display: block; color: #666; margin-top: 4px;">
+                                                <?php echo htmlspecialchars($plant['sensor_names']); ?>
+                                            </small>
+                                        <?php else: ?>
+                                            <span style="color: #999;">No sensors</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php
-                                        if ($sensor['last_reading_time'] !== 'Never') {
-                                            echo htmlspecialchars(date('Y-m-d H:i:s', strtotime($sensor['last_reading_time'])));
-                                        } else {
-                                            echo 'Never';
-                                        }
-                                        ?>
-                                    </td>
-                                    <td>
-                                        <span class="status-badge <?php echo $statusClass; ?>">
-                                            <?php echo ucfirst($status); ?>
+                                        <span class="status-badge status-<?php echo $plant['status']; ?>">
+                                            <?php echo ucfirst($plant['status']); ?>
                                         </span>
                                     </td>
                                     <td class="actions">
-                                        <a href="edit_sensor.php?id=<?php echo $sensor['id']; ?>" 
+                                        <a href="edit_plant.php?id=<?php echo $plant['id']; ?>" 
                                            class="action-link" 
                                            title="Edit">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="view_sensor.php?id=<?php echo $sensor['id']; ?>" 
+                                        <a href="view_plant.php?id=<?php echo $plant['id']; ?>" 
                                            class="action-link" 
                                            title="View Details">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                         <a href="#" 
-                                           onclick="deleteSensor(<?php echo $sensor['id']; ?>)" 
+                                           onclick="deletePlant(<?php echo $plant['id']; ?>)" 
                                            class="action-link text-danger" 
                                            title="Delete">
                                             <i class="fas fa-trash"></i>
@@ -194,9 +200,9 @@ if (!isset($error)) {
                     </table>
                 <?php else: ?>
                     <div class="no-data">
-                        <p>No sensors have been added yet.</p>
-                        <a href="add_sensor.php" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> Add Your First Sensor
+                        <p>No plants have been added yet.</p>
+                        <a href="add_plant.php" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add Your First Plant
                         </a>
                     </div>
                 <?php endif; ?>
@@ -208,11 +214,12 @@ if (!isset($error)) {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="/assets/js/main.js"></script>
     <script>
-    function deleteSensor(sensorId) {
-        if (confirm('Are you sure you want to delete this sensor? This action cannot be undone.')) {
-            window.location.href = 'delete_sensor.php?id=' + sensorId;
+    function deletePlant(plantId) {
+        if (confirm('Are you sure you want to delete this plant? This action cannot be undone.')) {
+            window.location.href = 'delete_plant.php?id=' + plantId;
         }
     }
     </script>
 </body>
-</html> 
+</html>
+

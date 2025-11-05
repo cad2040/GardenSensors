@@ -48,18 +48,6 @@ ini_set('error_log', LOG_FILE);
 // Time zone
 date_default_timezone_set('UTC');
 
-// Initialize database connection
-require_once __DIR__ . '/db.php';
-$db = new Database();
-
-// Initialize cache
-require_once __DIR__ . '/cache.php';
-$cache = new Cache();
-
-// Initialize rate limiter
-require_once __DIR__ . '/rate_limiter.php';
-$rateLimiter = new RateLimiter();
-
-// Initialize logger
-require_once __DIR__ . '/logger.php';
-$logger = new Logger(); 
+// Note: Service initialization (Database, Cache, RateLimiter, Logger) is not done here
+// Pages should initialize these services only when needed to avoid unnecessary overhead
+// and potential initialization errors during page load 

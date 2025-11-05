@@ -5,7 +5,10 @@ A comprehensive garden monitoring system that tracks soil moisture, temperature,
 ## Features
 
 - Real-time soil moisture and temperature monitoring
+- **Interactive plant-based plots** - Bokeh-powered visualizations with filtering
 - Web-based dashboard for data visualization
+- Plant management with moisture threshold tracking
+- Sensor-plant linking for automated watering
 - Email alerts for low moisture levels
 - Data export functionality
 - User authentication and role-based access control
@@ -57,7 +60,7 @@ cp .env.example .env.test
 sudo ./setup.sh test
 ```
 
-### Option 3: Local Development Setup (No Web UI)
+### Option 3: Local Development Setup (With Web UI and Testing)
 
 ```bash
 # Clone the repository
@@ -70,8 +73,14 @@ cp .env.example .env.test
 # Edit both files with your configuration
 
 # Run local development setup
-./setup.sh local
+sudo ./setup.sh local
 ```
+
+**Note:** The local setup now includes:
+- Full web deployment with Apache
+- Automatic test execution (PHP + Python)
+- Test data cleanup after successful tests
+- Production-ready database after deployment
 
 ## Setup Options
 
@@ -93,27 +102,39 @@ The main setup script (`setup.sh`) provides three different setup options:
 - Runs unit tests automatically
 - **Use for**: Testing with web UI, debugging
 
-### Local Development Setup (`./setup.sh local`)
+### Local Development Setup (`sudo ./setup.sh local`)
 - Installs PHP and Python dependencies
 - Sets up local database
-- No web deployment (CLI only)
-- **Use for**: Development, testing without web UI
+- Deploys to web root with Apache
+- **Runs full test suite automatically** (PHP + Python)
+- **Cleans up test data** after successful tests
+- **Use for**: Development, testing with web UI, production-ready deployments
 
 ## Testing
 
-### Running Unit Tests
+### Automated Testing During Deployment
+
+The deployment process (`setup.sh local` and `setup.sh production`) now automatically:
+1. **Runs full test suite** after deployment completes
+   - PHP unit tests (126 tests, 253 assertions)
+   - Python unit tests (35 tests)
+2. **Validates deployment** - Deployment fails if tests fail
+3. **Cleans up test data** - Removes all test users, sensors, plants, and related data
+4. **Verifies cleanup** - Confirms database is clean and production-ready
+
+### Manual Test Execution
 
 1. **PHP Tests:**
 ```bash
 # From project root or web root
-./vendor/bin/phpunit
+./vendor/bin/phpunit --testdox
 ```
 
 2. **Python Tests:**
 ```bash
 # Activate virtual environment first
 source venv/bin/activate
-pytest
+python -m pytest tests/python/ -v
 ```
 
 3. **Configuration Check:**
@@ -122,6 +143,20 @@ pytest
 ./tests/run_config_check.sh
 ```
 
+### Test Data Cleanup
+
+After running tests, you can manually clean up test data:
+```bash
+# From deployment directory
+mysql -u root -pnewrootpassword garden_sensors < database/cleanup_test_data.sql
+```
+
+The cleanup script removes:
+- Test users (`testuser_*`, `test_*@example.com`)
+- Test sensors (names containing "Test")
+- Test plants (names starting with "Test Plant")
+- Orphaned readings, plant_sensors, and pins
+
 ### Test Environment Setup
 
 The project includes comprehensive test setup:
@@ -129,6 +164,7 @@ The project includes comprehensive test setup:
 - Test environment variables (`.env.test`)
 - Automated test data generation
 - Coverage reporting
+- Automatic cleanup after tests
 
 ## Cleanup
 
@@ -253,12 +289,13 @@ The application creates the following tables:
 | `users` | User authentication and management | id, username, email, password_hash |
 | `sensors` | Sensor device information | id, name, type, location, status |
 | `readings` | Sensor data readings | id, sensor_id, reading_value, reading_timestamp |
-| `plants` | Plant information and management | id, name, species, location, user_id |
+| `plants` | Plant information and management | id, name, species, location, user_id, min_soil_moisture, max_soil_moisture |
+| `plant_sensors` | Plant-sensor relationships | id, plant_id, sensor_id, last_watered, next_watering, water_amount |
 | `pins` | GPIO pin assignments | id, pin_number, type, sensor_id |
 | `notifications` | User notifications | id, user_id, type, message, created_at |
 | `settings` | Application settings | id, key, value, updated_at |
-| `fact_plants` | Plant-sensor relationships | id, plant_id, sensor_id |
-| `dim_plants` | Plant dimension data | id, plant_id, dimension_type, value |
+
+**Note:** The `fact_plants` table has been removed in favor of `plant_sensors` which provides better structure and naming conventions.
 
 ### Database Configuration
 
@@ -512,7 +549,100 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Version
 
-Current version: **1.1.0**
+Current version: **1.2.0**
+
+## Deployment Features
+
+### Automated Testing
+- Full test suite runs automatically during deployment
+- PHP unit tests (126 tests, 253 assertions)
+- Python unit tests (35 tests)
+- Deployment fails if tests fail (prevents broken deployments)
+
+### Test Data Cleanup
+- Automatic cleanup of test data after successful tests
+- Removes test users, sensors, plants, and related data
+- Verifies database is clean and production-ready
+- Manual cleanup available via `database/cleanup_test_data.sql`
+
+### Database Improvements
+- Removed deprecated `fact_plants` table
+- Consolidated to `plant_sensors` table with better structure
+- Moisture thresholds moved to `plants` table
+- Plant-sensor linking via `plant_sensors` table
+
+### Interactive Plotting
+- Plant-based interactive plots using Bokeh
+- Filter by specific plant or view all plants
+- Date range selection (7, 14, 30, 90 days)
+- Real-time plot updates
+- Zoom, pan, and hover tooltips
+- API endpoint at `/api/plot.php`
+- Python script: `python/generate_plot_api.py`
 
 ## MySQL Root Password
 The MySQL root password is set to `newrootpassword`. **IMPORTANT:** This password should be changed in a production environment for security reasons.
+
+## Interactive Plotting
+
+The application includes interactive, plant-based data visualization powered by Bokeh.
+
+### Features
+
+- **Plant-Based Organization**: Sensor readings are organized by plant, not just sensor type
+- **Interactive Filtering**: Filter plots by specific plant or view all plants
+- **Date Range Selection**: View data for 7, 14, 30, or 90 days
+- **Interactive Tools**: Zoom, pan, hover tooltips, and click-to-hide legend
+- **Colorblind-Friendly Colors**: Each sensor type has a distinct color family (temperature=blue, humidity=green, moisture=orange, etc.)
+- **Distinct Line Styles**: Different plants with the same sensor type use different shades and line dash patterns
+- **Smart Legend Placement**: Legend positioned at bottom-left to avoid overlapping with data
+- **Real-Time Updates**: Plots automatically refresh when filters change
+
+### Accessing the Plots
+
+1. Log into the dashboard
+2. Navigate to the Dashboard page
+3. Scroll to the "Sensor Readings Over Time" section
+4. Use the filter dropdowns to select:
+   - Plant (or "All Plants" for all)
+   - Date range (7, 14, 30, or 90 days)
+5. Click "Refresh" to update the plot
+
+### Technical Details
+
+- **Backend**: Python script (`python/generate_plot_api.py`) generates Bokeh plot components
+- **API Endpoint**: `/api/plot.php` serves plot data as JSON
+- **Frontend**: BokehJS renders interactive plots client-side
+- **Database**: Joins `plants` → `plant_sensors` → `sensors` → `readings` tables
+
+### Requirements
+
+- Python 3.8+ with Bokeh library
+- Bokeh installed: `pip install bokeh`
+- Python virtual environment configured
+- Database with plant-sensor relationships established
+
+### API Usage
+
+The plot API can be accessed programmatically:
+
+```bash
+# Get plot for all plants (last 7 days)
+curl "http://localhost/garden-sensors/api/plot.php?days=7"
+
+# Get plot for specific plant
+curl "http://localhost/garden-sensors/api/plot.php?plant_id=1&days=30"
+
+# Get plot data as JSON
+curl "http://localhost/garden-sensors/api/plot.php?format=json&days=7"
+```
+
+## Next Steps: Containerization
+
+The application is ready for Docker containerization. Planned features:
+- Multi-container Docker Compose setup
+- PHP 8.3 + Apache web container
+- MySQL 8.0 database container
+- Python 3.12 environment container
+- Automated testing in containers
+- Development and production configurations

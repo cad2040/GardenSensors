@@ -214,15 +214,44 @@ setup_mysql() {
         done
     fi
     
+    # Create views if they exist
+    if [ -f "database/create_sensor_readings_view.sql" ]; then
+        print_info "Creating sensor_readings view..."
+        mysql -u root -pnewrootpassword garden_sensors < database/create_sensor_readings_view.sql || print_warning "Failed to create sensor_readings view"
+    fi
+    
+    # Ensure API directory exists and has correct permissions
+    print_info "Setting up API directory..."
+    mkdir -p public/api
+    chmod 755 public/api || print_warning "Failed to set API directory permissions"
+    
+    # Ensure Python plot API script is executable
+    if [ -f "python/generate_plot_api.py" ]; then
+        print_info "Setting up Python plot API script..."
+        chmod +x python/generate_plot_api.py || print_warning "Failed to make plot API script executable"
+    fi
+    
     # Note: PHP setup script is not used as it uses production schema
     # Test database setup is handled directly by this script
     
     # Verify database setup
     print_info "Verifying database setup..."
-    if mysql -u root -pnewrootpassword garden_sensors -e "SHOW TABLES;" 2>/dev/null | grep -q "users"; then
-        print_status "Production database setup verified"
+    local required_tables=("users" "sensors" "readings" "plants" "plant_sensors" "sensor_readings")
+    local missing_tables=()
+    
+    for table in "${required_tables[@]}"; do
+        if mysql -u root -pnewrootpassword garden_sensors -e "SHOW TABLES LIKE '$table';" 2>/dev/null | grep -q "$table"; then
+            print_info "✓ Table '$table' exists"
+        else
+            print_warning "✗ Table '$table' is missing"
+            missing_tables+=("$table")
+        fi
+    done
+    
+    if [ ${#missing_tables[@]} -eq 0 ]; then
+        print_status "All required database tables verified"
     else
-        print_warning "Production database tables may not be properly created"
+        print_warning "Some database tables may not be properly created: ${missing_tables[*]}"
     fi
     
     # Note: Tests now use production database, so no separate test database verification needed
@@ -257,6 +286,14 @@ deploy_to_web_root() {
     print_info "Setting file permissions..."
     chown -R www-data:www-data /var/www/html/garden-sensors || print_error "Failed to set ownership"
     chmod -R 755 /var/www/html/garden-sensors || print_error "Failed to set file permissions"
+    
+    # Ensure API directory and Python scripts have correct permissions
+    print_info "Setting up API and Python script permissions..."
+    mkdir -p /var/www/html/garden-sensors/public/api
+    chmod 755 /var/www/html/garden-sensors/public/api
+    if [ -f "/var/www/html/garden-sensors/python/generate_plot_api.py" ]; then
+        chmod +x /var/www/html/garden-sensors/python/generate_plot_api.py
+    fi
     
     print_status "Application deployed to /var/www/html/garden-sensors"
 }
@@ -380,18 +417,143 @@ verify_database() {
     print_status "Database verification completed"
 }
 
+# Function to prepare test environment
+prepare_test_environment() {
+    print_info "Preparing test environment..."
+    
+    # Determine the working directory (deployment directory if deployed, or current directory)
+    local work_dir="/var/www/html/garden-sensors"
+    if [ ! -d "$work_dir" ]; then
+        work_dir="$(pwd)"
+    fi
+    
+    # Ensure test log files are writable (try multiple approaches)
+    print_info "Setting up log file permissions..."
+    
+    # Method 1: Try to create/update with sudo
+    sudo touch /tmp/garden_sensors.log 2>/dev/null || touch /tmp/garden_sensors.log 2>/dev/null || true
+    sudo chmod 666 /tmp/garden_sensors.log 2>/dev/null || chmod 666 /tmp/garden_sensors.log 2>/dev/null || true
+    sudo chown www-data:www-data /tmp/garden_sensors.log 2>/dev/null || chown www-data:www-data /tmp/garden_sensors.log 2>/dev/null || true
+    
+    # Verify permissions
+    if [ -f "/tmp/garden_sensors.log" ]; then
+        local perms=$(stat -c "%a" /tmp/garden_sensors.log 2>/dev/null || echo "unknown")
+        print_info "Log file permissions: $perms"
+    else
+        print_warning "Could not create log file, tests may fail"
+    fi
+    
+    print_status "Test environment prepared"
+}
+
 # Function to run tests
 run_tests() {
     print_step "Running tests"
     
+    local php_test_result=0
+    local python_test_result=0
+    
+    # Prepare test environment (log files, permissions, etc.)
+    prepare_test_environment
+    
+    # Ensure we're in the deployment directory for tests
+    if [ -d "/var/www/html/garden-sensors" ]; then
+        cd /var/www/html/garden-sensors || print_error "Failed to change to deployment directory"
+    fi
+    
     print_info "Running PHP unit tests..."
-    ./vendor/bin/phpunit || print_warning "PHP tests failed"
+    if ./vendor/bin/phpunit --testdox; then
+        print_status "PHP tests passed"
+    else
+        php_test_result=$?
+        print_error "PHP tests failed"
+        return $php_test_result
+    fi
     
     print_info "Running Python tests..."
-    source venv/bin/activate
-    pytest || print_warning "Python tests failed"
+    if [ -d "venv" ]; then
+        source venv/bin/activate
+        if python -m pytest tests/python/ -v; then
+            print_status "Python tests passed"
+        else
+            python_test_result=$?
+            print_error "Python tests failed"
+            return $python_test_result
+        fi
+    else
+        print_warning "Python virtual environment not found, skipping Python tests"
+    fi
     
-    print_status "Tests completed"
+    print_status "All tests completed successfully"
+    return 0
+}
+
+# Function to cleanup test data from database
+cleanup_test_data() {
+    print_step "Cleaning up test data from database"
+    
+    # Use truncation for a completely fresh start (faster and more thorough)
+    local truncate_script=""
+    if [ -f "database/truncate_all_data.sql" ]; then
+        truncate_script="database/truncate_all_data.sql"
+    elif [ -f "/var/www/html/garden-sensors/database/truncate_all_data.sql" ]; then
+        truncate_script="/var/www/html/garden-sensors/database/truncate_all_data.sql"
+    elif [ -f "$(pwd)/database/truncate_all_data.sql" ]; then
+        truncate_script="$(pwd)/database/truncate_all_data.sql"
+    fi
+    
+    if [ -n "$truncate_script" ]; then
+        print_info "Truncating all data tables for fresh deployment..."
+        mysql -u root -pnewrootpassword garden_sensors < "$truncate_script" || print_warning "Failed to truncate data tables"
+        
+        # Re-seed essential data after truncation
+        print_info "Re-seeding essential data (admin user, settings)..."
+        seed_default_data
+        
+        # Verify cleanup - should be empty or only have seeded data
+        local total_sensors=$(mysql -u root -pnewrootpassword garden_sensors -sN -e "SELECT COUNT(*) FROM sensors;" 2>/dev/null || echo "0")
+        local total_readings=$(mysql -u root -pnewrootpassword garden_sensors -sN -e "SELECT COUNT(*) FROM readings;" 2>/dev/null || echo "0")
+        local admin_user_exists=$(mysql -u root -pnewrootpassword garden_sensors -sN -e "SELECT COUNT(*) FROM users WHERE username = 'admin';" 2>/dev/null || echo "0")
+        
+        if [ "$admin_user_exists" -eq 1 ]; then
+            print_status "Database truncated and re-seeded successfully (sensors: $total_sensors, readings: $total_readings)"
+        else
+            print_warning "Truncation completed but admin user may not exist"
+        fi
+    else
+        # Fallback to selective cleanup if truncate script not found
+        print_warning "Truncate script not found, falling back to selective cleanup..."
+        
+        local cleanup_script=""
+        if [ -f "database/cleanup_test_data.sql" ]; then
+            cleanup_script="database/cleanup_test_data.sql"
+        elif [ -f "/var/www/html/garden-sensors/database/cleanup_test_data.sql" ]; then
+            cleanup_script="/var/www/html/garden-sensors/database/cleanup_test_data.sql"
+        elif [ -f "$(pwd)/database/cleanup_test_data.sql" ]; then
+            cleanup_script="$(pwd)/database/cleanup_test_data.sql"
+        fi
+        
+        if [ -n "$cleanup_script" ]; then
+            print_info "Removing test data using: $cleanup_script"
+            
+            # Count test sensors before cleanup
+            local test_sensors_before=$(mysql -u root -pnewrootpassword garden_sensors -sN -e "SELECT COUNT(*) FROM sensors WHERE name LIKE '%Test%' OR name LIKE 'Test Pin Sensor%' OR name LIKE 'Test Reading Sensor%';" 2>/dev/null || echo "0")
+            
+            mysql -u root -pnewrootpassword garden_sensors < "$cleanup_script" || print_warning "Failed to cleanup test data"
+            
+            # Verify cleanup
+            local test_sensors_after=$(mysql -u root -pnewrootpassword garden_sensors -sN -e "SELECT COUNT(*) FROM sensors WHERE name LIKE '%Test%' OR name LIKE 'Test Pin Sensor%' OR name LIKE 'Test Reading Sensor%';" 2>/dev/null || echo "0")
+            local test_user_count=$(mysql -u root -pnewrootpassword garden_sensors -sN -e "SELECT COUNT(*) FROM users WHERE username LIKE 'testuser_%' OR email LIKE 'test_%@example.com';" 2>/dev/null || echo "0")
+            
+            if [ "$test_sensors_after" -eq 0 ] && [ "$test_user_count" -eq 0 ]; then
+                print_status "Test data cleanup verified (removed $test_sensors_before test sensors)"
+            else
+                print_warning "Some test data may still exist (sensors: $test_sensors_after, users: $test_user_count)"
+            fi
+        else
+            print_warning "No cleanup script found, skipping test data cleanup"
+        fi
+    fi
 }
 
 # Production setup
@@ -409,8 +571,23 @@ setup_production() {
     install_php_deps
     setup_apache
     
+    # Prepare test environment before running tests
+    prepare_test_environment
+    
+    # Run tests and cleanup
+    print_info "Running test suite to verify deployment..."
+    if run_tests; then
+        print_status "All tests passed successfully"
+        cleanup_test_data
+    else
+        print_error "Tests failed - deployment may not be production-ready"
+        print_warning "Test data cleanup skipped due to test failures"
+        return 1
+    fi
+    
     print_step "Production Setup Completed Successfully"
     print_info "Application is deployed at /var/www/html/garden-sensors"
+    print_info "Database has been tested and cleaned - ready for production use"
     print_info "You can access the web interface at http://localhost/garden-sensors"
 }
 
@@ -428,6 +605,10 @@ setup_test() {
     seed_default_data
     verify_database
     setup_apache
+    
+    # Prepare test environment before running tests
+    prepare_test_environment
+    
     run_tests
     
     print_step "Test Environment Setup Completed Successfully"
@@ -449,11 +630,24 @@ setup_local() {
     verify_database
     setup_apache
     
+    # Prepare test environment before running tests
+    prepare_test_environment
+    
+    # Run tests and cleanup
+    print_info "Running test suite to verify deployment..."
+    if run_tests; then
+        print_status "All tests passed successfully"
+        cleanup_test_data
+    else
+        print_error "Tests failed - deployment may not be production-ready"
+        print_warning "Test data cleanup skipped due to test failures"
+        return 1
+    fi
+    
     print_step "Local Development Setup Completed Successfully"
     print_info "Application is deployed at /var/www/html/garden-sensors"
+    print_info "Database has been tested and cleaned - ready for production use"
     print_info "You can access the web interface at http://localhost/garden-sensors"
-    print_info "You can run tests with: cd /var/www/html/garden-sensors && ./vendor/bin/phpunit"
-    print_info "You can run Python tests with: cd /var/www/html/garden-sensors && source venv/bin/activate && pytest"
 }
 
 # Main script

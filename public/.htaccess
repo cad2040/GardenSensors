@@ -1,5 +1,4 @@
 RewriteEngine On
-RewriteBase /garden-sensors/
 
 # Handle Authorization Header
 RewriteCond %{HTTP:Authorization} .
@@ -10,7 +9,7 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} (.+)/$
 RewriteRule ^ %1 [L,R=301]
 
-# Send Requests To Front Controller...
+# Send Requests To Front Controller (only for non-existent files/directories)...
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [L] 

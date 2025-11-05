@@ -95,8 +95,8 @@ class Plant extends BaseModel implements \JsonSerializable {
         $sql = "
             SELECT s.* 
             FROM sensors s
-            JOIN fact_plants fp ON s.id = fp.sensor_id
-            WHERE fp.plant_id = ?
+            JOIN plant_sensors ps ON s.id = ps.sensor_id
+            WHERE ps.plant_id = ?
         ";
         
         $results = $this->db->query($sql, [$this->id]);
@@ -112,34 +112,37 @@ class Plant extends BaseModel implements \JsonSerializable {
     }
 
     public function addSensor(Sensor $sensor): bool {
+        $nextWatering = date('Y-m-d H:i:s', strtotime('+' . $this->watering_frequency . ' hours'));
         $sql = "
-            INSERT INTO fact_plants (plant_id, sensor_id, waterAmount)
-            VALUES (:plant_id, :sensor_id, :water_amount)
+            INSERT INTO plant_sensors (plant_id, sensor_id, water_amount, next_watering, created_at, updated_at)
+            VALUES (:plant_id, :sensor_id, :water_amount, :next_watering, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE updated_at = NOW()
         ";
         
         return $this->db->execute($sql, [
             ':plant_id' => $this->id,
-            ':sensor_id' => $sensor->id,
-            ':water_amount' => 100  // Default water amount in ml
+            ':sensor_id' => $sensor->getId(),
+            ':water_amount' => 100,  // Default water amount in ml
+            ':next_watering' => $nextWatering
         ]);
     }
 
     public function removeSensor(Sensor $sensor): bool {
         $sql = "
-            DELETE FROM fact_plants 
+            DELETE FROM plant_sensors 
             WHERE plant_id = :plant_id AND sensor_id = :sensor_id
         ";
         
         return $this->db->execute($sql, [
             ':plant_id' => $this->id,
-            ':sensor_id' => $sensor->id
+            ':sensor_id' => $sensor->getId()
         ]);
     }
 
     public function updateWatering(): bool {
         $sql = "
-            UPDATE fact_plants 
-            SET lastWatered = NOW(), nextWatering = DATE_ADD(NOW(), INTERVAL :hours HOUR)
+            UPDATE plant_sensors 
+            SET last_watered = NOW(), next_watering = DATE_ADD(NOW(), INTERVAL :hours HOUR)
             WHERE plant_id = :plant_id
         ";
         
@@ -152,7 +155,7 @@ class Plant extends BaseModel implements \JsonSerializable {
     public function needsWatering(): bool {
         $sql = "
             SELECT ps.*, p.min_soil_moisture, p.max_soil_moisture, p.watering_frequency
-            FROM fact_plants ps
+            FROM plant_sensors ps
             JOIN plants p ON ps.plant_id = p.id
             WHERE ps.plant_id = :plant_id
         ";
@@ -163,14 +166,14 @@ class Plant extends BaseModel implements \JsonSerializable {
         }
 
         // Check if next watering time has passed
-        $nextWatering = strtotime($plant[0]['nextWatering']);
+        $nextWatering = strtotime($plant[0]['next_watering']);
         return $nextWatering <= time();
     }
 
     public function getEnvironmentalConditions(): array {
         $sql = "
             SELECT s.*, r.value, r.created_at as timestamp
-            FROM fact_plants ps
+            FROM plant_sensors ps
             JOIN sensors s ON ps.sensor_id = s.id
             JOIN readings r ON s.id = r.sensor_id
             WHERE ps.plant_id = :plant_id
@@ -240,7 +243,7 @@ class Plant extends BaseModel implements \JsonSerializable {
         $db = $this->db ?? Database::getInstance();
         $plantId = $id ?? $this->id;
         // Delete related records first
-        $db->execute("DELETE FROM fact_plants WHERE plant_id = :plant_id", [':plant_id' => $plantId]);
+        $db->execute("DELETE FROM plant_sensors WHERE plant_id = :plant_id", [':plant_id' => $plantId]);
         // Then delete the plant
         return parent::delete($plantId);
     }
@@ -259,7 +262,7 @@ class Plant extends BaseModel implements \JsonSerializable {
         $result = $db->query("
             SELECT p.*
             FROM plants p
-            JOIN fact_plants ps ON p.id = ps.plant_id
+            JOIN plant_sensors ps ON p.id = ps.plant_id
             WHERE ps.sensor_id = :sensor_id
         ", [':sensor_id' => $sensorId]);
         return !empty($result) ? new static($result[0]) : null;
@@ -386,6 +389,11 @@ class Plant extends BaseModel implements \JsonSerializable {
     public function setStatus(string $status): void {
         $this->status = $status;
         $this->attributes['status'] = $status;
+    }
+    
+    public function setWateringFrequency(int $frequency): void {
+        $this->watering_frequency = $frequency;
+        $this->attributes['watering_frequency'] = $frequency;
     }
     
         // Static finder methods

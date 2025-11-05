@@ -7,7 +7,7 @@ try {
     $pdo = new PDO(
         "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME,
         DB_USER,
-        DB_PASSWORD,
+        DB_PASS,
         array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
     );
 } catch (PDOException $e) {
@@ -112,6 +112,10 @@ if (!isset($error)) {
                 <a href="/sensors.php" class="nav-link">
                     <i class="fas fa-microchip"></i>
                     <span>Sensors</span>
+                </a>
+                <a href="/plants.php" class="nav-link">
+                    <i class="fas fa-seedling"></i>
+                    <span>Plants</span>
                 </a>
                 <a href="/readings.php" class="nav-link">
                     <i class="fas fa-chart-line"></i>

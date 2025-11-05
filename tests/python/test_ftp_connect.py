@@ -59,8 +59,12 @@ class TestFTPConnect(unittest.TestCase):
         mock_ftp_instance = MagicMock()
         mock_ftp.return_value = mock_ftp_instance
         
-        test_file = "test.txt"
-        with open(test_file, "w") as f:
+        import tempfile
+        import os
+        
+        # Use temp directory to avoid permission issues
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            test_file = f.name
             f.write("test content")
         
         try:

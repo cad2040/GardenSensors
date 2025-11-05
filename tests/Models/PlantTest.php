@@ -102,15 +102,104 @@ class PlantTest extends TestCase
         $this->plant->save();
         $this->sensor->save();
         
-        // Associate sensor with plant
+        // Associate sensor with plant using plant_sensors table
         $this->db->exec("
-            INSERT INTO fact_plants (plant_id, sensor_id, created_at, updated_at)
-            VALUES ({$this->plant->getId()}, {$this->sensor->getId()}, NOW(), NOW())
+            INSERT INTO plant_sensors (plant_id, sensor_id, water_amount, next_watering, created_at, updated_at)
+            VALUES ({$this->plant->getId()}, {$this->sensor->getId()}, 100, DATE_ADD(NOW(), INTERVAL 24 HOUR), NOW(), NOW())
         ");
         
         $sensors = $this->plant->getSensors();
         $this->assertCount(1, $sensors);
         $this->assertEquals('Soil Moisture Sensor', $sensors[0]->getName());
+    }
+
+    public function testPlantMoistureThresholds()
+    {
+        $this->plant->save();
+        
+        $this->assertEquals(30, $this->plant->getMinSoilMoisture());
+        $this->assertEquals(70, $this->plant->getMaxSoilMoisture());
+        
+        // Test threshold validation
+        $this->assertLessThan($this->plant->getMaxSoilMoisture(), $this->plant->getMinSoilMoisture());
+    }
+
+    public function testPlantWateringFrequency()
+    {
+        $this->plant->save();
+        
+        $this->assertEquals(24, $this->plant->getWateringFrequency());
+        
+        $this->plant->setWateringFrequency(48);
+        $this->plant->save();
+        
+        $updated = Plant::find($this->plant->getId());
+        $this->assertEquals(48, $updated->getWateringFrequency());
+    }
+
+    public function testPlantSensorLinking()
+    {
+        $this->plant->save();
+        $this->sensor->save();
+        
+        // Link sensor to plant via plant_sensors table
+        $this->db->exec("
+            INSERT INTO plant_sensors (plant_id, sensor_id, water_amount, next_watering, created_at, updated_at)
+            VALUES ({$this->plant->getId()}, {$this->sensor->getId()}, 100, DATE_ADD(NOW(), INTERVAL 24 HOUR), NOW(), NOW())
+        ");
+        
+        // Verify link exists
+        $result = $this->db->query("
+            SELECT * FROM plant_sensors 
+            WHERE plant_id = {$this->plant->getId()} AND sensor_id = {$this->sensor->getId()}
+        ");
+        $this->assertCount(1, $result);
+        $this->assertEquals(100, $result[0]['water_amount']);
+    }
+
+    public function testPlantMoistureThresholdValidation()
+    {
+        // Note: The Plant model doesn't validate thresholds in constructor
+        // This test verifies the thresholds are stored correctly
+        $uniqueId = uniqid();
+        $plant = new Plant([
+            'name' => 'Test Threshold Plant ' . $uniqueId,
+            'min_soil_moisture' => 30,
+            'max_soil_moisture' => 70,
+            'watering_frequency' => 24,
+            'user_id' => 1
+        ]);
+        $plant->save();
+        
+        $this->assertEquals(30, $plant->getMinSoilMoisture());
+        $this->assertEquals(70, $plant->getMaxSoilMoisture());
+    }
+
+    public function testPlantAddSensor()
+    {
+        $this->plant->save();
+        $this->sensor->save();
+        
+        $result = $this->plant->addSensor($this->sensor);
+        $this->assertTrue($result);
+        
+        $sensors = $this->plant->getSensors();
+        $this->assertCount(1, $sensors);
+    }
+
+    public function testPlantRemoveSensor()
+    {
+        $this->plant->save();
+        $this->sensor->save();
+        
+        $this->plant->addSensor($this->sensor);
+        $this->assertCount(1, $this->plant->getSensors());
+        
+        $result = $this->plant->removeSensor($this->sensor);
+        $this->assertTrue($result);
+        
+        $sensors = $this->plant->getSensors();
+        $this->assertCount(0, $sensors);
     }
 
     public function testPlantFindByUser()

@@ -81,7 +81,6 @@ $models = [
     'Plant' => 'src/Models/Plant.php',
     'Reading' => 'src/Models/Reading.php',
     'Pin' => 'src/Models/Pin.php',
-    'FactPlant' => 'src/Models/FactPlant.php',
     'BaseModel' => 'src/Models/BaseModel.php'
 ];
 
@@ -103,7 +102,6 @@ $testFiles = [
     'tests/Models/PlantTest.php',
     'tests/Models/ReadingTest.php',
     'tests/Models/PinTest.php',
-    'tests/Models/FactPlantTest.php',
     'tests/Models/BaseModelTest.php'
 ];
 
