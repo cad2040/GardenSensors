@@ -28,6 +28,8 @@ class TestPlotGenerator(unittest.TestCase):
     def test_get_sensor_data(self):
         """Test getting sensor data from database."""
         mock_data = pd.DataFrame({
+            'plant_name': ['Plant A', 'Plant A'],
+            'plant_id': [1, 1],
             'sensor_name': ['Sensor1', 'Sensor1'],
             'sensor_type': ['temperature', 'temperature'],
             'reading_value': [25.5, 26.2],
@@ -42,7 +44,10 @@ class TestPlotGenerator(unittest.TestCase):
         
         self.assertTrue(isinstance(result, pd.DataFrame))
         self.assertEqual(len(result), 2)
-        self.assertEqual(list(result.columns), ['sensor_name', 'sensor_type', 'reading_value', 'reading_timestamp'])
+        self.assertEqual(
+            list(result.columns),
+            ['plant_name', 'plant_id', 'sensor_name', 'sensor_type', 'reading_value', 'reading_timestamp']
+        )
 
     def test_get_sensor_data_empty(self):
         """Test getting sensor data when no data is available."""
@@ -57,6 +62,8 @@ class TestPlotGenerator(unittest.TestCase):
     def test_generate_plot(self, mock_save, mock_output_file, mock_figure):
         """Test generating a plot."""
         mock_data = pd.DataFrame({
+            'plant_name': ['Plant A', 'Plant A'],
+            'plant_id': [1, 1],
             'sensor_name': ['Sensor1', 'Sensor1'],
             'sensor_type': ['temperature', 'temperature'],
             'reading_value': [25.5, 26.2],

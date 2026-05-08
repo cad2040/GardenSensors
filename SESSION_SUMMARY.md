@@ -1,8 +1,35 @@
 # GardenSensors Development Session Summary
 
-## 🎯 **Current Status: Production-Ready with Automated Testing**
+## 🎯 **Current Status: Stable Local Deployment + Dashboard Fixes Complete**
 
-### **✅ Completed This Session:**
+### **✅ Completed This Session (Latest):**
+
+1. **Fixed Dashboard Plot API Failures**
+   - Corrected project root resolution in `public/api/plot.php` so Python script path resolves correctly in local deployment
+   - Added robust JSON extraction in `plot.php` to handle noisy stderr/stdout (e.g., pandas warnings before JSON payload)
+   - Plot endpoint now returns expected JSON responses (including no-data responses) instead of generic HTTP 500 errors
+
+2. **Implemented Plant-Filtered Top Metrics**
+   - Added new endpoint: `public/api/summary.php`
+   - Updated dashboard cards in `public/index.php` to fetch averages dynamically
+   - Temperature/Humidity/Moisture now refresh when plant or day-range filters change
+
+3. **Seed Data Expanded for Reliable Dashboard Validation**
+   - Extended `seed_default_data()` in `setup.sh` to create deterministic seeded data for each plant (`Tomato`, `Basil`, `Lettuce`)
+   - Added per-plant sensors for all three metric types (`temperature`, `humidity`, `moisture`)
+   - Added deterministic readings across multiple timestamps so every plant/metric has plot + card data after deploy
+
+4. **Validated Cleanup + Fresh Deploy Workflow**
+   - Ran local cleanup and full local setup successfully
+   - Deployment re-seeded expected sample data (`12` seeded sensors, `27` seeded readings)
+   - Full automated test suite passed during deployment:
+     - PHP: `126` tests, `253` assertions, `2` skipped
+     - Python: `35` passed, `11` skipped (GUI skips based on environment/browser runtime availability)
+
+5. **Testing/Runtime Reliability Improvements Preserved**
+   - Virtual environment detection and fallback behavior remains in place (`PYTHON_VENV`, `.venv`, `venv`)
+   - Cleanup includes `.venv`
+   - Plot and summary API behavior now aligned with frontend expectations
 
 1. **Removed `fact_plants` Table** 
    - Removed deprecated `fact_plants` table from schema
@@ -105,7 +132,24 @@
 
 ### **🚀 Next Steps:**
 
-#### **Immediate Priority: Containerization**
+#### **Immediate Priority: Containerization (Pending)**
+
+1. **docker-phase1**
+   - Implement PHP + MySQL container setup
+   - Add health checks and persistent MySQL volume
+
+2. **docker-phase2**
+   - Add Python container/service path for scripts and test execution
+   - Ensure plot generation + Python tests run in compose workflow
+
+3. **docs-runbook**
+   - Document local vs container workflows
+   - Document environment variables and common troubleshooting paths
+
+#### **Short Validation Checklist for Next Session**
+- Verify plant-filtered top cards and plot behavior against containerized stack
+- Add one GUI regression test that changes plant filter and asserts metric changes
+- Ensure seeded data strategy is consistent between local and Docker setups
 
 **1. Docker Setup**
    - Create `Dockerfile` for PHP/Apache application
@@ -204,9 +248,9 @@
 
 ### **📁 Repository Status:**
 - **Branch:** `master`
-- **Last Changes:** Enhanced interactive plotting with colorblind-friendly colors and improved legend placement
-- **All Changes Committed:** ⏳ (pending push)
-- **Tests Passing:** ✅ (126 PHP + 35 Python)
+- **Last Changes:** Plot API fixes, dynamic dashboard averages API, and deterministic per-plant/per-metric seed data
+- **All Changes Committed:** ⏳ (pending commit/push)
+- **Tests Passing:** ✅ (PHP + Python pass in fresh local deploy)
 
 ### **🔍 Technical Notes:**
 - **PHP Version:** 8.3.6
@@ -223,13 +267,11 @@
 3. **Session Management** - May need optimization for production
 
 ### **🎯 Success Criteria for Next Session:**
-- [ ] Docker containers created and tested
-- [ ] Application runs successfully in containers
-- [ ] Tests pass in containerized environment
-- [ ] Database migrations work in Docker
-- [ ] Docker Compose setup documented
-- [ ] Development workflow established
+- [ ] `docker-phase1` completed (PHP+MySQL+health checks+volume)
+- [ ] `docker-phase2` completed (Python service + test path)
+- [ ] `docs-runbook` completed (workflow + env vars + troubleshooting)
+- [ ] Dashboard filtering validated end-to-end in containers
 
 ---
 
-**Ready for containerization! 🐳🚀**
+**Local environment stabilized; next stop is containerization. 🐳**

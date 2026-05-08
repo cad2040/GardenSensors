@@ -7,11 +7,25 @@ use GardenSensors\Services\LoggingService;
 class LoggingServiceTest extends TestCase
 {
     private $loggingService;
+    protected $logFile;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->logFile = sys_get_temp_dir() . '/garden_sensors_test_' . getmypid() . '.log';
+        putenv('LOG_FILE=' . $this->logFile);
+        if (file_exists($this->logFile)) {
+            unlink($this->logFile);
+        }
         $this->loggingService = new LoggingService();
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->logFile && file_exists($this->logFile)) {
+            unlink($this->logFile);
+        }
+        parent::tearDown();
     }
 
     public function testLoggingServiceInitialization()
@@ -25,9 +39,8 @@ class LoggingServiceTest extends TestCase
         $this->loggingService->info($message);
         
         // Check if log file was created and contains the message
-        $logFile = '/tmp/garden_sensors.log';
-        $this->assertFileExists($logFile);
-        $this->assertStringContainsString($message, file_get_contents($logFile));
+        $this->assertFileExists($this->logFile);
+        $this->assertStringContainsString($message, file_get_contents($this->logFile));
     }
 
     public function testErrorLogging()
@@ -36,8 +49,7 @@ class LoggingServiceTest extends TestCase
         $this->loggingService->error($message);
         
         // Check if log file contains the error message
-        $logFile = '/tmp/garden_sensors.log';
-        $this->assertStringContainsString($message, file_get_contents($logFile));
+        $this->assertStringContainsString($message, file_get_contents($this->logFile));
     }
 
     public function testWarningLogging()
@@ -46,8 +58,7 @@ class LoggingServiceTest extends TestCase
         $this->loggingService->warning($message);
         
         // Check if log file contains the warning message
-        $logFile = '/tmp/garden_sensors.log';
-        $this->assertStringContainsString($message, file_get_contents($logFile));
+        $this->assertStringContainsString($message, file_get_contents($this->logFile));
     }
 
     public function testDebugLogging()
@@ -56,8 +67,7 @@ class LoggingServiceTest extends TestCase
         $this->loggingService->debug($message);
         
         // Check if log file contains the debug message
-        $logFile = '/tmp/garden_sensors.log';
-        $this->assertStringContainsString($message, file_get_contents($logFile));
+        $this->assertStringContainsString($message, file_get_contents($this->logFile));
     }
 
     public function testLogWithContext()
@@ -68,8 +78,7 @@ class LoggingServiceTest extends TestCase
         $this->loggingService->info($message, $context);
         
         // Check if log file contains the message with context
-        $logFile = '/tmp/garden_sensors.log';
-        $logContent = file_get_contents($logFile);
+        $logContent = file_get_contents($this->logFile);
         $this->assertStringContainsString($message, $logContent);
         $this->assertStringContainsString('user_id', $logContent);
     }
@@ -80,9 +89,9 @@ class LoggingServiceTest extends TestCase
         $this->loggingService->info("Test log entry");
         
         // Check if log file exists and has content
-        $logFile = '/tmp/garden_sensors.log';
-        $this->assertFileExists($logFile);
-        $this->assertGreaterThan(0, filesize($logFile));
+        $this->assertFileExists($this->logFile);
+        clearstatcache(true, $this->logFile);
+        $this->assertGreaterThan(0, filesize($this->logFile));
     }
 
     public function testClearLogs()
@@ -91,9 +100,9 @@ class LoggingServiceTest extends TestCase
         $this->loggingService->info("Test log entry");
         
         // Check that the log file exists and has content
-        $logFile = '/tmp/garden_sensors.log';
-        $this->assertFileExists($logFile);
-        $this->assertGreaterThan(0, filesize($logFile));
+        $this->assertFileExists($this->logFile);
+        clearstatcache(true, $this->logFile);
+        $this->assertGreaterThan(0, filesize($this->logFile));
         
         // Note: LoggingService doesn't have a clear method, so we just verify logging works
     }

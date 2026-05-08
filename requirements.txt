@@ -13,6 +13,7 @@ python-dotenv>=1.0.0
 
 # Testing and Development
 pytest>=7.4.3
+playwright>=1.54.0
 black>=23.11.0
 setuptools>=78.1.0
 

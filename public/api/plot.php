@@ -18,6 +18,34 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
+/**
+ * Decode JSON from command output, tolerating warnings/noise lines.
+ */
+function decodeJsonFromOutput(array $outputLines): ?array {
+    $rawOutput = trim(implode("\n", $outputLines));
+    if ($rawOutput === '') {
+        return null;
+    }
+
+    $decoded = json_decode($rawOutput, true);
+    if (is_array($decoded)) {
+        return $decoded;
+    }
+
+    for ($i = count($outputLines) - 1; $i >= 0; $i--) {
+        $line = trim($outputLines[$i]);
+        if ($line === '') {
+            continue;
+        }
+        $decodedLine = json_decode($line, true);
+        if (is_array($decodedLine)) {
+            return $decodedLine;
+        }
+    }
+
+    return null;
+}
+
 // Clear any output that might have been generated
 ob_clean();
 
@@ -45,13 +73,18 @@ if ($days < 1 || $days > 365) {
 }
 
 // Get Python path - use deployment directory
-// Try to detect deployment directory from current file location
-$deploymentDir = dirname(dirname(dirname(__DIR__)));
+// Try to detect deployment directory from current file location.
+// __DIR__ is public/api, so project root is two levels up.
+$deploymentDir = dirname(dirname(__DIR__));
 if (file_exists('/var/www/html/garden-sensors')) {
     $deploymentDir = '/var/www/html/garden-sensors';
 }
 
 $pythonPath = $deploymentDir . '/venv/bin/python3';
+$altPythonPath = $deploymentDir . '/.venv/bin/python';
+if (file_exists($altPythonPath)) {
+    $pythonPath = $altPythonPath;
+}
 $scriptPath = $deploymentDir . '/python/generate_plot_api.py';
 
 // Build command
@@ -62,22 +95,32 @@ if ($plant_id !== null && $plant_id > 0) {
 }
 $command .= ' --format ' . escapeshellarg($format);
 
-// Execute Python script (suppress warnings by redirecting stderr to /dev/null)
+// Execute Python script (capture stderr for diagnostics)
 $output = [];
 $returnVar = 0;
-exec($command . ' 2>/dev/null', $output, $returnVar);
+exec($command . ' 2>&1', $output, $returnVar);
 
 if ($returnVar !== 0) {
+    // The Python script reports expected "no data" cases with exit code 1.
+    $rawOutput = implode("\n", $output);
+    $parsedError = decodeJsonFromOutput($output);
+
+    if (is_array($parsedError) && isset($parsedError['success']) && $parsedError['success'] === false) {
+        echo json_encode($parsedError);
+        exit;
+    }
+
     http_response_code(500);
     echo json_encode([
+        'success' => false,
         'error' => 'Failed to generate plot',
-        'details' => implode("\n", $output)
+        'details' => $rawOutput
     ]);
     exit;
 }
 
 // Parse output
-$result = json_decode(implode("\n", $output), true);
+$result = decodeJsonFromOutput($output);
 
 if ($result === null) {
     http_response_code(500);

@@ -9,6 +9,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+PYTHON_VENV_PATH=""
 
 # Function to print status messages
 print_status() {
@@ -36,6 +37,26 @@ print_step() {
     echo -e "\n========================================"
     echo " STEP: $1 "
     echo "========================================\n"
+}
+
+# Function to detect Python virtual environment path
+detect_python_venv() {
+    if [ -n "$PYTHON_VENV" ] && [ -f "$PYTHON_VENV/bin/activate" ]; then
+        PYTHON_VENV_PATH="$PYTHON_VENV"
+        return 0
+    fi
+
+    if [ -f ".venv/bin/activate" ]; then
+        PYTHON_VENV_PATH=".venv"
+        return 0
+    fi
+
+    if [ -f "venv/bin/activate" ]; then
+        PYTHON_VENV_PATH="venv"
+        return 0
+    fi
+
+    return 1
 }
 
 # Function to show usage
@@ -156,18 +177,28 @@ install_system_deps() {
 # Function to setup Python virtual environment
 setup_python_env() {
     print_step "Setting up Python virtual environment"
-    
-    # Create virtual environment if it doesn't exist
-    if [ ! -d "venv" ]; then
-        print_info "Creating new virtual environment..."
-        python3 -m venv venv || print_error "Failed to create virtual environment"
+
+    # Prefer explicitly configured or user-writable venvs.
+    if detect_python_venv; then
+        print_info "Using existing virtual environment at $PYTHON_VENV_PATH"
     else
-        print_info "Using existing virtual environment"
+        print_info "Creating new virtual environment at .venv..."
+        python3 -m venv .venv || print_error "Failed to create virtual environment"
+        PYTHON_VENV_PATH=".venv"
     fi
-    
+
+    # If detected venv is not writable, fall back to .venv.
+    if [ ! -w "$PYTHON_VENV_PATH" ]; then
+        print_warning "Virtual environment '$PYTHON_VENV_PATH' is not writable, switching to .venv"
+        if [ ! -d ".venv" ]; then
+            python3 -m venv .venv || print_error "Failed to create fallback .venv"
+        fi
+        PYTHON_VENV_PATH=".venv"
+    fi
+
     # Install Python dependencies
-    print_info "Installing Python dependencies..."
-    venv/bin/pip install -r requirements.txt || print_error "Failed to install Python dependencies"
+    print_info "Installing Python dependencies in $PYTHON_VENV_PATH..."
+    "$PYTHON_VENV_PATH/bin/pip" install -r requirements.txt || print_error "Failed to install Python dependencies"
     
     print_status "Python environment setup completed"
 }
@@ -273,6 +304,13 @@ deploy_to_web_root() {
     if [ "$(pwd)" = "/var/www/html/garden-sensors" ]; then
         print_info "Already in web directory, skipping file copy"
     else
+        # For local setup without elevated permissions, run in place.
+        if [ ! -w "/var/www/html" ]; then
+            print_warning "No write permission to /var/www/html; using current directory as deployment root"
+            print_status "Application will run from $(pwd)"
+            return 0
+        fi
+
         # Create web directory
         print_info "Creating web directory..."
         mkdir -p /var/www/html/garden-sensors || print_error "Failed to create web directory"
@@ -301,6 +339,11 @@ deploy_to_web_root() {
 # Function to setup Apache configuration
 setup_apache() {
     print_step "Setting up Apache configuration"
+
+    if [ ! -w "/etc/apache2/sites-available" ]; then
+        print_warning "No permission to configure Apache in this environment; skipping Apache setup"
+        return 0
+    fi
     
     # Enable required Apache modules
     print_info "Enabling required Apache modules..."
@@ -347,6 +390,15 @@ install_php_deps() {
     print_step "Installing PHP dependencies"
     
     print_info "Installing Composer dependencies..."
+    if [ -d "vendor" ] && [ ! -w "vendor" ]; then
+        print_warning "vendor/ is not writable in this environment; using existing Composer dependencies"
+        if [ -f "./vendor/bin/phpunit" ]; then
+            print_status "Existing Composer dependencies detected"
+            return 0
+        fi
+        print_error "vendor/ is not writable and required dependencies are missing"
+    fi
+
     echo "yes" | composer install || print_error "Failed to install Composer dependencies"
     
     print_status "PHP dependencies installed successfully"
@@ -365,19 +417,162 @@ seed_default_data() {
         UPDATE users SET id = 1 WHERE username = 'admin' AND id <> 1;\
     " 2>/dev/null || print_warning "Failed to seed admin user"
 
-    # Optionally seed sample sensors if table is empty
-    print_info "Seeding sample sensors if none exist..."
+    # Seed baseline sensors and plant-specific sensors used by dashboard/plot test data.
+    print_info "Seeding sample sensors..."
     mysql -u root -pnewrootpassword garden_sensors -e "\
-        INSERT INTO sensors (name, type, location, description)\
-        SELECT 'Temperature Sensor 1', 'temperature', 'Greenhouse 1', 'Main temperature sensor in greenhouse 1'\
-        WHERE NOT EXISTS (SELECT 1 FROM sensors);\
-        INSERT INTO sensors (name, type, location, description)\
-        SELECT 'Humidity Sensor 1', 'humidity', 'Greenhouse 1', 'Main humidity sensor in greenhouse 1'\
-        WHERE (SELECT COUNT(*) FROM sensors) = 1;\
-        INSERT INTO sensors (name, type, location, description)\
-        SELECT 'Soil Moisture 1', 'moisture', 'Greenhouse 1', 'Soil moisture sensor for plant bed 1'\
-        WHERE (SELECT COUNT(*) FROM sensors) = 2;\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Temperature Sensor 1', 'temperature', 'Greenhouse 1', 'Main temperature sensor in greenhouse 1', '°C', 'temperature', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Temperature Sensor 1');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Humidity Sensor 1', 'humidity', 'Greenhouse 1', 'Main humidity sensor in greenhouse 1', '%', 'humidity', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Humidity Sensor 1');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Soil Moisture 1', 'moisture', 'Greenhouse 1', 'Soil moisture sensor for plant bed 1', '%', 'moisture', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Soil Moisture 1');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Tomato Temperature Sensor', 'temperature', 'Greenhouse 1', 'Seeded sample sensor for Tomato Plant', '°C', 'temperature', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Tomato Temperature Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Tomato Humidity Sensor', 'humidity', 'Greenhouse 1', 'Seeded sample sensor for Tomato Plant', '%', 'humidity', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Tomato Humidity Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Tomato Moisture Sensor', 'moisture', 'Greenhouse 1', 'Seeded sample sensor for Tomato Plant', '%', 'moisture', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Tomato Moisture Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Basil Temperature Sensor', 'temperature', 'Greenhouse 1', 'Seeded sample sensor for Basil Plant', '°C', 'temperature', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Basil Temperature Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Basil Humidity Sensor', 'humidity', 'Greenhouse 1', 'Seeded sample sensor for Basil Plant', '%', 'humidity', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Basil Humidity Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Basil Moisture Sensor', 'moisture', 'Greenhouse 1', 'Seeded sample sensor for Basil Plant', '%', 'moisture', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Basil Moisture Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Lettuce Temperature Sensor', 'temperature', 'Greenhouse 2', 'Seeded sample sensor for Lettuce Plant', '°C', 'temperature', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Lettuce Temperature Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Lettuce Humidity Sensor', 'humidity', 'Greenhouse 2', 'Seeded sample sensor for Lettuce Plant', '%', 'humidity', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Lettuce Humidity Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Lettuce Moisture Sensor', 'moisture', 'Greenhouse 2', 'Seeded sample sensor for Lettuce Plant', '%', 'moisture', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Lettuce Moisture Sensor');\
     " 2>/dev/null || print_warning "Failed to seed sample sensors"
+
+    # Seed sample plants for admin user if none exist
+    print_info "Seeding sample plants if none exist..."
+    mysql -u root -pnewrootpassword garden_sensors -e "\
+        INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, status, user_id)\
+        SELECT 'Tomato Plant', 'Solanum lycopersicum', 'Greenhouse 1', 40, 80, 24, 'active', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM plants);\
+        INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, status, user_id)\
+        SELECT 'Basil Plant', 'Ocimum basilicum', 'Greenhouse 1', 35, 70, 12, 'active', 1\
+        WHERE (SELECT COUNT(*) FROM plants) = 1;\
+        INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, status, user_id)\
+        SELECT 'Lettuce Plant', 'Lactuca sativa', 'Greenhouse 2', 45, 75, 18, 'active', 1\
+        WHERE (SELECT COUNT(*) FROM plants) = 2;\
+    " 2>/dev/null || print_warning "Failed to seed sample plants"
+
+    # Link sample sensors to sample plants when both exist.
+    print_info "Linking sample sensors to sample plants..."
+    mysql -u root -pnewrootpassword garden_sensors -e "\
+        INSERT IGNORE INTO plant_sensors (sensor_id, plant_id, water_amount)\
+        SELECT s.id, p.id, 250\
+        FROM sensors s\
+        JOIN plants p ON p.name = 'Tomato Plant'\
+        WHERE s.name = 'Soil Moisture 1';\
+        INSERT IGNORE INTO plant_sensors (sensor_id, plant_id, water_amount)\
+        SELECT s.id, p.id, 200\
+        FROM sensors s\
+        JOIN plants p ON p.name = 'Basil Plant'\
+        WHERE s.name = 'Humidity Sensor 1';\
+        INSERT IGNORE INTO plant_sensors (sensor_id, plant_id, water_amount)\
+        SELECT s.id, p.id, 220\
+        FROM sensors s\
+        JOIN plants p ON p.name = 'Lettuce Plant'\
+        WHERE s.name = 'Temperature Sensor 1';\
+        INSERT IGNORE INTO plant_sensors (sensor_id, plant_id, water_amount)\
+        SELECT s.id, p.id, 250\
+        FROM sensors s\
+        JOIN plants p ON p.name = 'Tomato Plant'\
+        WHERE s.name IN ('Tomato Temperature Sensor', 'Tomato Humidity Sensor', 'Tomato Moisture Sensor');\
+        INSERT IGNORE INTO plant_sensors (sensor_id, plant_id, water_amount)\
+        SELECT s.id, p.id, 220\
+        FROM sensors s\
+        JOIN plants p ON p.name = 'Basil Plant'\
+        WHERE s.name IN ('Basil Temperature Sensor', 'Basil Humidity Sensor', 'Basil Moisture Sensor');\
+        INSERT IGNORE INTO plant_sensors (sensor_id, plant_id, water_amount)\
+        SELECT s.id, p.id, 230\
+        FROM sensors s\
+        JOIN plants p ON p.name = 'Lettuce Plant'\
+        WHERE s.name IN ('Lettuce Temperature Sensor', 'Lettuce Humidity Sensor', 'Lettuce Moisture Sensor');\
+    " 2>/dev/null || print_warning "Failed to link sample plants and sensors"
+
+    # Seed deterministic dashboard readings for each plant + metric.
+    # We replace only readings for seeded sample sensors so deploy always has testable graph/metrics data.
+    print_info "Seeding sample readings for each plant and metric..."
+    mysql -u root -pnewrootpassword garden_sensors -e "\
+        DELETE r FROM readings r\
+        JOIN sensors s ON s.id = r.sensor_id\
+        WHERE s.name IN (\
+            'Tomato Temperature Sensor', 'Tomato Humidity Sensor', 'Tomato Moisture Sensor',\
+            'Basil Temperature Sensor', 'Basil Humidity Sensor', 'Basil Moisture Sensor',\
+            'Lettuce Temperature Sensor', 'Lettuce Humidity Sensor', 'Lettuce Moisture Sensor'\
+        );\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 24.5, '°C', 24.5, 62.0, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Tomato Temperature Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 25.0, '°C', 25.0, 61.5, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Tomato Temperature Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 24.2, '°C', 24.2, 63.2, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Tomato Temperature Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 62.0, '%', 24.0, 62.0, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Tomato Humidity Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 64.0, '%', 24.8, 64.0, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Tomato Humidity Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 61.0, '%', 24.3, 61.0, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Tomato Humidity Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 55.0, '%', 23.8, 60.0, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Tomato Moisture Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 53.0, '%', 24.6, 62.0, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Tomato Moisture Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 57.0, '%', 24.1, 61.0, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Tomato Moisture Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 22.4, '°C', 22.4, 58.0, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Basil Temperature Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 23.1, '°C', 23.1, 57.0, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Basil Temperature Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 22.8, '°C', 22.8, 59.0, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Basil Temperature Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 58.0, '%', 22.5, 58.0, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Basil Humidity Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 56.0, '%', 23.0, 56.0, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Basil Humidity Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 60.0, '%', 22.9, 60.0, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Basil Humidity Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 49.0, '%', 22.3, 57.0, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Basil Moisture Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 51.0, '%', 22.8, 58.0, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Basil Moisture Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 50.0, '%', 22.6, 59.0, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Basil Moisture Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 21.5, '°C', 21.5, 66.0, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Lettuce Temperature Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 21.9, '°C', 21.9, 65.0, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Lettuce Temperature Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 22.2, '°C', 22.2, 64.0, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Lettuce Temperature Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 66.0, '%', 21.6, 66.0, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Lettuce Humidity Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 65.0, '%', 22.0, 65.0, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Lettuce Humidity Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 64.0, '%', 22.1, 64.0, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Lettuce Humidity Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 47.0, '%', 21.3, 65.0, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Lettuce Moisture Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 45.0, '%', 21.8, 64.0, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Lettuce Moisture Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 48.0, '%', 22.0, 63.0, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Lettuce Moisture Sensor';\
+    " 2>/dev/null || print_warning "Failed to seed sample readings"
 
     print_status "Default data seeding completed"
 }
@@ -471,8 +666,8 @@ run_tests() {
     fi
     
     print_info "Running Python tests..."
-    if [ -d "venv" ]; then
-        source venv/bin/activate
+    if detect_python_venv; then
+        source "$PYTHON_VENV_PATH/bin/activate"
         if python -m pytest tests/python/ -v; then
             print_status "Python tests passed"
         else

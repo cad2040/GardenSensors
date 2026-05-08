@@ -309,6 +309,7 @@ cleanup_local() {
     # Clean up Python virtual environment
     print_info "Removing Python virtual environment..."
     rm -rf venv || print_warning "Failed to remove virtual environment"
+    rm -rf .venv || print_warning "Failed to remove .venv virtual environment"
     
     # Clean up pytest cache
     print_info "Removing pytest cache..."

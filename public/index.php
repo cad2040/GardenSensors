@@ -166,7 +166,7 @@ $page_title = 'Dashboard';
                         <i class="fas fa-thermometer-half"></i>
                     </div>
                     <div class="stat-info">
-                        <div class="stat-value"><?php echo $averages['temperature']; ?>°C</div>
+                        <div id="avg-temperature" class="stat-value"><?php echo $averages['temperature']; ?>°C</div>
                         <div class="stat-label">Average Temperature</div>
                     </div>
                 </div>
@@ -175,7 +175,7 @@ $page_title = 'Dashboard';
                         <i class="fas fa-tint"></i>
                     </div>
                     <div class="stat-info">
-                        <div class="stat-value"><?php echo $averages['humidity']; ?>%</div>
+                        <div id="avg-humidity" class="stat-value"><?php echo $averages['humidity']; ?>%</div>
                         <div class="stat-label">Average Humidity</div>
                     </div>
                 </div>
@@ -184,7 +184,7 @@ $page_title = 'Dashboard';
                         <i class="fas fa-water"></i>
                     </div>
                     <div class="stat-info">
-                        <div class="stat-value"><?php echo $averages['moisture']; ?>%</div>
+                        <div id="avg-moisture" class="stat-value"><?php echo $averages['moisture']; ?>%</div>
                         <div class="stat-label">Average Soil Moisture</div>
                     </div>
                 </div>
@@ -277,14 +277,17 @@ $page_title = 'Dashboard';
         // Initialize plot on page load
         $(document).ready(function() {
             loadPlot();
+            loadAverages();
             
             // Set up plot controls
             $('#plant-filter, #days-filter').on('change', function() {
                 loadPlot();
+                loadAverages();
             });
             
             $('#refresh-plot').on('click', function() {
                 loadPlot();
+                loadAverages();
             });
         });
         
@@ -391,6 +394,29 @@ $page_title = 'Dashboard';
                     }
                     
                     container.html('<div class="plot-error"><i class="fas fa-exclamation-triangle"></i><p>' + errorMsg + '</p></div>');
+                }
+            });
+        }
+
+        function loadAverages() {
+            const plantId = $('#plant-filter').val();
+            const days = $('#days-filter').val();
+            const requestData = { days: days };
+            if (plantId && plantId !== '' && plantId !== '0') {
+                requestData.plant_id = plantId;
+            }
+
+            $.ajax({
+                url: 'api/summary.php',
+                method: 'GET',
+                data: requestData,
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success && response.averages) {
+                        $('#avg-temperature').text((response.averages.temperature ?? 0) + '°C');
+                        $('#avg-humidity').text((response.averages.humidity ?? 0) + '%');
+                        $('#avg-moisture').text((response.averages.moisture ?? 0) + '%');
+                    }
                 }
             });
         }
