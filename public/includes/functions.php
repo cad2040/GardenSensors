@@ -186,4 +186,45 @@ function clearCache($key = null) {
     } else {
         array_map('unlink', glob(CACHE_PATH . '/*.cache'));
     }
+}
+
+if (!function_exists('sanitizeInput')) {
+    function sanitizeInput($data) {
+        if (is_array($data)) {
+            return array_map('sanitizeInput', $data);
+        }
+        $data = trim((string)$data);
+        $data = stripslashes($data);
+        return htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('sendJsonResponse')) {
+    function sendJsonResponse($data, $status = 200) {
+        // Support legacy call styles: sendJsonResponse(false, 'message') or sendJsonResponse(['success'=>...])
+        if (!is_array($data) && is_string($status)) {
+            $data = ['success' => (bool)$data, 'message' => $status];
+            $status = 200;
+        } elseif (!is_array($data) && is_bool($data)) {
+            $data = ['success' => $data, 'message' => is_string($status) ? $status : ''];
+            $status = 200;
+        }
+        if (!is_int($status)) {
+            $status = 200;
+        }
+        header('Content-Type: application/json');
+        http_response_code($status);
+        echo json_encode($data);
+        exit();
+    }
+}
+
+if (!function_exists('logError')) {
+    function logError($message, $context = []) {
+        $timestamp = date('Y-m-d H:i:s');
+        $contextStr = !empty($context) ? json_encode($context) : '';
+        $logMessage = "[$timestamp] ERROR: $message $contextStr\n";
+        $logFile = defined('LOG_FILE') ? LOG_FILE : (sys_get_temp_dir() . '/garden_sensors_error.log');
+        @error_log($logMessage, 3, $logFile);
+    }
 } 

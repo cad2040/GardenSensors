@@ -45,6 +45,11 @@ def gui_server():
         yield None
         return
 
+    from shutil import which
+
+    if which("php") is None:
+        pytest.skip("Skipping GUI tests: php not available and GUI_BASE_URL unset.")
+
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     public_dir = os.path.join(repo_root, "public")
     log_file = open("/tmp/garden-sensors-gui.log", "w", encoding="utf-8")
@@ -76,6 +81,13 @@ def page(gui_server):
             if "error while loading shared libraries" in message:
                 pytest.skip(
                     "Skipping GUI tests: missing system libraries for Playwright browser runtime."
+                )
+            raise
+        except Exception as exc:
+            message = str(exc)
+            if "Executable doesn't exist" in message or "playwright install" in message:
+                pytest.skip(
+                    "Skipping GUI tests: Playwright browser binaries not installed."
                 )
             raise
         context = browser.new_context(base_url=BASE_URL)

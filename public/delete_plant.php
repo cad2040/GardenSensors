@@ -1,55 +1,47 @@
 <?php
-require_once 'config.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/functions.php';
 
-// Start session
-session_start();
-
-// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    sendJsonResponse(false, 'User not authenticated');
+    if (!empty($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json')) {
+        sendJsonResponse(['success' => false, 'message' => 'User not authenticated'], 401);
+    }
+    header('Location: login.php');
     exit;
 }
 
-// Validate input
-$id = sanitizeInput($_POST['id'] ?? '');
-if (empty($id)) {
-    sendJsonResponse(false, 'Invalid plant ID');
-    exit;
+$id = sanitizeInput($_POST['id'] ?? $_GET['id'] ?? '');
+if ($id === '') {
+    sendJsonResponse(['success' => false, 'message' => 'Invalid plant ID'], 400);
 }
 
 try {
     $db = new Database();
     $conn = $db->getConnection();
-    
-    // Start transaction
     $conn->beginTransaction();
-    
-    try {
-        // Update sensors to remove plant association
-        $query = "UPDATE Sensors SET plant_id = NULL WHERE plant_id = :id";
-        $stmt = $conn->prepare($query);
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
-        
-        // Delete plant
-        $query = "DELETE FROM Plants WHERE id = :id";
-        $stmt = $conn->prepare($query);
-        $stmt->bindParam(':id', $id);
-        
-        if ($stmt->execute()) {
-            $conn->commit();
-            sendJsonResponse(true, 'Plant deleted successfully');
-        } else {
-            throw new Exception('Failed to delete plant');
-        }
-    } catch (Exception $e) {
+
+    $conn->prepare("DELETE FROM plant_sensors WHERE plant_id = ?")->execute([$id]);
+    $stmt = $conn->prepare("DELETE FROM plants WHERE id = ?");
+    $stmt->execute([$id]);
+
+    if ($stmt->rowCount() === 0) {
         $conn->rollBack();
-        throw $e;
+        sendJsonResponse(['success' => false, 'message' => 'Plant not found'], 404);
     }
-    
+
+    $conn->commit();
+
+    if (isset($_GET['id']) && empty($_POST['id'])) {
+        header('Location: plants.php');
+        exit;
+    }
+
+    sendJsonResponse(['success' => true, 'message' => 'Plant deleted']);
 } catch (Exception $e) {
-    logError('Error in delete_plant.php: ' . $e->getMessage());
-    sendJsonResponse(false, 'An error occurred while deleting plant data');
-} 
+    if (isset($conn) && $conn->inTransaction()) {
+        $conn->rollBack();
+    }
+    logError('delete_plant failed: ' . $e->getMessage());
+    sendJsonResponse(['success' => false, 'message' => 'Failed to delete plant'], 500);
+}

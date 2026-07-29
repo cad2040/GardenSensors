@@ -637,12 +637,32 @@ curl "http://localhost/garden-sensors/api/plot.php?plant_id=1&days=30"
 curl "http://localhost/garden-sensors/api/plot.php?format=json&days=7"
 ```
 
-## Next Steps: Containerization
+## Docker
 
-The application is ready for Docker containerization. Planned features:
-- Multi-container Docker Compose setup
-- PHP 8.3 + Apache web container
-- MySQL 8.0 database container
-- Python 3.12 environment container
-- Automated testing in containers
-- Development and production configurations
+Preferred automation uses the same setup/cleanup entrypoints as bare metal:
+
+```bash
+sudo ./setup.sh docker              # build, up, health wait, PHPUnit + pytest
+CONFIRM=y ./cleanup.sh docker       # down -v (wipes DB volume)
+```
+
+App: [http://localhost:8080](http://localhost:8080) (`admin` / `password`)
+
+Full runbook: [docs/setup/docker.md](docs/setup/docker.md).
+
+Manual compose (optional):
+
+```bash
+sudo docker-compose up -d --build
+sudo docker-compose exec web ./vendor/bin/phpunit --testdox
+sudo docker-compose --profile tools run --rm -e GUI_BASE_URL=http://web python pytest tests/python -v
+sudo docker-compose down -v
+```
+
+Bare-metal local deploy remains: `sudo ./setup.sh local` / `CONFIRM=y sudo ./cleanup.sh local`.
+
+## Next Steps
+
+- Keep Windows and WSL clones in sync
+- Optional: Playwright browsers in the Python image for GUI tests against `GUI_BASE_URL=http://web`
+- Optional: CI job that runs `./setup.sh docker`

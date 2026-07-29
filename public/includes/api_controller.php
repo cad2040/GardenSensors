@@ -1,4 +1,14 @@
 <?php
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/cache.php';
+require_once __DIR__ . '/rate_limiter.php';
+require_once __DIR__ . '/logger.php';
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 class ApiController {
     protected $db;
     protected $cache;
@@ -8,6 +18,7 @@ class ApiController {
 
     public function __construct() {
         $this->db = new Database();
+        $this->db->getConnection();
         $this->cache = new Cache();
         $this->rateLimiter = new RateLimiter();
         $this->logger = new Logger();

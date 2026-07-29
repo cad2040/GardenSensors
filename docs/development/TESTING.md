@@ -15,6 +15,16 @@ tests/
 
 ## Running Tests
 
+### Docker (recommended for full stack)
+
+`sudo ./setup.sh docker` builds the stack and runs PHPUnit + pytest inside containers.
+
+```bash
+# After stack is up
+sudo docker-compose exec web ./vendor/bin/phpunit --testdox
+sudo docker-compose --profile tools run --rm -e GUI_BASE_URL=http://web python pytest tests/python -v
+```
+
 ### PHP Tests
 1. **Setup Test Environment**
    ```bash

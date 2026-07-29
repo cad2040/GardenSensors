@@ -37,13 +37,15 @@ class NotificationTest extends TestCase
 
     public function testCreateNotification()
     {
-        // Set up expectations
+        // Set up expectations (SQL whitespace may vary by line endings)
         $this->db->shouldReceive('execute')
             ->once()
-            ->with(
-                "INSERT INTO notifications (user_id, type, message, data, created_at) \n            VALUES (?, ?, ?, ?, NOW())",
-                [1, 'alert', 'Low battery alert', '{"sensor_id":1,"battery_level":20}']
-            )
+            ->withArgs(function ($sql, $params) {
+                $normalized = preg_replace('/\s+/', ' ', trim($sql));
+                $expected = 'INSERT INTO notifications (user_id, type, message, data, created_at) VALUES (?, ?, ?, ?, NOW())';
+                return $normalized === $expected
+                    && $params === [1, 'alert', 'Low battery alert', '{"sensor_id":1,"battery_level":20}'];
+            })
             ->andReturn(true);
         
         $this->logger->shouldReceive('info')

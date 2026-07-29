@@ -72,19 +72,35 @@ if ($days < 1 || $days > 365) {
     $days = 7;
 }
 
-// Get Python path - use deployment directory
-// Try to detect deployment directory from current file location.
-// __DIR__ is public/api, so project root is two levels up.
+// Resolve Python interpreter for plot generation (local venv, Docker image, or PATH).
 $deploymentDir = dirname(dirname(__DIR__));
 if (file_exists('/var/www/html/garden-sensors')) {
     $deploymentDir = '/var/www/html/garden-sensors';
 }
 
-$pythonPath = $deploymentDir . '/venv/bin/python3';
-$altPythonPath = $deploymentDir . '/.venv/bin/python';
-if (file_exists($altPythonPath)) {
-    $pythonPath = $altPythonPath;
+$pythonCandidates = [
+    getenv('PYTHON_BIN') ?: '',
+    '/opt/gs-venv/bin/python3',
+    '/opt/gs-venv/bin/python',
+    $deploymentDir . '/.venv/bin/python3',
+    $deploymentDir . '/.venv/bin/python',
+    $deploymentDir . '/venv/bin/python3',
+    $deploymentDir . '/venv/bin/python',
+    '/usr/local/bin/python3',
+    '/usr/bin/python3',
+];
+
+$pythonPath = null;
+foreach ($pythonCandidates as $candidate) {
+    if ($candidate !== '' && is_executable($candidate)) {
+        $pythonPath = $candidate;
+        break;
+    }
 }
+if ($pythonPath === null) {
+    $pythonPath = 'python3';
+}
+
 $scriptPath = $deploymentDir . '/python/generate_plot_api.py';
 
 // Build command

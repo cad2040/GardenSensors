@@ -2,6 +2,15 @@
 
 This guide details the steps to set up the Garden Sensors application manually.
 
+For **automated** installs prefer:
+
+| Mode | Command | Notes |
+|------|---------|--------|
+| Bare metal local | `sudo ./setup.sh local` | Host Apache + MySQL; wipe with `CONFIRM=y sudo ./cleanup.sh local` |
+| Docker | `sudo ./setup.sh docker` | Compose stack on `:8080`; wipe with `CONFIRM=y ./cleanup.sh docker` |
+
+See [docker.md](docker.md) for the container runbook.
+
 ## Prerequisites
 
 - Apache2

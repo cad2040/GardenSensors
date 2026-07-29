@@ -10,6 +10,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 PYTHON_VENV_PATH=""
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WEB_ROOT="/var/www/html/garden-sensors"
 
 # Function to print status messages
 print_status() {
@@ -66,13 +68,15 @@ show_usage() {
     echo "Options:"
     echo "  production    Full production setup (requires root)"
     echo "  test          Test environment setup (requires root)"
-    echo "  local         Local development setup (no root required)"
+    echo "  local         Local development setup (bare-metal Apache/MySQL)"
+    echo "  docker        Docker Compose setup (PHP+MySQL+Python containers)"
     echo "  help          Show this help message"
     echo ""
     echo "Examples:"
     echo "  sudo $0 production    # Full production deployment"
     echo "  sudo $0 test          # Test environment with web UI"
-    echo "  $0 local              # Local development only"
+    echo "  sudo $0 local         # Local bare-metal development"
+    echo "  sudo $0 docker        # Docker Compose development stack"
 }
 
 # Function to validate environment variables
@@ -388,20 +392,34 @@ EOF
 # Function to install PHP dependencies
 install_php_deps() {
     print_step "Installing PHP dependencies"
+
+    # Always install from the project checkout; deploy may have already copied an empty tree.
+    cd "$PROJECT_ROOT" || print_error "Failed to change to project root"
     
     print_info "Installing Composer dependencies..."
     if [ -d "vendor" ] && [ ! -w "vendor" ]; then
         print_warning "vendor/ is not writable in this environment; using existing Composer dependencies"
         if [ -f "./vendor/bin/phpunit" ]; then
             print_status "Existing Composer dependencies detected"
-            return 0
+        else
+            print_error "vendor/ is not writable and required dependencies are missing"
         fi
-        print_error "vendor/ is not writable and required dependencies are missing"
+    else
+        export COMPOSER_ALLOW_SUPERUSER=1
+        echo "yes" | composer install || print_error "Failed to install Composer dependencies"
+        print_status "PHP dependencies installed successfully"
     fi
 
-    echo "yes" | composer install || print_error "Failed to install Composer dependencies"
-    
-    print_status "PHP dependencies installed successfully"
+    # run_tests executes under WEB_ROOT; keep vendor in sync after late composer install.
+    if [ -d "$WEB_ROOT" ] && [ "$PROJECT_ROOT" != "$WEB_ROOT" ]; then
+        print_info "Syncing vendor/ to $WEB_ROOT..."
+        mkdir -p "$WEB_ROOT/vendor"
+        cp -a "$PROJECT_ROOT/vendor/." "$WEB_ROOT/vendor/" || print_error "Failed to sync vendor to web root"
+        if [ -f "$PROJECT_ROOT/composer.json" ]; then
+            cp -a "$PROJECT_ROOT/composer.json" "$PROJECT_ROOT/composer.lock" "$WEB_ROOT/" 2>/dev/null || true
+        fi
+        print_status "Composer dependencies available in web root"
+    fi
 }
 
 # Function to seed default data
@@ -463,13 +481,14 @@ seed_default_data() {
     mysql -u root -pnewrootpassword garden_sensors -e "\
         INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, status, user_id)\
         SELECT 'Tomato Plant', 'Solanum lycopersicum', 'Greenhouse 1', 40, 80, 24, 'active', 1\
-        WHERE NOT EXISTS (SELECT 1 FROM plants);\
+        WHERE NOT EXISTS (SELECT 1 FROM plants WHERE name = 'Tomato Plant');\
         INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, status, user_id)\
         SELECT 'Basil Plant', 'Ocimum basilicum', 'Greenhouse 1', 35, 70, 12, 'active', 1\
-        WHERE (SELECT COUNT(*) FROM plants) = 1;\
+        WHERE NOT EXISTS (SELECT 1 FROM plants WHERE name = 'Basil Plant');\
         INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, status, user_id)\
         SELECT 'Lettuce Plant', 'Lactuca sativa', 'Greenhouse 2', 45, 75, 18, 'active', 1\
-        WHERE (SELECT COUNT(*) FROM plants) = 2;\
+        WHERE NOT EXISTS (SELECT 1 FROM plants WHERE name = 'Lettuce Plant');\
+        UPDATE plants SET user_id = 1 WHERE name IN ('Tomato Plant', 'Basil Plant', 'Lettuce Plant') AND (user_id IS NULL OR user_id = 0);\
     " 2>/dev/null || print_warning "Failed to seed sample plants"
 
     # Link sample sensors to sample plants when both exist.
@@ -651,12 +670,16 @@ run_tests() {
     # Prepare test environment (log files, permissions, etc.)
     prepare_test_environment
     
-    # Ensure we're in the deployment directory for tests
-    if [ -d "/var/www/html/garden-sensors" ]; then
-        cd /var/www/html/garden-sensors || print_error "Failed to change to deployment directory"
+    # PHP tests against the deployed tree when present (vendor synced by install_php_deps).
+    local php_test_dir="$PROJECT_ROOT"
+    if [ -x "$WEB_ROOT/vendor/bin/phpunit" ]; then
+        php_test_dir="$WEB_ROOT"
+    elif [ ! -x "$PROJECT_ROOT/vendor/bin/phpunit" ]; then
+        print_error "PHPUnit not found in project or web root; run Composer install first"
     fi
-    
-    print_info "Running PHP unit tests..."
+
+    print_info "Running PHP unit tests from $php_test_dir..."
+    cd "$php_test_dir" || print_error "Failed to change to PHP test directory"
     if ./vendor/bin/phpunit --testdox; then
         print_status "PHP tests passed"
     else
@@ -665,8 +688,11 @@ run_tests() {
         return $php_test_result
     fi
     
+    # Python venv and tests live in the project checkout, not a copied deploy tree.
     print_info "Running Python tests..."
+    cd "$PROJECT_ROOT" || print_error "Failed to change to project root for Python tests"
     if detect_python_venv; then
+        # shellcheck disable=SC1090
         source "$PYTHON_VENV_PATH/bin/activate"
         if python -m pytest tests/python/ -v; then
             print_status "Python tests passed"
@@ -845,6 +871,104 @@ setup_local() {
     print_info "You can access the web interface at http://localhost/garden-sensors"
 }
 
+compose_cmd() {
+    if docker compose version >/dev/null 2>&1; then
+        docker compose "$@"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        docker-compose "$@"
+    else
+        print_error "Neither 'docker compose' nor 'docker-compose' is available"
+    fi
+}
+
+run_compose() {
+    # Prefer sudo when the Docker daemon requires elevated access
+    if sudo -n docker info >/dev/null 2>&1; then
+        if sudo docker compose version >/dev/null 2>&1; then
+            sudo docker compose -f "$PROJECT_ROOT/docker-compose.yml" "$@"
+        else
+            sudo docker-compose -f "$PROJECT_ROOT/docker-compose.yml" "$@"
+        fi
+    else
+        compose_cmd -f "$PROJECT_ROOT/docker-compose.yml" "$@"
+    fi
+}
+
+wait_for_docker_stack() {
+    local max_attempts="${1:-40}"
+    local i
+    print_info "Waiting for web (login) and db health..."
+    for i in $(seq 1 "$max_attempts"); do
+        local code
+        code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/login.php 2>/dev/null || echo 000)
+        local db_line
+        db_line=$(run_compose ps 2>/dev/null | awk '/_db_/ {print}' || true)
+        if [ "$code" = "200" ] && echo "$db_line" | grep -q '(healthy)'; then
+            print_status "Docker stack is ready (attempt $i)"
+            return 0
+        fi
+        print_info "Not ready yet (login=$code) attempt $i/$max_attempts..."
+        sleep 5
+    done
+    print_error "Docker stack did not become healthy in time"
+}
+
+setup_docker() {
+    print_step "Starting Garden Sensors Docker Compose Setup"
+
+    cd "$PROJECT_ROOT" || print_error "Failed to change to project root"
+
+    if [ ! -f "$PROJECT_ROOT/docker-compose.yml" ]; then
+        print_error "docker-compose.yml not found"
+    fi
+
+    if ! command -v docker >/dev/null 2>&1; then
+        print_error "Docker is not installed"
+    fi
+
+    if [ ! -f "$PROJECT_ROOT/.env.docker" ] && [ -f "$PROJECT_ROOT/.env.docker.example" ]; then
+        print_info "Creating .env.docker from .env.docker.example..."
+        cp "$PROJECT_ROOT/.env.docker.example" "$PROJECT_ROOT/.env.docker"
+    fi
+
+    # Host .env is optional for Docker (compose sets DB_HOST=db), but keep one for tooling
+    if [ ! -f "$PROJECT_ROOT/.env" ] && [ -f "$PROJECT_ROOT/.env.example" ]; then
+        print_info "Creating .env from .env.example for local tooling..."
+        cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
+    fi
+
+    print_info "Building and starting containers..."
+    run_compose up -d --build || print_error "docker-compose up failed"
+
+    wait_for_docker_stack 48
+
+    # Ensure schema-seeded plants are owned by admin (seed file also does this on fresh volumes)
+    print_info "Ensuring demo plant ownership..."
+    run_compose exec -T db mysql -uroot -pnewrootpassword garden_sensors -e \
+        "UPDATE plants SET user_id=1 WHERE user_id IS NULL OR user_id=0; UPDATE sensors SET user_id=1 WHERE user_id IS NULL OR user_id=0;" \
+        2>/dev/null || print_warning "Could not repair plant/sensor user_id (DB may still be initializing)"
+
+    print_info "Running PHPUnit inside web container..."
+    if run_compose exec -T web ./vendor/bin/phpunit --testdox; then
+        print_status "PHP tests passed in Docker"
+    else
+        print_error "PHP tests failed in Docker"
+    fi
+
+    print_info "Running Python tests via python service..."
+    if run_compose --profile tools run --rm -e GUI_BASE_URL=http://web python pytest tests/python -v --tb=line; then
+        print_status "Python tests passed in Docker"
+    else
+        print_error "Python tests failed in Docker"
+    fi
+
+    print_step "Docker Compose Setup Completed Successfully"
+    print_info "App URL: http://localhost:8080"
+    print_info "MySQL published at localhost:3307"
+    print_info "Login: admin / password"
+    print_info "Stop/wipe: ./cleanup.sh docker   (or CONFIRM=y ./cleanup.sh docker)"
+}
+
 # Main script
 case "${1:-help}" in
     production)
@@ -855,6 +979,9 @@ case "${1:-help}" in
         ;;
     local)
         setup_local
+        ;;
+    docker)
+        setup_docker
         ;;
     help|--help|-h)
         show_usage

@@ -45,13 +45,17 @@ show_usage() {
     echo "Options:"
     echo "  production    Full production cleanup (requires root)"
     echo "  test          Test environment cleanup (requires root)"
-    echo "  local         Local development cleanup (no root required)"
+    echo "  local         Local development cleanup (Apache/MySQL host deploy)"
+    echo "  docker        Stop containers and remove Docker volumes"
     echo "  help          Show this help message"
     echo ""
     echo "Examples:"
     echo "  sudo $0 production    # Full production cleanup"
     echo "  sudo $0 test          # Test environment cleanup"
-    echo "  $0 local              # Local development cleanup"
+    echo "  sudo $0 local         # Local bare-metal cleanup"
+    echo "  $0 docker             # Docker Compose cleanup (down -v)"
+    echo ""
+    echo "Non-interactive: CONFIRM=y $0 local"
 }
 
 # Function to check if running as root
@@ -65,6 +69,10 @@ check_root() {
 # Function to get user confirmation
 get_confirmation() {
     local message=$1
+    if [ "${CONFIRM:-}" = "y" ] || [ "${CONFIRM:-}" = "Y" ]; then
+        print_info "Confirmation skipped (CONFIRM=y)"
+        return 0
+    fi
     echo -e "${YELLOW}$message${NC}"
     read -p "Do you want to proceed? (y/N) " -n 1 -r
     echo
@@ -72,6 +80,18 @@ get_confirmation() {
         print_error "Operation cancelled by user"
     fi
 }
+
+compose_cmd() {
+    if docker compose version >/dev/null 2>&1; then
+        docker compose "$@"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        docker-compose "$@"
+    else
+        print_error "Neither 'docker compose' nor 'docker-compose' is available"
+    fi
+}
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Function to check MySQL connectivity
 check_mysql_connection() {
@@ -300,12 +320,28 @@ cleanup_test() {
 cleanup_local() {
     print_step "Starting Local Development Cleanup"
     
-    get_confirmation "This will remove local development files. Are you sure?"
+    get_confirmation "This will remove local bare-metal development files and host deploy. Are you sure?"
     
+    cd "$PROJECT_ROOT" || print_error "Failed to change to project root"
+
     # Backup databases before cleanup
     print_info "Creating database backup before cleanup..."
     backup_databases "local"
     
+    # Remove Apache site + web root when present (local setup often used sudo)
+    if [ -f "/etc/apache2/sites-available/garden-sensors.conf" ] || [ -d "/var/www/html/garden-sensors" ]; then
+        if [ "$EUID" -eq 0 ] || sudo -n true 2>/dev/null; then
+            print_info "Removing Apache site and web deployment..."
+            sudo a2dissite garden-sensors.conf 2>/dev/null || a2dissite garden-sensors.conf 2>/dev/null || true
+            sudo rm -f /etc/apache2/sites-available/garden-sensors.conf 2>/dev/null || rm -f /etc/apache2/sites-available/garden-sensors.conf 2>/dev/null || true
+            sudo rm -rf /var/www/html/garden-sensors 2>/dev/null || rm -rf /var/www/html/garden-sensors 2>/dev/null || true
+            sudo rm -f /var/log/apache2/garden-sensors*.log 2>/dev/null || true
+            sudo systemctl reload apache2 2>/dev/null || systemctl reload apache2 2>/dev/null || true
+        else
+            print_warning "Apache/web root present but no sudo; skipping host web cleanup"
+        fi
+    fi
+
     # Clean up Python virtual environment
     print_info "Removing Python virtual environment..."
     rm -rf venv || print_warning "Failed to remove virtual environment"
@@ -336,6 +372,40 @@ cleanup_local() {
     print_status "Local development cleanup completed"
 }
 
+# Function to cleanup Docker Compose stack
+cleanup_docker() {
+    print_step "Starting Docker Compose Cleanup"
+    
+    get_confirmation "This will stop containers and remove Docker volumes (DB data wiped). Are you sure?"
+    
+    cd "$PROJECT_ROOT" || print_error "Failed to change to project root"
+
+    if [ ! -f "$PROJECT_ROOT/docker-compose.yml" ]; then
+        print_error "docker-compose.yml not found in $PROJECT_ROOT"
+    fi
+
+    print_info "Stopping containers and removing volumes..."
+    # Prefer sudo when the daemon requires it (common on this host)
+    if sudo -n docker info >/dev/null 2>&1; then
+        if sudo docker compose version >/dev/null 2>&1; then
+            sudo docker compose -f "$PROJECT_ROOT/docker-compose.yml" down -v --remove-orphans \
+                || print_warning "docker compose down reported errors"
+        else
+            sudo docker-compose -f "$PROJECT_ROOT/docker-compose.yml" down -v --remove-orphans \
+                || print_warning "docker-compose down reported errors"
+        fi
+    else
+        compose_cmd -f "$PROJECT_ROOT/docker-compose.yml" down -v --remove-orphans \
+            || print_warning "compose down reported errors"
+    fi
+
+    print_info "Removing optional .env.docker (example file kept)..."
+    rm -f "$PROJECT_ROOT/.env.docker" || true
+
+    print_status "Docker Compose cleanup completed"
+    print_info "Images are retained. Remove with: docker image prune / docker rmi gardensensors_web"
+}
+
 # Main script
 case "${1:-help}" in
     production)
@@ -346,6 +416,9 @@ case "${1:-help}" in
         ;;
     local)
         cleanup_local
+        ;;
+    docker)
+        cleanup_docker
         ;;
     help|--help|-h)
         show_usage

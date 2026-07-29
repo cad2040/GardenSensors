@@ -32,14 +32,14 @@ if (!isset($error)) {
             FROM plants p
             LEFT JOIN plant_sensors ps ON p.id = ps.plant_id
             LEFT JOIN sensors s ON ps.sensor_id = s.id
-            WHERE p.user_id = ?
+            WHERE p.user_id = ? OR p.user_id IS NULL
             GROUP BY p.id
             ORDER BY p.name ASC
         ");
         $stmt->execute([$_SESSION['user_id']]);
         $plants = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // If no plants found and user is not admin, also show test plants (user_id = 1) for development
+        // If no plants found and user is not admin, also show seeded demo plants
         if (empty($plants) && $_SESSION['user_id'] != 1) {
             $stmt = $pdo->prepare("
                 SELECT p.*, 

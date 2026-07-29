@@ -1,14 +1,14 @@
 <?php
-// Database configuration
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'garden_sensors');
-define('DB_USER', 'garden_sensors');
-define('DB_PASS', 'garden_sensors');
-define('DB_CHARSET', 'utf8mb4');
+// Database configuration (env overrides for Docker / deploy)
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_NAME', getenv('DB_NAME') ?: (getenv('DB_DATABASE') ?: 'garden_sensors'));
+define('DB_USER', getenv('DB_USER') ?: 'garden_sensors');
+define('DB_PASS', getenv('DB_PASS') ?: 'garden_sensors');
+define('DB_CHARSET', getenv('DB_CHARSET') ?: 'utf8mb4');
 
 // Application configuration
 define('APP_NAME', 'Garden Sensors');
-define('APP_URL', 'http://localhost');
+define('APP_URL', getenv('APP_URL') ?: 'http://localhost');
 define('APP_VERSION', '1.0.0');
 
 // Security configuration

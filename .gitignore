@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.docker.example
 
 # Dependencies
 /vendor/
@@ -25,6 +26,9 @@ __pycache__/
 /temp/
 *.tmp
 *.temp
+tmp_*
+tmp_*.sh
+tmp_*.php
 
 # Database files
 *.sqlite
@@ -32,6 +36,7 @@ __pycache__/
 *.sql
 !database/*.sql
 !database/**/*.sql
+!docker/**/*.sql
 
 # Python
 *.pyc

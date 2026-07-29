@@ -7,6 +7,20 @@
 - Nginx or Apache web server
 - SSL certificate (for production)
 
+## Quick automated paths
+
+```bash
+# Bare-metal local (host Apache/MySQL)
+sudo ./setup.sh local
+CONFIRM=y sudo ./cleanup.sh local
+
+# Docker Compose (isolated; http://localhost:8080)
+sudo ./setup.sh docker
+CONFIRM=y ./cleanup.sh docker
+```
+
+Details: [docs/setup/docker.md](../setup/docker.md).
+
 ## Production Environment Setup
 
 ### 1. Server Preparation

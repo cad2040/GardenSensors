@@ -5,7 +5,8 @@ class RateLimiter {
 
     public function __construct() {
         $this->db = new Database();
-        $this->enabled = RATE_LIMIT_ENABLED;
+        $this->db->getConnection();
+        $this->enabled = defined('RATE_LIMIT_ENABLED') ? RATE_LIMIT_ENABLED : true;
     }
 
     public function check($userId, $endpoint) {
@@ -13,18 +14,17 @@ class RateLimiter {
             return true;
         }
 
-        $key = "rate_limit:{$userId}:{$endpoint}";
-        $current = $this->getCurrentCount($key);
+        $current = $this->getCurrentCount($userId, $endpoint);
 
         if ($current >= RATE_LIMIT_REQUESTS) {
             return false;
         }
 
-        $this->incrementCount($key);
+        $this->incrementCount($userId, $endpoint);
         return true;
     }
 
-    private function getCurrentCount($key) {
+    private function getCurrentCount($userId, $endpoint) {
         $sql = "SELECT COUNT(*) as count FROM rate_limits 
                 WHERE user_id = ? AND endpoint = ? 
                 AND timestamp > DATE_SUB(NOW(), INTERVAL ? SECOND)";
@@ -33,10 +33,10 @@ class RateLimiter {
         $stmt->execute([$userId, $endpoint, RATE_LIMIT_WINDOW]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        return $result['count'];
+        return (int)($result['count'] ?? 0);
     }
 
-    private function incrementCount($key) {
+    private function incrementCount($userId, $endpoint) {
         $sql = "INSERT INTO rate_limits (user_id, endpoint, timestamp) 
                 VALUES (?, ?, NOW())";
         
@@ -45,7 +45,7 @@ class RateLimiter {
     }
 
     public function getRemainingRequests($userId, $endpoint) {
-        $current = $this->getCurrentCount($key);
+        $current = $this->getCurrentCount($userId, $endpoint);
         return max(0, RATE_LIMIT_REQUESTS - $current);
     }
 
@@ -58,10 +58,10 @@ class RateLimiter {
         $stmt->execute([$userId, $endpoint]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        if ($result['last_request']) {
+        if (!empty($result['last_request'])) {
             return strtotime($result['last_request']) + RATE_LIMIT_WINDOW;
         }
         
         return time();
     }
-} 
+}
