@@ -54,6 +54,20 @@ sudo docker-compose exec web ./vendor/bin/phpunit --testdox
 sudo docker-compose --profile tools run --rm -e GUI_BASE_URL=http://web python pytest tests/python -v
 ```
 
+## Plant catalog (optional)
+
+The `plant_catalog` table is created with schema/migrations but **not** populated by default.
+Add/Edit Plant show a catalog dropdown when rows exist.
+
+```bash
+# After placing rows in database/catalog/plant_catalog.csv
+SEED_PLANT_CATALOG=1 sudo -E ./setup.sh docker
+# or anytime:
+sudo docker-compose exec web php database/import_plant_catalog.php
+```
+
+See [`database/catalog/README.md`](../../database/catalog/README.md).
+
 ## Local vs Docker
 
 | Concern | Bare metal | Docker |

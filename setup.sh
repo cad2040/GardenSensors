@@ -8,7 +8,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m' # No Colo
 PYTHON_VENV_PATH=""
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB_ROOT="/var/www/html/garden-sensors"
@@ -34,7 +34,7 @@ print_info() {
     echo -e "${BLUE}[i] $1${NC}"
 }
 
-# Function to print step header
+# Function to print step heade
 print_step() {
     echo -e "\n========================================"
     echo " STEP: $1 "
@@ -77,6 +77,11 @@ show_usage() {
     echo "  sudo $0 test          # Test environment with web UI"
     echo "  sudo $0 local         # Local bare-metal development"
     echo "  sudo $0 docker        # Docker Compose development stack"
+    echo ""
+    echo "Optional plant catalog import (not run by default):"
+    echo "  SEED_PLANT_CATALOG=1 sudo -E $0 local"
+    echo "  PLANT_CATALOG_FILE=database/catalog/my.csv SEED_PLANT_CATALOG=1 sudo -E $0 docker"
+    echo "  See database/catalog/README.md"
 }
 
 # Function to validate environment variables
@@ -94,9 +99,18 @@ validate_env() {
         fi
     fi
     
-    # Load environment variables
+    # Load environment variables (do not clobber opt-in flags already set in the shell)
     if [ -f .env ]; then
-        export $(cat .env | grep -v '^#' | xargs)
+        local _preserved_seed_catalog="${SEED_PLANT_CATALOG-}"
+        local _preserved_catalog_file="${PLANT_CATALOG_FILE-}"
+        # shellcheck disable=SC2046
+        export $(grep -v '^#' .env | grep -v '^$' | xargs)
+        if [ -n "${_preserved_seed_catalog}" ]; then
+            export SEED_PLANT_CATALOG="${_preserved_seed_catalog}"
+        fi
+        if [ -n "${_preserved_catalog_file}" ]; then
+            export PLANT_CATALOG_FILE="${_preserved_catalog_file}"
+        fi
     fi
     
     # Check required environment variables
@@ -271,7 +285,7 @@ setup_mysql() {
     
     # Verify database setup
     print_info "Verifying database setup..."
-    local required_tables=("users" "sensors" "readings" "plants" "plant_sensors" "sensor_readings")
+    local required_tables=("users" "sensors" "readings" "plants" "plant_sensors" "plant_catalog" "sensor_readings")
     local missing_tables=()
     
     for table in "${required_tables[@]}"; do
@@ -596,6 +610,75 @@ seed_default_data() {
     print_status "Default data seeding completed"
 }
 
+# Optional plant catalog import (requires SEED_PLANT_CATALOG=1)
+# Prefers PLANT_CATALOG_FILE, else plant_catalog.csv, else plant_catalog.seed.csv
+maybe_import_plant_catalog() {
+    local flag="${SEED_PLANT_CATALOG:-0}"
+    case "$(echo "$flag" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) ;;
+        *)
+            print_info "Skipping plant catalog import (set SEED_PLANT_CATALOG=1 to enable; see database/catalog/README.md)"
+            return 0
+            ;;
+    esac
+
+    print_step "Importing plant catalog (opt-in)"
+    local catalog_file="${PLANT_CATALOG_FILE:-}"
+    if [ -z "$catalog_file" ]; then
+        if [ -f "$PROJECT_ROOT/database/catalog/plant_catalog.csv" ]; then
+            catalog_file="database/catalog/plant_catalog.csv"
+        elif [ -f "$PROJECT_ROOT/database/catalog/plant_catalog.seed.csv" ]; then
+            catalog_file="database/catalog/plant_catalog.seed.csv"
+        else
+            catalog_file="database/catalog/plant_catalog.csv"
+        fi
+    fi
+
+    if [ ! -f "$PROJECT_ROOT/$catalog_file" ] && [ ! -f "$catalog_file" ]; then
+        print_warning "SEED_PLANT_CATALOG set but catalog file missing: $catalog_file"
+        print_info "Add rows to database/catalog/plant_catalog.seed.csv or plant_catalog.csv"
+        return 0
+    fi
+
+    if [ -f "$PROJECT_ROOT/vendor/autoload.php" ] || [ -f "vendor/autoload.php" ]; then
+        (cd "$PROJECT_ROOT" && php database/import_plant_catalog.php --file="${catalog_file}") \
+            || print_warning "Plant catalog import failed"
+    else
+        print_warning "Composer autoload missing; cannot run plant catalog import"
+    fi
+}
+
+# Docker opt-in catalog import (runs inside web container; DB_HOST=db)
+maybe_import_plant_catalog_docker() {
+    local flag="${SEED_PLANT_CATALOG:-0}"
+    case "$(echo "$flag" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) ;;
+        *)
+            print_info "Skipping plant catalog import in Docker (set SEED_PLANT_CATALOG=1 to enable)"
+            return 0
+            ;;
+    esac
+
+    print_step "Importing plant catalog into Docker DB (opt-in)"
+    local catalog_file="${PLANT_CATALOG_FILE:-}"
+    if [ -z "$catalog_file" ]; then
+        if [ -f "$PROJECT_ROOT/database/catalog/plant_catalog.csv" ]; then
+            catalog_file="database/catalog/plant_catalog.csv"
+        elif [ -f "$PROJECT_ROOT/database/catalog/plant_catalog.seed.csv" ]; then
+            catalog_file="database/catalog/plant_catalog.seed.csv"
+        else
+            catalog_file="database/catalog/plant_catalog.csv"
+        fi
+    fi
+
+    if [ -f "$PROJECT_ROOT/$catalog_file" ]; then
+        run_compose exec -T web php database/import_plant_catalog.php --file="$catalog_file" \
+            || print_warning "Docker plant catalog import failed (ensure CSV is baked into image or remount database/)"
+    else
+        print_warning "SEED_PLANT_CATALOG set but catalog file missing on host: $catalog_file"
+    fi
+}
+
 # Function to verify database setup
 verify_database() {
     print_step "Verifying database setup"
@@ -730,6 +813,7 @@ cleanup_test_data() {
         # Re-seed essential data after truncation
         print_info "Re-seeding essential data (admin user, settings)..."
         seed_default_data
+        maybe_import_plant_catalog
         
         # Verify cleanup - should be empty or only have seeded data
         local total_sensors=$(mysql -u root -pnewrootpassword garden_sensors -sN -e "SELECT COUNT(*) FROM sensors;" 2>/dev/null || echo "0")
@@ -787,6 +871,7 @@ setup_production() {
     setup_python_env
     setup_mysql
     seed_default_data
+    maybe_import_plant_catalog
     verify_database
     deploy_to_web_root
     install_php_deps
@@ -824,6 +909,7 @@ setup_test() {
     setup_python_env
     setup_mysql
     seed_default_data
+    maybe_import_plant_catalog
     verify_database
     setup_apache
     
@@ -848,6 +934,7 @@ setup_local() {
     install_php_deps
     setup_mysql
     seed_default_data
+    maybe_import_plant_catalog
     verify_database
     setup_apache
     
@@ -948,6 +1035,16 @@ setup_docker() {
         "UPDATE plants SET user_id=1 WHERE user_id IS NULL OR user_id=0; UPDATE sensors SET user_id=1 WHERE user_id IS NULL OR user_id=0;" \
         2>/dev/null || print_warning "Could not repair plant/sensor user_id (DB may still be initializing)"
 
+    # Existing Docker volumes may predate plant_catalog; apply migration idempotently
+    if [ -f "$PROJECT_ROOT/database/migrations/003_create_plant_catalog.sql" ]; then
+        print_info "Applying plant_catalog migration (idempotent)..."
+        run_compose exec -T db mysql -uroot -pnewrootpassword garden_sensors \
+            < "$PROJECT_ROOT/database/migrations/003_create_plant_catalog.sql" \
+            || print_warning "plant_catalog migration failed or already applied"
+    fi
+
+    maybe_import_plant_catalog_docke
+
     print_info "Running PHPUnit inside web container..."
     if run_compose exec -T web ./vendor/bin/phpunit --testdox; then
         print_status "PHP tests passed in Docker"
@@ -966,6 +1063,7 @@ setup_docker() {
     print_info "App URL: http://localhost:8080"
     print_info "MySQL published at localhost:3307"
     print_info "Login: admin / password"
+    print_info "Plant catalog: optional SEED_PLANT_CATALOG=1 (see database/catalog/README.md)"
     print_info "Stop/wipe: ./cleanup.sh docker   (or CONFIRM=y ./cleanup.sh docker)"
 }
 

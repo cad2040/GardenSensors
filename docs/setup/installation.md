@@ -38,6 +38,11 @@ sudo mysql -e "FLUSH PRIVILEGES;"
 
 # Import database schema
 sudo mysql SoilSensors < database/schema.sql
+
+# Optional: plant catalog presets (not required for basic install)
+# cp database/catalog/plant_catalog.csv.example database/catalog/plant_catalog.csv
+# php database/import_plant_catalog.php
+# Or: SEED_PLANT_CATALOG=1 during setup.sh — see database/catalog/README.md
 ```
 
 ### 2. Web Server Setup

@@ -1,0 +1,1 @@
+external_pid,common_name,scientific_name,category,description,min_soil_moisture,max_soil_moisture,min_temperature,max_temperature,min_soil_ec,max_soil_ec,min_env_humidity,max_env_humidity,preferred_ph_min,preferred_ph_max,water_requirement,nutrient_level,sunlight,watering_frequency_hours,source,source_url,is_active

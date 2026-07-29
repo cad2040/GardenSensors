@@ -22,9 +22,28 @@ try {
 
 $success = '';
 $errors = [];
+$catalogEntries = [];
+
+if (!isset($error)) {
+    try {
+        $catalogEntries = $pdo->query("
+            SELECT id, common_name, scientific_name, category,
+                   min_soil_moisture, max_soil_moisture,
+                   min_temperature, max_temperature,
+                   watering_frequency_hours, water_requirement
+            FROM plant_catalog
+            WHERE is_active = 1
+            ORDER BY common_name ASC
+            LIMIT 500
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $catalogEntries = [];
+    }
+}
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $catalog_id = !empty($_POST['catalog_id']) ? intval($_POST['catalog_id']) : null;
     $name = trim($_POST['name'] ?? '');
     $species = trim($_POST['species'] ?? '');
     $description = trim($_POST['description'] ?? '');
@@ -35,6 +54,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $watering_frequency = intval($_POST['watering_frequency'] ?? 24);
     $min_temperature = !empty($_POST['min_temperature']) ? floatval($_POST['min_temperature']) : null;
     $max_temperature = !empty($_POST['max_temperature']) ? floatval($_POST['max_temperature']) : null;
+
+    if ($catalog_id && isset($pdo)) {
+        try {
+            $cstmt = $pdo->prepare('SELECT id FROM plant_catalog WHERE id = ? AND is_active = 1 LIMIT 1');
+            $cstmt->execute([$catalog_id]);
+            if (!$cstmt->fetchColumn()) {
+                $catalog_id = null;
+            }
+        } catch (PDOException $e) {
+            $catalog_id = null;
+        }
+    }
     
     // Validation
     if (empty($name)) {
@@ -61,8 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("
                 INSERT INTO plants (name, species, description, planting_date, location, 
                                   min_soil_moisture, max_soil_moisture, watering_frequency,
-                                  min_temperature, max_temperature, user_id, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())
+                                  min_temperature, max_temperature, user_id, catalog_id, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())
             ");
             $stmt->execute([
                 $name,
@@ -75,7 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $watering_frequency,
                 $min_temperature,
                 $max_temperature,
-                $_SESSION['user_id']
+                $_SESSION['user_id'],
+                $catalog_id
             ]);
             
             $success = 'Plant added successfully!';
@@ -174,7 +206,39 @@ $page_title = 'Add New Plant';
                     <div class="readings-header">
                         <h2 class="readings-title">Plant Information</h2>
                     </div>
-                    <form method="POST" action="" class="sensor-form">
+                    <form method="POST" action="" class="sensor-form" id="add-plant-form">
+                        <div class="form-group">
+                            <label for="catalog_id" class="form-label">Plant type (catalog)</label>
+                            <select class="form-control" id="catalog_id" name="catalog_id">
+                                <option value="">Custom / not listed</option>
+                                <?php foreach ($catalogEntries as $entry): ?>
+                                    <?php
+                                        $label = $entry['common_name'];
+                                        if (!empty($entry['scientific_name'])) {
+                                            $label .= ' (' . $entry['scientific_name'] . ')';
+                                        }
+                                        $selected = (isset($_POST['catalog_id']) && (int)$_POST['catalog_id'] === (int)$entry['id']) ? ' selected' : '';
+                                    ?>
+                                    <option value="<?php echo (int)$entry['id']; ?>"
+                                            data-scientific="<?php echo htmlspecialchars((string)($entry['scientific_name'] ?? ''), ENT_QUOTES); ?>"
+                                            data-min-moisture="<?php echo htmlspecialchars((string)($entry['min_soil_moisture'] ?? ''), ENT_QUOTES); ?>"
+                                            data-max-moisture="<?php echo htmlspecialchars((string)($entry['max_soil_moisture'] ?? ''), ENT_QUOTES); ?>"
+                                            data-min-temp="<?php echo htmlspecialchars((string)($entry['min_temperature'] ?? ''), ENT_QUOTES); ?>"
+                                            data-max-temp="<?php echo htmlspecialchars((string)($entry['max_temperature'] ?? ''), ENT_QUOTES); ?>"
+                                            data-freq="<?php echo htmlspecialchars((string)($entry['watering_frequency_hours'] ?? ''), ENT_QUOTES); ?>"
+                                            data-water="<?php echo htmlspecialchars((string)($entry['water_requirement'] ?? ''), ENT_QUOTES); ?>"
+                                            <?php echo $selected; ?>>
+                                        <?php echo htmlspecialchars($label); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php if (empty($catalogEntries)): ?>
+                                <small class="form-text">Catalog is empty. Import later via <code>SEED_PLANT_CATALOG=1</code> / <code>database/import_plant_catalog.php</code>.</small>
+                            <?php else: ?>
+                                <small class="form-text">Selecting a type fills species and moisture/temperature defaults (you can still edit them).</small>
+                            <?php endif; ?>
+                        </div>
+
                         <div class="form-group">
                             <label for="name" class="form-label">Plant Name *</label>
                             <input type="text" class="form-control" id="name" name="name" 
@@ -266,6 +330,38 @@ $page_title = 'Add New Plant';
     <!-- JavaScript -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="/assets/js/main.js"></script>
+    <script>
+    (function () {
+        function freqFromWater(req) {
+            var key = (req || '').toLowerCase();
+            if (key === 'low' || key === 'drought' || key === 'sparse') return 48;
+            if (key === 'high' || key === 'frequent' || key === 'wet') return 12;
+            return 24;
+        }
+        var select = document.getElementById('catalog_id');
+        if (!select) return;
+        select.addEventListener('change', function () {
+            var opt = select.options[select.selectedIndex];
+            if (!opt || !opt.value) return;
+            var species = document.getElementById('species');
+            var name = document.getElementById('name');
+            var minM = document.getElementById('min_soil_moisture');
+            var maxM = document.getElementById('max_soil_moisture');
+            var freq = document.getElementById('watering_frequency');
+            var minT = document.getElementById('min_temperature');
+            var maxT = document.getElementById('max_temperature');
+            if (species && opt.dataset.scientific) species.value = opt.dataset.scientific;
+            if (name && !name.value.trim()) name.value = opt.textContent.replace(/\s*\([^)]*\)\s*$/, '').trim();
+            if (minM && opt.dataset.minMoisture !== '') minM.value = opt.dataset.minMoisture;
+            if (maxM && opt.dataset.maxMoisture !== '') maxM.value = opt.dataset.maxMoisture;
+            if (freq) {
+                freq.value = opt.dataset.freq !== '' ? opt.dataset.freq : freqFromWater(opt.dataset.water);
+            }
+            if (minT && opt.dataset.minTemp !== '') minT.value = opt.dataset.minTemp;
+            if (maxT && opt.dataset.maxTemp !== '') maxT.value = opt.dataset.maxTemp;
+        });
+    })();
+    </script>
 </body>
 </html>
 

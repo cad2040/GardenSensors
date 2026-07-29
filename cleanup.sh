@@ -8,7 +8,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m' # No Colo
 
 # Function to print status messages
 print_status() {
@@ -31,7 +31,7 @@ print_info() {
     echo -e "${BLUE}[i] $1${NC}"
 }
 
-# Function to print step header
+# Function to print step heade
 print_step() {
     echo -e "\n========================================"
     echo " STEP: $1 "
@@ -74,7 +74,7 @@ get_confirmation() {
         return 0
     fi
     echo -e "${YELLOW}$message${NC}"
-    read -p "Do you want to proceed? (y/N) " -n 1 -r
+    read -r -n 1 -p "Do you want to proceed? (y/N) " REPLY
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         print_error "Operation cancelled by user"
@@ -199,9 +199,9 @@ cleanup_databases() {
         "local")
             print_info "Cleaning up local databases..."
             
-            # Drop both databases if they exist
+            # Drop both databases if they exist (removes seed plants/sensors/readings + plant_catalog)
             if mysql -u root -pnewrootpassword -e "USE garden_sensors;" 2>/dev/null; then
-                print_info "Dropping local production database..."
+                print_info "Dropping local production database (includes demo seed data and plant_catalog)..."
                 mysql -u root -pnewrootpassword -e "DROP DATABASE IF EXISTS garden_sensors;" || print_warning "Failed to drop local production database"
             fi
             

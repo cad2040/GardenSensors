@@ -21,6 +21,7 @@ $success = '';
 $errors = [];
 $plantId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $plant = null;
+$catalogEntries = [];
 
 if (!isset($error) && $plantId > 0) {
     $stmt = $pdo->prepare("SELECT * FROM plants WHERE id = ? AND (user_id = ? OR user_id IS NULL)");
@@ -29,11 +30,26 @@ if (!isset($error) && $plantId > 0) {
     if (!$plant) {
         $errors[] = 'Plant not found';
     }
+    try {
+        $catalogEntries = $pdo->query("
+            SELECT id, common_name, scientific_name, category,
+                   min_soil_moisture, max_soil_moisture,
+                   min_temperature, max_temperature,
+                   watering_frequency_hours, water_requirement
+            FROM plant_catalog
+            WHERE is_active = 1
+            ORDER BY common_name ASC
+            LIMIT 500
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $catalogEntries = [];
+    }
 } else {
     $errors[] = 'Invalid plant ID';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $plant) {
+    $catalog_id = !empty($_POST['catalog_id']) ? intval($_POST['catalog_id']) : null;
     $name = trim($_POST['name'] ?? '');
     $species = trim($_POST['species'] ?? '');
     $description = trim($_POST['description'] ?? '');
@@ -53,13 +69,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $plant) {
         $errors[] = 'Minimum soil moisture must be less than maximum soil moisture';
     }
 
+    if ($catalog_id) {
+        try {
+            $cstmt = $pdo->prepare('SELECT id FROM plant_catalog WHERE id = ? AND is_active = 1 LIMIT 1');
+            $cstmt->execute([$catalog_id]);
+            if (!$cstmt->fetchColumn()) {
+                $catalog_id = null;
+            }
+        } catch (PDOException $e) {
+            $catalog_id = null;
+        }
+    }
+
     if (empty($errors)) {
         try {
             $stmt = $pdo->prepare("
                 UPDATE plants SET
                     name = ?, species = ?, description = ?, planting_date = ?, location = ?,
                     min_soil_moisture = ?, max_soil_moisture = ?, watering_frequency = ?,
-                    min_temperature = ?, max_temperature = ?, status = ?, user_id = ?, updated_at = NOW()
+                    min_temperature = ?, max_temperature = ?, status = ?, user_id = ?,
+                    catalog_id = ?, updated_at = NOW()
                 WHERE id = ?
             ");
             $stmt->execute([
@@ -75,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $plant) {
                 $max_temperature,
                 $status,
                 $_SESSION['user_id'],
+                $catalog_id,
                 $plantId
             ]);
             $success = 'Plant updated successfully!';
@@ -89,6 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $plant) {
 }
 
 $page_title = 'Edit Plant';
+$currentCatalogId = isset($plant['catalog_id']) ? (int)$plant['catalog_id'] : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -122,17 +153,42 @@ $page_title = 'Edit Plant';
         <?php if ($success): ?><div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
         <?php foreach ($errors as $err): ?><div class="alert alert-danger"><?php echo htmlspecialchars($err); ?></div><?php endforeach; ?>
         <?php if ($plant): ?>
-        <form method="POST" class="readings-section" style="max-width:720px;padding:1.5rem;">
-            <label>Name<input class="form-control" type="text" name="name" value="<?php echo htmlspecialchars($plant['name']); ?>" required></label><br><br>
-            <label>Species<input class="form-control" type="text" name="species" value="<?php echo htmlspecialchars((string)$plant['species']); ?>"></label><br><br>
+        <form method="POST" class="readings-section" style="max-width:720px;padding:1.5rem;" id="edit-plant-form">
+            <label>Plant type (catalog)
+                <select class="form-control" id="catalog_id" name="catalog_id">
+                    <option value="">Custom / not listed</option>
+                    <?php foreach ($catalogEntries as $entry): ?>
+                        <?php
+                            $label = $entry['common_name'];
+                            if (!empty($entry['scientific_name'])) {
+                                $label .= ' (' . $entry['scientific_name'] . ')';
+                            }
+                            $sel = ($currentCatalogId === (int)$entry['id']) ? ' selected' : '';
+                        ?>
+                        <option value="<?php echo (int)$entry['id']; ?>"
+                                data-scientific="<?php echo htmlspecialchars((string)($entry['scientific_name'] ?? ''), ENT_QUOTES); ?>"
+                                data-min-moisture="<?php echo htmlspecialchars((string)($entry['min_soil_moisture'] ?? ''), ENT_QUOTES); ?>"
+                                data-max-moisture="<?php echo htmlspecialchars((string)($entry['max_soil_moisture'] ?? ''), ENT_QUOTES); ?>"
+                                data-min-temp="<?php echo htmlspecialchars((string)($entry['min_temperature'] ?? ''), ENT_QUOTES); ?>"
+                                data-max-temp="<?php echo htmlspecialchars((string)($entry['max_temperature'] ?? ''), ENT_QUOTES); ?>"
+                                data-freq="<?php echo htmlspecialchars((string)($entry['watering_frequency_hours'] ?? ''), ENT_QUOTES); ?>"
+                                data-water="<?php echo htmlspecialchars((string)($entry['water_requirement'] ?? ''), ENT_QUOTES); ?>"
+                                <?php echo $sel; ?>>
+                            <?php echo htmlspecialchars($label); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </label><br><br>
+            <label>Name<input class="form-control" type="text" id="name" name="name" value="<?php echo htmlspecialchars($plant['name']); ?>" required></label><br><br>
+            <label>Species<input class="form-control" type="text" id="species" name="species" value="<?php echo htmlspecialchars((string)$plant['species']); ?>"></label><br><br>
             <label>Location<input class="form-control" type="text" name="location" value="<?php echo htmlspecialchars((string)$plant['location']); ?>"></label><br><br>
             <label>Description<textarea class="form-control" name="description"><?php echo htmlspecialchars((string)$plant['description']); ?></textarea></label><br><br>
             <label>Planting date<input class="form-control" type="date" name="planting_date" value="<?php echo htmlspecialchars((string)$plant['planting_date']); ?>"></label><br><br>
-            <label>Min moisture<input class="form-control" type="number" name="min_soil_moisture" value="<?php echo htmlspecialchars((string)$plant['min_soil_moisture']); ?>"></label><br><br>
-            <label>Max moisture<input class="form-control" type="number" name="max_soil_moisture" value="<?php echo htmlspecialchars((string)$plant['max_soil_moisture']); ?>"></label><br><br>
-            <label>Watering frequency (hours)<input class="form-control" type="number" name="watering_frequency" value="<?php echo htmlspecialchars((string)$plant['watering_frequency']); ?>"></label><br><br>
-            <label>Min temperature<input class="form-control" type="number" step="0.1" name="min_temperature" value="<?php echo htmlspecialchars((string)$plant['min_temperature']); ?>"></label><br><br>
-            <label>Max temperature<input class="form-control" type="number" step="0.1" name="max_temperature" value="<?php echo htmlspecialchars((string)$plant['max_temperature']); ?>"></label><br><br>
+            <label>Min moisture<input class="form-control" type="number" id="min_soil_moisture" name="min_soil_moisture" value="<?php echo htmlspecialchars((string)$plant['min_soil_moisture']); ?>"></label><br><br>
+            <label>Max moisture<input class="form-control" type="number" id="max_soil_moisture" name="max_soil_moisture" value="<?php echo htmlspecialchars((string)$plant['max_soil_moisture']); ?>"></label><br><br>
+            <label>Watering frequency (hours)<input class="form-control" type="number" id="watering_frequency" name="watering_frequency" value="<?php echo htmlspecialchars((string)$plant['watering_frequency']); ?>"></label><br><br>
+            <label>Min temperature<input class="form-control" type="number" step="0.1" id="min_temperature" name="min_temperature" value="<?php echo htmlspecialchars((string)$plant['min_temperature']); ?>"></label><br><br>
+            <label>Max temperature<input class="form-control" type="number" step="0.1" id="max_temperature" name="max_temperature" value="<?php echo htmlspecialchars((string)$plant['max_temperature']); ?>"></label><br><br>
             <label>Status
                 <select class="form-control" name="status">
                     <?php foreach (['active','inactive','harvested'] as $st): ?>
@@ -143,6 +199,36 @@ $page_title = 'Edit Plant';
             <button class="btn btn-primary" type="submit">Save Plant</button>
             <a class="btn" href="plants.php">Cancel</a>
         </form>
+        <script>
+        (function () {
+            function freqFromWater(req) {
+                var key = (req || '').toLowerCase();
+                if (key === 'low' || key === 'drought' || key === 'sparse') return 48;
+                if (key === 'high' || key === 'frequent' || key === 'wet') return 12;
+                return 24;
+            }
+            var select = document.getElementById('catalog_id');
+            if (!select) return;
+            select.addEventListener('change', function () {
+                var opt = select.options[select.selectedIndex];
+                if (!opt || !opt.value) return;
+                var species = document.getElementById('species');
+                var minM = document.getElementById('min_soil_moisture');
+                var maxM = document.getElementById('max_soil_moisture');
+                var freq = document.getElementById('watering_frequency');
+                var minT = document.getElementById('min_temperature');
+                var maxT = document.getElementById('max_temperature');
+                if (species && opt.dataset.scientific) species.value = opt.dataset.scientific;
+                if (minM && opt.dataset.minMoisture !== '') minM.value = opt.dataset.minMoisture;
+                if (maxM && opt.dataset.maxMoisture !== '') maxM.value = opt.dataset.maxMoisture;
+                if (freq) {
+                    freq.value = opt.dataset.freq !== '' ? opt.dataset.freq : freqFromWater(opt.dataset.water);
+                }
+                if (minT && opt.dataset.minTemp !== '') minT.value = opt.dataset.minTemp;
+                if (maxT && opt.dataset.maxTemp !== '') maxT.value = opt.dataset.maxTemp;
+            });
+        })();
+        </script>
         <?php endif; ?>
     </main>
 </div>

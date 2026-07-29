@@ -289,13 +289,16 @@ The application creates the following tables:
 | `users` | User authentication and management | id, username, email, password_hash |
 | `sensors` | Sensor device information | id, name, type, location, status |
 | `readings` | Sensor data readings | id, sensor_id, reading_value, reading_timestamp |
-| `plants` | Plant information and management | id, name, species, location, user_id, min_soil_moisture, max_soil_moisture |
+| `plants` | Plant information and management | id, name, species, location, user_id, catalog_id, min/max moisture & temp |
+| `plant_catalog` | Optional reference presets for plant types | id, common_name, scientific_name, moisture/temp ranges, source |
 | `plant_sensors` | Plant-sensor relationships | id, plant_id, sensor_id, last_watered, next_watering, water_amount |
 | `pins` | GPIO pin assignments | id, pin_number, type, sensor_id |
 | `notifications` | User notifications | id, user_id, type, message, created_at |
 | `settings` | Application settings | id, key, value, updated_at |
 
 **Note:** The `fact_plants` table has been removed in favor of `plant_sensors` which provides better structure and naming conventions.
+
+**Plant catalog:** created by schema/migrations but **not** auto-seeded. Opt in with `SEED_PLANT_CATALOG=1` or `php database/import_plant_catalog.php` — see [`database/catalog/README.md`](database/catalog/README.md).
 
 ### Database Configuration
 

@@ -110,9 +110,11 @@ cover/
 ehthumbs.db
 Thumbs.db
 
-# Uploads
-/public/uploads/*
-!/public/uploads/.gitkeep
+# Plant catalog data (keep example + seed tracked; ignore local dumps)
+/database/catalog/plant_catalog.csv
+/database/catalog/*.csv
+!/database/catalog/plant_catalog.csv.example
+!/database/catalog/plant_catalog.seed.csv
 
 # Cache
 *.cache

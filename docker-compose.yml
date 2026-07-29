@@ -45,6 +45,7 @@ services:
       - ./public:/var/www/html/garden-sensors/public
       - ./src:/var/www/html/garden-sensors/src
       - ./python:/var/www/html/garden-sensors/python
+      - ./database:/var/www/html/garden-sensors/database
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1/login.php"]
       interval: 30s

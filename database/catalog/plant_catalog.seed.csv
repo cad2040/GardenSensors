@@ -1,0 +1,9 @@
+external_pid,common_name,scientific_name,category,description,min_soil_moisture,max_soil_moisture,min_temperature,max_temperature,min_soil_ec,max_soil_ec,min_env_humidity,max_env_humidity,preferred_ph_min,preferred_ph_max,water_requirement,nutrient_level,sunlight,watering_frequency_hours,source,source_url,is_active
+seed_tomato,Tomato,Solanum lycopersicum,vegetable,Warm-season fruiting plant; keep soil evenly moist,40,80,15.0,32.0,2000,3500,50,80,6.0,6.8,medium,high,full sun,24,manual,,1
+seed_basil,Basil,Ocimum basilicum,herb,Aromatic annual herb; prefers consistent moisture,35,70,18.0,30.0,1500,2500,40,70,5.5,6.5,medium,medium,full sun,12,manual,,1
+seed_lettuce,Lettuce,Lactuca sativa,vegetable,Cool-season leafy green; do not let soil dry out,45,75,10.0,24.0,1000,2000,50,80,6.0,7.0,high,medium,partial sun,18,manual,,1
+seed_succulent,Succulent (general),Various,ornamental,Drought-tolerant; allow soil to dry between waterings,20,50,10.0,35.0,500,1500,30,50,6.0,7.5,low,low,full sun,168,manual,,1
+seed_pepper,Bell Pepper,Capsicum annuum,vegetable,Warm-season fruiting plant similar to tomato,40,70,18.0,32.0,2000,3000,50,70,6.0,6.8,medium,high,full sun,24,manual,,1
+seed_cucumber,Cucumber,Cucumis sativus,vegetable,Heavy drinker when fruiting; keep evenly moist,50,80,18.0,30.0,1800,2800,60,80,6.0,7.0,high,high,full sun,12,manual,,1
+seed_spinach,Spinach,Spinacia oleracea,vegetable,Cool-season leafy green,40,75,5.0,22.0,1000,2000,50,80,6.0,7.5,medium,medium,partial sun,18,manual,,1
+seed_mint,Mint,Mentha spicata,herb,Aggressive grower; likes moist soil,45,80,10.0,28.0,1200,2200,50,80,6.0,7.0,high,medium,partial sun,12,manual,,1

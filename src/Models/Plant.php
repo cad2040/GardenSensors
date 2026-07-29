@@ -21,7 +21,8 @@ class Plant extends BaseModel implements \JsonSerializable {
         'min_temperature',
         'max_temperature',
         'status',
-        'user_id'
+        'user_id',
+        'catalog_id'
     ];
     protected $hidden = ['created_at', 'updated_at'];
 
@@ -40,6 +41,7 @@ class Plant extends BaseModel implements \JsonSerializable {
     protected $max_temperature;
     protected $status;
     protected $user_id;
+    protected $catalog_id;
     protected $created_at;
     protected $updated_at;
 
@@ -87,8 +89,24 @@ class Plant extends BaseModel implements \JsonSerializable {
         if (isset($attributes['max_temperature'])) $this->max_temperature = $attributes['max_temperature'];
         if (isset($attributes['status'])) $this->status = $attributes['status'];
         if (isset($attributes['user_id'])) $this->user_id = $attributes['user_id'];
+        if (isset($attributes['catalog_id'])) $this->catalog_id = $attributes['catalog_id'];
         if (isset($attributes['created_at'])) $this->created_at = $attributes['created_at'];
         if (isset($attributes['updated_at'])) $this->updated_at = $attributes['updated_at'];
+    }
+
+    /**
+     * Build plant attributes from an optional catalog preset.
+     */
+    public static function attributesFromCatalog(PlantCatalog $catalog, ?string $displayName = null): array {
+        return $catalog->toPlantAttributes($displayName);
+    }
+
+    public function catalog(): ?PlantCatalog {
+        if (empty($this->attributes['catalog_id']) && empty($this->catalog_id)) {
+            return null;
+        }
+        $id = $this->catalog_id ?? $this->attributes['catalog_id'];
+        return PlantCatalog::find($id);
     }
 
     public function sensors() {
