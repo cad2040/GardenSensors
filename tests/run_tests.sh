@@ -73,10 +73,30 @@ load_env() {
 # Function to run PHP tests
 run_php_tests() {
     print_step "Running PHP Tests"
+
+    print_info "Checking pH/EC test coverage files..."
+    for f in \
+        tests/Models/PlantTest.php \
+        tests/Models/SensorTest.php \
+        tests/Models/ReadingTest.php \
+        tests/Services/NotificationTest.php \
+        tests/Services/EcNutrientServiceTest.php \
+        tests/Services/DashboardSeedTest.php \
+        database/migrations/004_ec_nutrient_proxy.sql \
+        database/seed_test_plot_data.sql \
+        public/index.php \
+        public/api/summary.php \
+        public/assets/css/style.css
+    do
+        if [ ! -f "$f" ]; then
+            print_error "Missing required file: $f"
+            return 1
+        fi
+    done
     
     print_info "Running PHPUnit tests..."
     if [ -f "./vendor/bin/phpunit" ]; then
-        ./vendor/bin/phpunit
+        ./vendor/bin/phpunit --testdox
         if [ $? -eq 0 ]; then
             print_status "PHP tests passed"
         else
@@ -102,9 +122,9 @@ run_python_tests() {
         return 1
     fi
     
-    print_info "Running pytest..."
+    print_info "Running pytest (includes ProducePlot ph/ec palette coverage)..."
     if command -v pytest &> /dev/null; then
-        pytest
+        pytest tests/python/ -v
         if [ $? -eq 0 ]; then
             print_status "Python tests passed"
         else

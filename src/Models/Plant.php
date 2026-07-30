@@ -20,6 +20,12 @@ class Plant extends BaseModel implements \JsonSerializable {
         'location',
         'min_temperature',
         'max_temperature',
+        'min_ph',
+        'max_ph',
+        'ec_underfed',
+        'ec_balanced_min',
+        'ec_balanced_max',
+        'ec_overfed',
         'status',
         'user_id',
         'catalog_id'
@@ -39,6 +45,12 @@ class Plant extends BaseModel implements \JsonSerializable {
     protected $location;
     protected $min_temperature;
     protected $max_temperature;
+    protected $min_ph;
+    protected $max_ph;
+    protected $ec_underfed;
+    protected $ec_balanced_min;
+    protected $ec_balanced_max;
+    protected $ec_overfed;
     protected $status;
     protected $user_id;
     protected $catalog_id;
@@ -87,11 +99,39 @@ class Plant extends BaseModel implements \JsonSerializable {
         if (isset($attributes['location'])) $this->location = $attributes['location'];
         if (isset($attributes['min_temperature'])) $this->min_temperature = $attributes['min_temperature'];
         if (isset($attributes['max_temperature'])) $this->max_temperature = $attributes['max_temperature'];
+        if (isset($attributes['min_ph'])) $this->min_ph = $attributes['min_ph'];
+        if (isset($attributes['max_ph'])) $this->max_ph = $attributes['max_ph'];
+        if (isset($attributes['ec_underfed'])) $this->ec_underfed = $attributes['ec_underfed'];
+        if (isset($attributes['ec_balanced_min'])) $this->ec_balanced_min = $attributes['ec_balanced_min'];
+        if (isset($attributes['ec_balanced_max'])) $this->ec_balanced_max = $attributes['ec_balanced_max'];
+        if (isset($attributes['ec_overfed'])) $this->ec_overfed = $attributes['ec_overfed'];
         if (isset($attributes['status'])) $this->status = $attributes['status'];
         if (isset($attributes['user_id'])) $this->user_id = $attributes['user_id'];
         if (isset($attributes['catalog_id'])) $this->catalog_id = $attributes['catalog_id'];
         if (isset($attributes['created_at'])) $this->created_at = $attributes['created_at'];
         if (isset($attributes['updated_at'])) $this->updated_at = $attributes['updated_at'];
+
+        $this->validatePhAndEcRanges();
+    }
+
+    private function validatePhAndEcRanges(): void {
+        if ($this->min_ph !== null && $this->max_ph !== null && (float)$this->min_ph > (float)$this->max_ph) {
+            throw new \InvalidArgumentException('Minimum pH must be less than or equal to maximum pH');
+        }
+        $ecFields = ['ec_underfed', 'ec_balanced_min', 'ec_balanced_max', 'ec_overfed'];
+        foreach ($ecFields as $field) {
+            if ($this->$field !== null && (float)$this->$field < 0) {
+                throw new \InvalidArgumentException(ucfirst(str_replace('_', ' ', $field)) . ' cannot be negative');
+            }
+        }
+        if ($this->ec_balanced_min !== null && $this->ec_balanced_max !== null
+            && (float)$this->ec_balanced_min > (float)$this->ec_balanced_max) {
+            throw new \InvalidArgumentException('EC balanced min must be less than or equal to balanced max');
+        }
+        if ($this->ec_underfed !== null && $this->ec_overfed !== null
+            && (float)$this->ec_underfed > (float)$this->ec_overfed) {
+            throw new \InvalidArgumentException('EC underfed threshold must be less than or equal to overfed threshold');
+        }
     }
 
     /**
@@ -294,6 +334,12 @@ class Plant extends BaseModel implements \JsonSerializable {
             'min_soil_moisture' => $this->min_soil_moisture,
             'max_soil_moisture' => $this->max_soil_moisture,
             'watering_frequency' => $this->watering_frequency,
+            'min_ph' => $this->min_ph,
+            'max_ph' => $this->max_ph,
+            'ec_underfed' => $this->ec_underfed,
+            'ec_balanced_min' => $this->ec_balanced_min,
+            'ec_balanced_max' => $this->ec_balanced_max,
+            'ec_overfed' => $this->ec_overfed,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'health_status' => $this->checkHealthStatus(),
@@ -365,6 +411,39 @@ class Plant extends BaseModel implements \JsonSerializable {
     
     public function getMaxTemperature(): ?int {
         return $this->max_temperature ?? null;
+    }
+
+    public function getMinPh(): ?float {
+        return $this->min_ph !== null ? (float)$this->min_ph : null;
+    }
+
+    public function getMaxPh(): ?float {
+        return $this->max_ph !== null ? (float)$this->max_ph : null;
+    }
+
+    public function getEcUnderfed(): ?float {
+        return $this->ec_underfed !== null ? (float)$this->ec_underfed : null;
+    }
+
+    public function getEcBalancedMin(): ?float {
+        return $this->ec_balanced_min !== null ? (float)$this->ec_balanced_min : null;
+    }
+
+    public function getEcBalancedMax(): ?float {
+        return $this->ec_balanced_max !== null ? (float)$this->ec_balanced_max : null;
+    }
+
+    public function getEcOverfed(): ?float {
+        return $this->ec_overfed !== null ? (float)$this->ec_overfed : null;
+    }
+
+    public function getEcZones(): array {
+        return [
+            'ec_underfed' => $this->getEcUnderfed() ?? 0.80,
+            'ec_balanced_min' => $this->getEcBalancedMin() ?? 1.00,
+            'ec_balanced_max' => $this->getEcBalancedMax() ?? 1.60,
+            'ec_overfed' => $this->getEcOverfed() ?? 2.00,
+        ];
     }
     
     public function getStatus(): ?string {

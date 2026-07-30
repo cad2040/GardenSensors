@@ -16,6 +16,7 @@ CREATE DATABASE IF NOT EXISTS $DB_NAME CHARACTER SET utf8mb4 COLLATE utf8mb4_uni
 USE $DB_NAME;
 source schema.sql;
 source migrations/001_fix_prod_tables.sql;
+source migrations/003_add_ph_nitrogen_support.sql;
 EOF
 
 # Create database user with restricted privileges

@@ -29,45 +29,6 @@ try {
     $error = "Database connection failed: " . $e->getMessage();
 }
 
-// Fetch latest sensor readings
-$latestReadings = [];
-if (!isset($error)) {
-    try {
-        $stmt = $pdo->query("
-            SELECT sensor_id, sensor_type, reading_value, reading_timestamp 
-            FROM sensor_readings 
-            WHERE reading_timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-            ORDER BY reading_timestamp DESC 
-            LIMIT 10
-        ");
-        $latestReadings = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        $error = "Failed to fetch sensor readings: " . $e->getMessage();
-    }
-}
-
-// Calculate averages
-$averages = [
-    'temperature' => 0,
-    'humidity' => 0,
-    'moisture' => 0
-];
-
-if (!empty($latestReadings)) {
-    $counts = array_fill_keys(array_keys($averages), 0);
-    foreach ($latestReadings as $reading) {
-        if (isset($averages[$reading['sensor_type']])) {
-            $averages[$reading['sensor_type']] += $reading['reading_value'];
-            $counts[$reading['sensor_type']]++;
-        }
-    }
-    foreach ($averages as $type => &$value) {
-        if ($counts[$type] > 0) {
-            $value = round($value / $counts[$type], 1);
-        }
-    }
-}
-
 // Fetch plants for filter dropdown
 $plants = [];
 if (!isset($error)) {
@@ -159,45 +120,17 @@ $page_title = 'Dashboard';
                 <p class="dashboard-subtitle">Overview of your garden's sensor data</p>
             </div>
 
-            <!-- Stats Grid -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon temperature">
-                        <i class="fas fa-thermometer-half"></i>
+            <!-- Per-plant latest readings versus catalog benchmarks -->
+            <section class="plant-summary-section" aria-labelledby="plant-summary-title">
+                <div class="plant-summary-heading">
+                    <div>
+                        <h2 id="plant-summary-title">Plant conditions</h2>
+                        <p>Latest soil readings compared with each plant's ideal range. Select a plant to filter the dashboard.</p>
                     </div>
-                    <div class="stat-info">
-                        <div id="avg-temperature" class="stat-value"><?php echo $averages['temperature']; ?>°C</div>
-                        <div class="stat-label">Average Temperature</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon humidity">
-                        <i class="fas fa-tint"></i>
-                    </div>
-                    <div class="stat-info">
-                        <div id="avg-humidity" class="stat-value"><?php echo $averages['humidity']; ?>%</div>
-                        <div class="stat-label">Average Humidity</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon moisture">
-                        <i class="fas fa-water"></i>
-                    </div>
-                    <div class="stat-info">
-                        <div id="avg-moisture" class="stat-value"><?php echo $averages['moisture']; ?>%</div>
-                        <div class="stat-label">Average Soil Moisture</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Interactive Plot Section -->
-            <section class="plot-section">
-                <div class="plot-header">
-                    <h2 class="plot-title">Sensor Readings Over Time</h2>
-                    <div class="plot-controls">
-                        <label for="plant-filter" class="control-label">Filter by Plant:</label>
+                    <div id="plant-filter-wrapper" class="plant-filter-wrapper is-hidden">
+                        <label for="plant-filter" class="control-label">Showing:</label>
                         <select id="plant-filter" class="control-select">
-                            <option value="">All Plants</option>
+                            <option value="">All plants</option>
                             <?php foreach ($plants as $plant): ?>
                                 <option value="<?php echo $plant['id']; ?>">
                                     <?php echo htmlspecialchars($plant['name']); ?>
@@ -207,6 +140,22 @@ $page_title = 'Dashboard';
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                </div>
+                <div id="plant-summary-grid" class="plant-summary-grid">
+                    <div class="plot-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading plant conditions...</p>
+                    </div>
+                </div>
+                <p id="ec-benchmark-note" class="benchmark-note"></p>
+            </section>
+
+            <!-- Interactive Plot Section -->
+            <section class="plot-section">
+                <div class="plot-header">
+                    <h2 class="plot-title">Sensor Readings Over Time</h2>
+                    <div class="plot-controls">
                         <label for="days-filter" class="control-label">Days:</label>
                         <select id="days-filter" class="control-select">
                             <option value="7">Last 7 days</option>
@@ -226,44 +175,6 @@ $page_title = 'Dashboard';
                     </div>
                 </div>
             </section>
-
-            <!-- Recent Readings -->
-            <section class="readings-section">
-                <div class="readings-header">
-                    <h2 class="readings-title">Recent Sensor Readings</h2>
-                </div>
-                <?php if (!empty($latestReadings)): ?>
-                    <table class="readings-table">
-                        <thead>
-                            <tr>
-                                <th>Sensor ID</th>
-                                <th>Type</th>
-                                <th>Value</th>
-                                <th>Timestamp</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($latestReadings as $reading): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($reading['sensor_id']); ?></td>
-                                    <td><?php echo htmlspecialchars(ucfirst($reading['sensor_type'])); ?></td>
-                                    <td>
-                                        <?php 
-                                        echo htmlspecialchars($reading['reading_value']);
-                                        echo $reading['sensor_type'] === 'temperature' ? '°C' : '%';
-                                        ?>
-                                    </td>
-                                    <td><?php echo htmlspecialchars(date('Y-m-d H:i:s', strtotime($reading['reading_timestamp']))); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php else: ?>
-                    <div class="no-data">
-                        <p>No sensor readings available for the last 24 hours.</p>
-                    </div>
-                <?php endif; ?>
-            </section>
         </main>
     </div>
 
@@ -276,20 +187,39 @@ $page_title = 'Dashboard';
     <script>
         // Initialize plot on page load
         $(document).ready(function() {
-            loadPlot();
-            loadAverages();
-            
-            // Set up plot controls
-            $('#plant-filter, #days-filter').on('change', function() {
-                loadPlot();
-                loadAverages();
+            refreshDashboard();
+
+            $('#plant-filter, #days-filter').on('change', refreshDashboard);
+
+            $('#refresh-plot').on('click', refreshDashboard);
+
+            // Selecting a plant tile filters both visualizations to that plant.
+            $('#plant-summary-grid').on('click', '.plant-summary-card', function() {
+                selectPlant($(this).data('plant-id'));
             });
-            
-            $('#refresh-plot').on('click', function() {
-                loadPlot();
-                loadAverages();
+
+            $('#plant-summary-grid').on('keydown', '.plant-summary-card', function(event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectPlant($(this).data('plant-id'));
+                }
             });
         });
+
+        function selectPlant(plantId) {
+            const current = $('#plant-filter').val();
+            const next = String(plantId);
+            // Clicking the already-selected plant clears the filter.
+            $('#plant-filter').val(current === next ? '' : next);
+            refreshDashboard();
+        }
+
+        function refreshDashboard() {
+            // The dropdown is only needed once the view is narrowed to one plant.
+            $('#plant-filter-wrapper').toggleClass('is-hidden', !$('#plant-filter').val());
+            loadPlot();
+            loadPlantSummaries();
+        }
         
         function loadPlot() {
             const plantId = $('#plant-filter').val();
@@ -398,10 +328,37 @@ $page_title = 'Dashboard';
             });
         }
 
-        function loadAverages() {
+        function escapeHtml(value) {
+            return $('<div>').text(value ?? '').html();
+        }
+
+        function formatMetric(metric) {
+            if (!metric || metric.value === null) {
+                return '<div class="plant-metric no-reading"><span class="metric-name">No sensor data</span></div>';
+            }
+
+            const value = Number(metric.value).toFixed(1);
+            const ideal = metric.ideal_min !== null && metric.ideal_max !== null
+                ? `${Number(metric.ideal_min).toFixed(1)}–${Number(metric.ideal_max).toFixed(1)} ${escapeHtml(metric.unit)}`
+                : 'Not configured';
+            const statusLabel = metric.status === 'ideal'
+                ? 'In range'
+                : (metric.status === 'low' ? 'Need food' : (metric.status === 'high' ? 'Flush risk' : 'Out of range'));
+
+            return `
+                <div class="plant-metric metric-${escapeHtml(metric.status)}">
+                    <div class="metric-header">
+                        <span class="metric-name">${escapeHtml(metric.label)}</span>
+                        <span class="metric-status">${statusLabel}</span>
+                    </div>
+                    <div class="metric-reading">${value} <span>${escapeHtml(metric.unit)}</span></div>
+                    <div class="metric-benchmark">Ideal ${ideal}</div>
+                </div>`;
+        }
+
+        function loadPlantSummaries() {
             const plantId = $('#plant-filter').val();
-            const days = $('#days-filter').val();
-            const requestData = { days: days };
+            const requestData = {};
             if (plantId && plantId !== '' && plantId !== '0') {
                 requestData.plant_id = plantId;
             }
@@ -412,11 +369,43 @@ $page_title = 'Dashboard';
                 data: requestData,
                 dataType: 'json',
                 success: function(response) {
-                    if (response.success && response.averages) {
-                        $('#avg-temperature').text((response.averages.temperature ?? 0) + '°C');
-                        $('#avg-humidity').text((response.averages.humidity ?? 0) + '%');
-                        $('#avg-moisture').text((response.averages.moisture ?? 0) + '%');
+                    if (!response.success || !Array.isArray(response.plants)) {
+                        $('#plant-summary-grid').html('<div class="no-data">Unable to load plant conditions.</div>');
+                        return;
                     }
+
+                    if (response.plants.length === 0) {
+                        $('#plant-summary-grid').html('<div class="no-data">No active plants found.</div>');
+                        return;
+                    }
+
+                    const selectedId = $('#plant-filter').val();
+                    const cards = response.plants.map(function(plant) {
+                        const metrics = plant.metrics || {};
+                        const isSelected = String(plant.id) === String(selectedId);
+                        return `
+                            <article class="plant-summary-card${isSelected ? ' is-selected' : ''}"
+                                     data-plant-id="${escapeHtml(plant.id)}"
+                                     role="button" tabindex="0"
+                                     aria-pressed="${isSelected}"
+                                     title="${isSelected ? 'Show all plants' : 'Filter dashboard to this plant'}">
+                                <header>
+                                    <h3>${escapeHtml(plant.name)}</h3>
+                                    <span>${escapeHtml(plant.species || '')}</span>
+                                </header>
+                                <div class="plant-metrics">
+                                    ${formatMetric(metrics.temperature)}
+                                    ${formatMetric(metrics.moisture)}
+                                    ${formatMetric(metrics.ec)}
+                                </div>
+                            </article>`;
+                    }).join('');
+
+                    $('#plant-summary-grid').html(cards);
+                    $('#ec-benchmark-note').text(response.ec_note || '');
+                },
+                error: function() {
+                    $('#plant-summary-grid').html('<div class="no-data">Unable to load plant conditions.</div>');
                 }
             });
         }

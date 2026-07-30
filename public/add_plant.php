@@ -54,6 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $watering_frequency = intval($_POST['watering_frequency'] ?? 24);
     $min_temperature = !empty($_POST['min_temperature']) ? floatval($_POST['min_temperature']) : null;
     $max_temperature = !empty($_POST['max_temperature']) ? floatval($_POST['max_temperature']) : null;
+    $min_ph = !empty($_POST['min_ph']) ? floatval($_POST['min_ph']) : 6.0;
+    $max_ph = !empty($_POST['max_ph']) ? floatval($_POST['max_ph']) : 7.0;
+    $ec_underfed = !empty($_POST['ec_underfed']) ? floatval($_POST['ec_underfed']) : 0.8;
+    $ec_balanced_min = !empty($_POST['ec_balanced_min']) ? floatval($_POST['ec_balanced_min']) : 1.0;
+    $ec_balanced_max = !empty($_POST['ec_balanced_max']) ? floatval($_POST['ec_balanced_max']) : 1.6;
+    $ec_overfed = !empty($_POST['ec_overfed']) ? floatval($_POST['ec_overfed']) : 2.0;
 
     if ($catalog_id && isset($pdo)) {
         try {
@@ -86,14 +92,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($min_temperature !== null && $max_temperature !== null && $min_temperature >= $max_temperature) {
         $errors[] = 'Minimum temperature must be less than maximum temperature';
     }
+    if ($min_ph > $max_ph) {
+        $errors[] = 'Minimum pH must be less than or equal to maximum pH';
+    }
+    if ($ec_underfed < 0 || $ec_balanced_min < 0 || $ec_balanced_max < 0 || $ec_overfed < 0) {
+        $errors[] = 'EC zone values cannot be negative';
+    }
+    if ($ec_balanced_min > $ec_balanced_max) {
+        $errors[] = 'EC balanced min must be less than or equal to balanced max';
+    }
+    if ($ec_underfed > $ec_overfed) {
+        $errors[] = 'EC underfed threshold must be less than or equal to overfed threshold';
+    }
     
     if (empty($errors)) {
         try {
             $stmt = $pdo->prepare("
                 INSERT INTO plants (name, species, description, planting_date, location, 
                                   min_soil_moisture, max_soil_moisture, watering_frequency,
-                                  min_temperature, max_temperature, user_id, catalog_id, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())
+                                  min_temperature, max_temperature, min_ph, max_ph,
+                                  ec_underfed, ec_balanced_min, ec_balanced_max, ec_overfed,
+                                  user_id, catalog_id, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())
             ");
             $stmt->execute([
                 $name,
@@ -106,6 +126,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $watering_frequency,
                 $min_temperature,
                 $max_temperature,
+                $min_ph,
+                $max_ph,
+                $ec_underfed,
+                $ec_balanced_min,
+                $ec_balanced_max,
+                $ec_overfed,
                 $_SESSION['user_id'],
                 $catalog_id
             ]);
@@ -311,6 +337,52 @@ $page_title = 'Add New Plant';
                             <input type="number" class="form-control" id="max_temperature" name="max_temperature" 
                                    value="<?php echo htmlspecialchars($_POST['max_temperature'] ?? ''); ?>" 
                                    step="0.1" placeholder="Optional">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="min_ph" class="form-label">Minimum Soil pH</label>
+                            <input type="number" class="form-control" id="min_ph" name="min_ph"
+                                   value="<?php echo htmlspecialchars($_POST['min_ph'] ?? '6.0'); ?>"
+                                   step="0.1" min="0" max="14">
+                            <small class="form-text">Alert when soil pH falls below this value</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="max_ph" class="form-label">Maximum Soil pH</label>
+                            <input type="number" class="form-control" id="max_ph" name="max_ph"
+                                   value="<?php echo htmlspecialchars($_POST['max_ph'] ?? '7.0'); ?>"
+                                   step="0.1" min="0" max="14">
+                            <small class="form-text">Alert when soil pH rises above this value (may need amendment to lower pH)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ec_underfed" class="form-label">EC underfed threshold (mS/cm)</label>
+                            <input type="number" class="form-control" id="ec_underfed" name="ec_underfed"
+                                   value="<?php echo htmlspecialchars($_POST['ec_underfed'] ?? '0.8'); ?>"
+                                   step="0.01" min="0">
+                            <small class="form-text">Available nutrient EC below this suggests fertilizer need</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ec_balanced_min" class="form-label">EC balanced range min (mS/cm)</label>
+                            <input type="number" class="form-control" id="ec_balanced_min" name="ec_balanced_min"
+                                   value="<?php echo htmlspecialchars($_POST['ec_balanced_min'] ?? '1.0'); ?>"
+                                   step="0.01" min="0">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ec_balanced_max" class="form-label">EC balanced range max (mS/cm)</label>
+                            <input type="number" class="form-control" id="ec_balanced_max" name="ec_balanced_max"
+                                   value="<?php echo htmlspecialchars($_POST['ec_balanced_max'] ?? '1.6'); ?>"
+                                   step="0.01" min="0">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ec_overfed" class="form-label">EC overfed threshold (mS/cm)</label>
+                            <input type="number" class="form-control" id="ec_overfed" name="ec_overfed"
+                                   value="<?php echo htmlspecialchars($_POST['ec_overfed'] ?? '2.0'); ?>"
+                                   step="0.01" min="0">
+                            <small class="form-text">Above this available EC, consider flushing with plain water</small>
                         </div>
 
                         <div class="form-group" style="margin-top: 20px;">

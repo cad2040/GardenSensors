@@ -124,6 +124,64 @@ class PlantTest extends TestCase
         $this->assertLessThan($this->plant->getMaxSoilMoisture(), $this->plant->getMinSoilMoisture());
     }
 
+    public function testPlantPhAndEcZones()
+    {
+        $uniqueId = uniqid();
+        $plant = new Plant([
+            'name' => 'EC Range Plant ' . $uniqueId,
+            'species' => 'Test Species',
+            'min_soil_moisture' => 30,
+            'max_soil_moisture' => 70,
+            'watering_frequency' => 24,
+            'min_ph' => 6.0,
+            'max_ph' => 6.8,
+            'ec_underfed' => 0.8,
+            'ec_balanced_min' => 1.0,
+            'ec_balanced_max' => 1.6,
+            'ec_overfed' => 2.0,
+            'status' => 'active',
+            'user_id' => 1,
+        ]);
+        $plant->save();
+
+        $this->assertEquals(6.0, $plant->getMinPh());
+        $this->assertEquals(6.8, $plant->getMaxPh());
+        $this->assertEquals(0.8, $plant->getEcUnderfed());
+        $this->assertEquals(1.6, $plant->getEcBalancedMax());
+    }
+
+    public function testPlantInvalidEcBalancedRangeThrows()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new Plant([
+            'name' => 'Bad EC Plant ' . uniqid(),
+            'species' => 'Test Species',
+            'min_soil_moisture' => 30,
+            'max_soil_moisture' => 70,
+            'watering_frequency' => 24,
+            'ec_balanced_min' => 2.0,
+            'ec_balanced_max' => 1.0,
+            'status' => 'active',
+            'user_id' => 1,
+        ]);
+    }
+
+    public function testPlantInvalidPhRangeThrows()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new Plant([
+            'name' => 'Bad pH Plant ' . uniqid(),
+            'species' => 'Test Species',
+            'min_soil_moisture' => 30,
+            'max_soil_moisture' => 70,
+            'watering_frequency' => 24,
+            'min_ph' => 7.5,
+            'max_ph' => 6.0,
+            'status' => 'active',
+            'user_id' => 1,
+        ]);
+    }
+
     public function testPlantWateringFrequency()
     {
         $this->plant->save();

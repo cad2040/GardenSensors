@@ -52,9 +52,9 @@ try {
         ]
     );
 
-    // Read and execute schema
+    # Read and execute schema
     echo "Applying schema...\n";
-    $schemaFile = __DIR__ . '/schema.sql';
+    $schemaFile = __DIR__ . '/../../database/schema.sql';
     if (!file_exists($schemaFile)) {
         throw new Exception("Schema file not found at: $schemaFile");
     }
@@ -79,6 +79,34 @@ try {
                 throw $e;
             }
         }
+    }
+
+    // Ensure pH / EC schema support (idempotent)
+    echo "\nEnsuring pH/EC schema support...\n";
+    $pdo->exec("ALTER TABLE sensors MODIFY COLUMN plot_type ENUM('moisture', 'temperature', 'humidity', 'ph', 'ec') DEFAULT 'moisture'");
+    $plantColumns = [
+        'min_ph' => "ALTER TABLE plants ADD COLUMN min_ph DECIMAL(3,1) DEFAULT 6.0 AFTER max_temperature",
+        'max_ph' => "ALTER TABLE plants ADD COLUMN max_ph DECIMAL(3,1) DEFAULT 7.0 AFTER min_ph",
+        'ec_underfed' => "ALTER TABLE plants ADD COLUMN ec_underfed DECIMAL(6,2) DEFAULT 0.80 AFTER max_ph",
+        'ec_balanced_min' => "ALTER TABLE plants ADD COLUMN ec_balanced_min DECIMAL(6,2) DEFAULT 1.00 AFTER ec_underfed",
+        'ec_balanced_max' => "ALTER TABLE plants ADD COLUMN ec_balanced_max DECIMAL(6,2) DEFAULT 1.60 AFTER ec_balanced_min",
+        'ec_overfed' => "ALTER TABLE plants ADD COLUMN ec_overfed DECIMAL(6,2) DEFAULT 2.00 AFTER ec_balanced_max",
+    ];
+    foreach ($plantColumns as $column => $alterSql) {
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'plants' AND COLUMN_NAME = ?"
+        );
+        $stmt->execute([$config['database'], $column]);
+        if ((int)$stmt->fetchColumn() === 0) {
+            $pdo->exec($alterSql);
+            echo "+$column ";
+        }
+    }
+    $migrationPath = __DIR__ . '/../../database/migrations/004_ec_nutrient_proxy.sql';
+    if (file_exists($migrationPath)) {
+        $pdo->exec(file_get_contents($migrationPath));
+        echo "+migration004 ";
     }
 
     echo "\nTest database setup completed successfully\n";

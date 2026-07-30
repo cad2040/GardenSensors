@@ -109,6 +109,7 @@ class PlotGenerator:
         p = figure(
             width=1000,
             height=500,
+            sizing_mode="stretch_width",  # Fill container so the side legend does not squeeze the data
             x_axis_type="datetime",
             title=plot_title,
             tools="pan,box_zoom,wheel_zoom,reset,save,hover"
@@ -148,6 +149,8 @@ class PlotGenerator:
             'moisture': ['#E69F00', '#F0A830', '#CC8F00', '#FFB84D', '#FFCC66'],          # Oranges (5 shades)
             'light': ['#CC79A7', '#E78AC3', '#B36893', '#F5A9D0', '#DE9FC4'],             # Pinks (5 shades)
             'ph': ['#56B4E9', '#7FC8E8', '#3DA5CC', '#99D9F5', '#B3E5F7'],                # Light blues (5 shades)
+            'nitrogen': ['#882255', '#AA4488', '#661144', '#CC77AA', '#DD99BB'],          # legacy alias
+            'ec': ['#882255', '#AA4488', '#661144', '#CC77AA', '#DD99BB'],                # Magentas (nutrient EC)
             'conductivity': ['#D55E00', '#F0803D', '#B84D00', '#FF9933', '#FFB366'],      # Red-oranges (5 shades)
             'pressure': ['#F0E442', '#F5EA6B', '#D4CC1A', '#FFF966', '#FFFD99'],          # Yellows (5 shades)
             'co2': ['#000000', '#333333', '#666666', '#999999', '#CCCCCC']                 # Grays (5 shades)
@@ -228,9 +231,9 @@ class PlotGenerator:
                 alpha=0.6
             )
         
-        # Configure legend - position it outside the plot area to avoid overlap
+        # Configure legend
         p.legend.click_policy = "hide"
-        p.legend.location = "bottom_left"  # Move to bottom left where data is less dense
+        p.legend.location = "top_left"
         p.legend.label_text_font_size = "9pt"  # Smaller font for compact legend
         p.legend.background_fill_alpha = 0.9  # Slightly transparent so data shows through if needed
         p.legend.border_line_color = "gray"
@@ -245,6 +248,10 @@ class PlotGenerator:
             p.legend.label_text_font_size = "8pt"
             p.legend.spacing = 2
             p.legend.padding = 6
+
+        # Move the legend into a side panel so it never overlaps data points
+        for legend in list(p.legend):
+            p.add_layout(legend, 'right')
         
         if return_components:
             # Return components for embedding in web page

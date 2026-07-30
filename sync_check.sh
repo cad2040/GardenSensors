@@ -78,10 +78,29 @@ main() {
     check_file "tests/run_tests.sh" "Test runner" || sync_ok=false
     check_file "tests/check_test_config.php" "Configuration checker" || sync_ok=false
     check_file "tests/run_config_check.sh" "Environment loader" || sync_ok=false
-    
-    # Check source code
+    check_file "tests/Services/NotificationTest.php" "Notification / pH-EC alert tests" || sync_ok=false
+    check_file "tests/Services/EcNutrientServiceTest.php" "EC nutrient service tests" || sync_ok=false
+    check_file "tests/Services/DashboardSeedTest.php" "Per-plant dashboard seed tests" || sync_ok=false
+    check_file "tests/python/test_produce_plot.py" "ProducePlot Python tests" || sync_ok=false
+
+    # Check pH / EC schema + firmware
+    check_file "database/schema.sql" "Database schema" || sync_ok=false
+    check_file "database/migrations/003_add_ph_nitrogen_support.sql" "pH migration (legacy)" || sync_ok=false
+    check_file "database/migrations/004_ec_nutrient_proxy.sql" "EC nutrient proxy migration" || sync_ok=false
+    check_file "database/seed_test_plot_data.sql" "Canonical per-plant dashboard seed" || sync_ok=false
+    check_file "arduino/sketch_SoilSensor.ino" "Arduino soil sensor sketch" || sync_ok=false
+    check_file "docs/setup/README.md" "Sensor build / wiring docs" || sync_ok=false
+    check_file "docs/development/ec-nutrient-proxy.md" "EC nutrient proxy notes" || sync_ok=false
+    check_file "src/Services/EcNutrientService.php" "EC nutrient service" || sync_ok=false
+
+    # Check source code + dashboard summary API
     check_file "src/Config/database.php" "Database configuration" || sync_ok=false
     check_file "src/Core/Database.php" "Database class" || sync_ok=false
+    check_file "src/Models/Plant.php" "Plant model" || sync_ok=false
+    check_file "src/Services/Notification.php" "Notification service" || sync_ok=false
+    check_file "public/index.php" "Dashboard (plant tiles + plot filter)" || sync_ok=false
+    check_file "public/api/summary.php" "Per-plant summary API" || sync_ok=false
+    check_file "public/assets/css/style.css" "Dashboard stylesheet" || sync_ok=false
     
     print_step "Synchronization Summary"
     

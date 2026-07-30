@@ -31,30 +31,73 @@ ESP8266 (NodeMCU) Pinout:
                     |_________________|
 
 Connections:
-1. Soil Moisture Sensor:
+1. Soil Moisture Sensor (analog, existing):
    - VCC → 3V3
    - GND → GND
    - AOUT → A0
 
-2. LED Indicator (Built-in):
+2. RS485 soil probe(s) (pH / EC nutrient proxy) via MAX485:
+   - Probe VCC → **5 V** from USB / solar power bank (same rail as NodeMCU VIN/USB)
+   - Probe GND → common GND with ESP + MAX485 + bank
+   - Probe A / B → MAX485 A / B
+   - MAX485 VCC → 3V3 (or 5 V if the module requires it; level-shift if needed)
+   - MAX485 RO → ESP **D7** (GPIO13) RX
+   - MAX485 DI → ESP **D6** (GPIO12) TX
+   - MAX485 RE + DE (tied together) → ESP **D5** (GPIO14) direction control
+
+3. LED Indicator (Built-in):
    - Connected to D2 (GPIO2)
    - Note: Built-in LED is active LOW
 
-3. Deep Sleep Connection:
+4. Deep Sleep Connection:
    - Connect D0 (GPIO16) to RST
    - This enables automatic wake-up from deep sleep
 
-4. Power:
-   - VIN → 5V (USB or external power supply)
-   - GND → GND
+5. Power (5 V USB / solar bank):
+   - VIN / USB → 5 V from always-on USB power bank
+   - Probe VCC → same 5 V rail (not ESP 3V3)
+   - GND → GND (common)
 
 Note: The built-in LED on most ESP8266 boards is connected to GPIO2 (D2) and is active LOW.
 This means the LED turns ON when the pin is LOW and OFF when the pin is HIGH.
 ```
 
+## Recommended hardware (sensor build)
+
+### Soil probes (must be DC 5–30 V for USB banks)
+
+| Role | Recommendation | Notes |
+|------|----------------|-------|
+| pH (+ moisture/temp/EC) | [DFRobot SEN0604](https://wiki.dfrobot.com/sen0604/) RS485 4-in-1 | Rated **5–30 V**; Modbus RTU; IP68 burial probe |
+| EC (nutrient / salt proxy) | Same RS485 probe (7-in-1 or SEN0604) | Soil EC in **mS/cm**; dashboard uses **available EC** = soil EC − your tap-water baseline (set in Settings) |
+| Optional NPK probe | [DFRobot SEN0605](https://wiki.dfrobot.com/sen0605/) RS485 NPK | Not used by GardenSensors firmware; EC trend is the fertilizer signal instead of N mg/kg |
+| Combined alternative | Generic “7-in-1” RS485 Modbus soil probe (5–30 V) | One probe for moisture/temp/EC/pH/NPK; verify datasheet minimum is **5 V**, not 9–24 V only |
+| Existing moisture | Capacitive soil moisture (A0) | Keep as today; 3V3 analog |
+
+**Modbus EC register (firmware):** holding register `0x0002`, scale ×0.01 → mS/cm (verify on your probe datasheet). Calibrate **baseline_water_ec** by measuring a cup of tap water and entering that value in Settings.
+
+**RS485 adapter:** MAX485 / TTL-to-RS485 breakout (one bus per probe address).
+
+Typical Modbus defaults: device address `0x01`, baud **4800** or **9600** (check the probe datasheet). Allow **5–10 seconds** after power-on for pH readings to settle before sampling.
+
+### Power banks (solar-chargeable USB, 5 V)
+
+| Recommendation | Why |
+|----------------|-----|
+| [Voltaic Systems](https://voltaicsystems.com/always-on-batteries/) V25 / V50 / V75 (or V88 with Always On mode) | Designed for IoT; **no low-current auto-off**; pairs with Voltaic 6 V solar panels |
+| Any bank marketed **“always on” / “no auto-off” / “router / IoT mode”** | Required for ESP deep sleep — most phone banks shut off under microamp loads |
+| Avoid | Generic phone power banks without always-on — they cut 5 V while the NodeMCU sleeps |
+
+**Power notes:**
+
+- Share the bank’s **5 V USB** with NodeMCU VIN/USB and probe VCC; use a common GND.
+- Do **not** power RS485 probes from ESP **3V3**.
+- If stuck with a normal bank, a pulsed keep-alive load can prevent cutoff but wastes energy — prefer a true always-on pack for solar.
+- Budget wake time for probe settle plus WiFi/MySQL before deep sleep.
+
 ## Features
 
-- Soil moisture monitoring
+- Soil moisture, pH, and **soil EC** (nutrient proxy) monitoring
 - WiFi connectivity with automatic reconnection
 - MySQL data storage
 - Web interface for monitoring and configuration
@@ -87,7 +130,7 @@ The built-in LED provides visual feedback about the device's status:
 ### Available Pages
 
 1. Status Page (`/`):
-   - Last moisture reading
+   - Last moisture, pH, and soil EC readings
    - Last reading time
    - WiFi signal strength
    - Device uptime

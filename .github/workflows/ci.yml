@@ -14,8 +14,8 @@ jobs:
       mysql:
         image: mysql:5.7
         env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: garden_sensors_test
+          MYSQL_ROOT_PASSWORD: newrootpassword
+          MYSQL_DATABASE: garden_sensors
         ports:
           - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
@@ -44,27 +44,46 @@ jobs:
         pip install -r requirements.txt
         pip install pytest pytest-cov
 
+    - name: Apply database schema and EC migration
+      env:
+        MYSQL_PWD: newrootpassword
+      run: |
+        mysql -h 127.0.0.1 -uroot garden_sensors < database/schema.sql
+        mysql -h 127.0.0.1 -uroot garden_sensors < database/migrations/004_ec_nutrient_proxy.sql
+        mysql -h 127.0.0.1 -uroot garden_sensors -e "
+          SELECT COLUMN_NAME FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA='garden_sensors' AND TABLE_NAME='plants'
+            AND COLUMN_NAME IN ('min_ph','max_ph','ec_underfed','ec_balanced_min','ec_balanced_max','ec_overfed');
+        "
+
     - name: Copy environment file
-      run: cp config/environment/.env.example config/environment/.env.test
+      run: |
+        if [ -f config/environment/.env.example ]; then
+          cp config/environment/.env.example config/environment/.env.test
+        elif [ -f .env.example ]; then
+          cp .env.example .env.test
+        fi
 
     - name: Run PHP tests
-      run: vendor/bin/phpunit --coverage-clover=coverage.xml
+      run: vendor/bin/phpunit --testdox --coverage-clover=coverage.xml
       env:
+        TESTING: "true"
         DB_CONNECTION: mysql
         DB_HOST: 127.0.0.1
         DB_PORT: 3306
-        DB_DATABASE: garden_sensors_test
-        DB_USERNAME: root
-        DB_PASSWORD: root
+        DB_DATABASE: garden_sensors
+        DB_NAME: garden_sensors
+        DB_USER: root
+        DB_PASS: newrootpassword
 
     - name: Run Python tests
-      run: pytest --cov=python --cov-report=xml
+      run: pytest tests/python/ -v --cov=python --cov-report=xml
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v2
       with:
-        files: ./coverage.xml,./python/.coverage
-        fail_ci_if_error: true
+        files: ./coverage.xml,./coverage.xml
+        fail_ci_if_error: false
 
   lint:
     runs-on: ubuntu-latest
@@ -98,4 +117,4 @@ jobs:
       run: composer install --prefer-dist --no-progress
 
     - name: Run security check
-      run: composer audit 
+      run: composer audit

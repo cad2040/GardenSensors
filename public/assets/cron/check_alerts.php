@@ -12,10 +12,13 @@ try {
     $sql = "SELECT u.id, u.email, us.settings 
             FROM users u 
             JOIN user_settings us ON u.id = us.user_id 
-            WHERE us.settings->>'email_notifications' = 'true' 
-            OR us.settings->>'low_battery_alert' = 'true' 
-            OR us.settings->>'moisture_alert' = 'true' 
-            OR us.settings->>'temperature_alert' = 'true'";
+            OR JSON_UNQUOTE(JSON_EXTRACT(us.settings, '$.email_notifications')) = 'true'
+            OR JSON_UNQUOTE(JSON_EXTRACT(us.settings, '$.low_battery_alert')) = 'true'
+            OR JSON_UNQUOTE(JSON_EXTRACT(us.settings, '$.moisture_alert')) = 'true'
+            OR JSON_UNQUOTE(JSON_EXTRACT(us.settings, '$.temperature_alert')) = 'true'
+            OR JSON_UNQUOTE(JSON_EXTRACT(us.settings, '$.ph_alert')) = 'true'
+            OR JSON_UNQUOTE(JSON_EXTRACT(us.settings, '$.ec_alert')) = 'true'
+            OR JSON_UNQUOTE(JSON_EXTRACT(us.settings, '$.nitrogen_alert')) = 'true'";
     
     $db = new Database();
     $stmt = $db->prepare($sql);
@@ -26,10 +29,13 @@ try {
         $settings = json_decode($user['settings'], true);
         
         // Skip if no alerts are enabled
-        if (!$settings['email_notifications'] && 
-            !$settings['low_battery_alert'] && 
-            !$settings['moisture_alert'] && 
-            !$settings['temperature_alert']) {
+        if (empty($settings['email_notifications']) && 
+            empty($settings['low_battery_alert']) && 
+            empty($settings['moisture_alert']) && 
+            empty($settings['temperature_alert']) &&
+            empty($settings['ph_alert']) &&
+            empty($settings['ec_alert']) &&
+            empty($settings['nitrogen_alert'])) {
             continue;
         }
 

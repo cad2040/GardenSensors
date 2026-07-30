@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_status (status)
 ) ENGINE=InnoDB;
 
--- Create Settings table
+-- Create Settings table (global key/value)
 CREATE TABLE IF NOT EXISTS settings (
     id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
@@ -39,6 +39,20 @@ CREATE TABLE IF NOT EXISTS settings (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_name (name)
+) ENGINE=InnoDB;
+
+-- Per-user JSON settings (alerts, baseline_water_ec, theme, etc.)
+CREATE TABLE IF NOT EXISTS user_settings (
+    id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT(6) UNSIGNED NOT NULL,
+    settings JSON NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_user_settings_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+    UNIQUE KEY uniq_user_settings_user (user_id)
 ) ENGINE=InnoDB;
 
 -- Create Sensors table
@@ -55,7 +69,7 @@ CREATE TABLE IF NOT EXISTS sensors (
     max_threshold DECIMAL(5,2) DEFAULT 80.00,
     unit VARCHAR(20) DEFAULT 'percentage',
     plot_url VARCHAR(255),
-    plot_type ENUM('moisture', 'temperature', 'humidity') DEFAULT 'moisture',
+    plot_type ENUM('moisture', 'temperature', 'humidity', 'ph', 'ec') DEFAULT 'moisture',
     user_id INT(6) UNSIGNED,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -134,6 +148,12 @@ CREATE TABLE IF NOT EXISTS plants (
     location VARCHAR(255),
     min_temperature DECIMAL(4,1),
     max_temperature DECIMAL(4,1),
+    min_ph DECIMAL(3,1) DEFAULT 6.0,
+    max_ph DECIMAL(3,1) DEFAULT 7.0,
+    ec_underfed DECIMAL(6,2) DEFAULT 0.80 COMMENT 'Available EC below = underfed (mS/cm)',
+    ec_balanced_min DECIMAL(6,2) DEFAULT 1.00,
+    ec_balanced_max DECIMAL(6,2) DEFAULT 1.60,
+    ec_overfed DECIMAL(6,2) DEFAULT 2.00 COMMENT 'Available EC above = overfed risk (mS/cm)',
     status ENUM('active', 'inactive', 'harvested') DEFAULT 'active',
     user_id INT(6) UNSIGNED,
     catalog_id INT(6) UNSIGNED NULL,
@@ -266,13 +286,28 @@ FLUSH PRIVILEGES;
 
 -- Insert default admin user (password: admin123)
 INSERT INTO users (username, password_hash, email) VALUES 
-('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@example.com');
+('admin', '$2y$10$deeBiuvyRruEmynmW/fJ8.LdU59uzFdyElSLlM/zQpvMuhtBCkMZO', 'admin@example.com');
 
 -- Insert default settings
 INSERT INTO settings (name, value) VALUES
 ('update_interval', '300'),
 ('timezone', 'UTC'),
 ('plot_type', 'moisture');
+
+INSERT INTO user_settings (user_id, settings) VALUES
+(1, JSON_OBJECT(
+    'email_notifications', true,
+    'low_battery_alert', true,
+    'moisture_alert', true,
+    'temperature_alert', true,
+    'ph_alert', true,
+    'ec_alert', true,
+    'baseline_water_ec', 0.3,
+    'update_interval', 300,
+    'theme', 'light',
+    'language', 'en',
+    'timezone', 'UTC'
+));
 
 -- Insert sample sensors
 INSERT INTO sensors (name, type, location, description) VALUES
@@ -281,7 +316,7 @@ INSERT INTO sensors (name, type, location, description) VALUES
 ('Soil Moisture 1', 'moisture', 'Greenhouse 1', 'Soil moisture sensor for plant bed 1');
 
 -- Insert sample plants
-INSERT INTO plants (name, species, min_soil_moisture, max_soil_moisture, watering_frequency) VALUES
-('Tomato Plant', 'Solanum lycopersicum', 40, 80, 24),
-('Basil Plant', 'Ocimum basilicum', 30, 70, 12),
-('Succulent', 'Various', 20, 50, 168);  -- Weekly watering 
+INSERT INTO plants (name, species, min_soil_moisture, max_soil_moisture, watering_frequency, min_ph, max_ph, ec_underfed, ec_balanced_min, ec_balanced_max, ec_overfed) VALUES
+('Tomato Plant', 'Solanum lycopersicum', 40, 80, 24, 6.0, 6.8, 0.80, 1.00, 1.60, 2.00),
+('Basil Plant', 'Ocimum basilicum', 30, 70, 12, 6.0, 7.5, 0.80, 1.00, 1.60, 2.00),
+('Succulent', 'Various', 20, 50, 168, 6.0, 7.5, 0.80, 1.00, 1.60, 2.00);  -- Weekly watering

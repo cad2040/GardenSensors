@@ -42,9 +42,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $location = trim($_POST['location'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $plant_id = !empty($_POST['plant_id']) ? intval($_POST['plant_id']) : null;
-    // Set plot_type based on sensor type
-    $plot_type = in_array($type, ['temperature', 'humidity', 'moisture']) ? $type : 'moisture';
-    $unit = $_POST['unit'] ?? 'percentage';
+    // Set plot_type and default unit based on sensor type
+    $allowedPlotTypes = ['temperature', 'humidity', 'moisture', 'ph', 'ec'];
+    $plot_type = in_array($type, $allowedPlotTypes, true) ? $type : 'moisture';
+    $defaultUnits = [
+        'temperature' => 'celsius',
+        'humidity' => 'percentage',
+        'moisture' => 'percentage',
+        'ph' => 'pH',
+        'ec' => 'mS/cm',
+    ];
+    $unit = $_POST['unit'] ?? ($defaultUnits[$type] ?? 'percentage');
+    if ($type === 'ph') {
+        $unit = 'pH';
+    } elseif ($type === 'ec') {
+        $unit = 'mS/cm';
+    }
     
     // Validation
     if (empty($name)) {
@@ -204,8 +217,9 @@ $page_title = 'Add New Sensor';
                                 <option value="temperature" <?php echo (($_POST['type'] ?? '') === 'temperature') ? 'selected' : ''; ?>>Temperature</option>
                                 <option value="humidity" <?php echo (($_POST['type'] ?? '') === 'humidity') ? 'selected' : ''; ?>>Humidity</option>
                                 <option value="moisture" <?php echo (($_POST['type'] ?? '') === 'moisture') ? 'selected' : ''; ?>>Moisture</option>
+                                <option value="ph" <?php echo (($_POST['type'] ?? '') === 'ph') ? 'selected' : ''; ?>>Soil pH</option>
+                                <option value="ec" <?php echo (($_POST['type'] ?? '') === 'ec') ? 'selected' : ''; ?>>Soil EC (nutrient proxy)</option>
                                 <option value="light" <?php echo (($_POST['type'] ?? '') === 'light') ? 'selected' : ''; ?>>Light</option>
-                                <option value="soil_pH" <?php echo (($_POST['type'] ?? '') === 'soil_pH') ? 'selected' : ''; ?>>Soil pH</option>
                             </select>
                             <input type="hidden" id="plot_type" name="plot_type" value="">
                         </div>
@@ -248,6 +262,8 @@ $page_title = 'Add New Sensor';
                                 <option value="percentage" <?php echo (($_POST['unit'] ?? 'percentage') === 'percentage') ? 'selected' : ''; ?>>Percentage (%)</option>
                                 <option value="celsius" <?php echo (($_POST['unit'] ?? '') === 'celsius') ? 'selected' : ''; ?>>Celsius (°C)</option>
                                 <option value="fahrenheit" <?php echo (($_POST['unit'] ?? '') === 'fahrenheit') ? 'selected' : ''; ?>>Fahrenheit (°F)</option>
+                                <option value="pH" <?php echo (($_POST['unit'] ?? '') === 'pH') ? 'selected' : ''; ?>>pH</option>
+                                <option value="mS/cm" <?php echo (($_POST['unit'] ?? '') === 'mS/cm') ? 'selected' : ''; ?>>mS/cm (soil EC)</option>
                                 <option value="ppm" <?php echo (($_POST['unit'] ?? '') === 'ppm') ? 'selected' : ''; ?>>PPM</option>
                             </select>
                         </div>
@@ -275,10 +291,16 @@ $page_title = 'Add New Sensor';
         var sensorType = this.value;
         var plotTypeInput = document.getElementById('plot_type');
         // Map sensor types to plot types
-        if (['temperature', 'humidity', 'moisture'].includes(sensorType)) {
+        if (['temperature', 'humidity', 'moisture', 'ph', 'ec'].includes(sensorType)) {
             plotTypeInput.value = sensorType;
         } else {
             plotTypeInput.value = 'moisture'; // Default for other types
+        }
+        var unitSelect = document.getElementById('unit');
+        if (sensorType === 'ph') {
+            unitSelect.value = 'pH';
+        } else if (sensorType === 'ec') {
+            unitSelect.value = 'mS/cm';
         }
     });
     </script>

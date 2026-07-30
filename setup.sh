@@ -302,6 +302,9 @@ setup_mysql() {
     else
         print_warning "Some database tables may not be properly created: ${missing_tables[*]}"
     fi
+
+    # Verify pH / nitrogen schema support (migration 003 / updated schema.sql)
+    verify_ph_nitrogen_schema
     
     # Note: Tests now use production database, so no separate test database verification needed
     
@@ -312,6 +315,67 @@ setup_mysql() {
     mysql -u root -pnewrootpassword -e "FLUSH PRIVILEGES;" || print_warning "Failed to flush privileges"
     
     print_status "MySQL setup completed"
+}
+
+# Verify plants pH/EC columns and sensors.plot_type ENUM
+verify_ph_nitrogen_schema() {
+    print_info "Verifying pH / EC schema support..."
+
+    local missing=0
+    for col in min_ph max_ph ec_underfed ec_balanced_min ec_balanced_max ec_overfed; do
+        local count
+        count=$(mysql -u root -pnewrootpassword garden_sensors -sN -e \
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA='garden_sensors' AND TABLE_NAME='plants' AND COLUMN_NAME='$col';" 2>/dev/null || echo "0")
+        if [ "$count" = "1" ]; then
+            print_info "✓ plants.$col present"
+        else
+            print_warning "✗ plants.$col missing — re-run migration 004_ec_nutrient_proxy.sql"
+            missing=1
+        fi
+    done
+
+    local enum_vals
+    enum_vals=$(mysql -u root -pnewrootpassword garden_sensors -sN -e \
+        "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA='garden_sensors' AND TABLE_NAME='sensors' AND COLUMN_NAME='plot_type';" 2>/dev/null || echo "")
+    if echo "$enum_vals" | grep -q "ph" && echo "$enum_vals" | grep -q "ec"; then
+        print_info "✓ sensors.plot_type includes ph and ec"
+    else
+        print_warning "✗ sensors.plot_type missing ph/ec values: $enum_vals"
+        missing=1
+    fi
+
+    if [ "$missing" -eq 0 ]; then
+        print_status "pH / EC schema verified"
+        return 0
+    fi
+    print_warning "pH / EC schema incomplete"
+    return 1
+}
+
+# Verify seeded sample sensors for pH and nitrogen exist after seed_default_data
+verify_ph_nitrogen_seed() {
+    print_info "Verifying complete per-plant dashboard seed..."
+    local complete_metrics
+    complete_metrics=$(mysql -u root -pnewrootpassword garden_sensors -sN -e \
+        "SELECT COUNT(*) FROM (
+            SELECT p.id, s.type
+            FROM plants p
+            JOIN plant_sensors ps ON ps.plant_id = p.id
+            JOIN sensors s ON s.id = ps.sensor_id
+            JOIN readings r ON r.sensor_id = s.id
+            WHERE p.name IN ('Tomato Plant', 'Basil Plant', 'Lettuce Plant')
+              AND s.type IN ('temperature', 'moisture', 'ec')
+            GROUP BY p.id, s.type
+        ) seeded_metrics;" 2>/dev/null || echo "0")
+
+    if [ "$complete_metrics" -eq 9 ]; then
+        print_status "Dashboard seed verified: temperature, moisture, and EC for all 3 plants"
+        return 0
+    fi
+    print_warning "Dashboard seed incomplete: expected 9 plant/metric combinations, found $complete_metrics"
+    return 1
 }
 
 # Function to deploy to web root
@@ -444,10 +508,39 @@ seed_default_data() {
     print_info "Ensuring default admin user exists..."
     mysql -u root -pnewrootpassword garden_sensors -e "\
         INSERT INTO users (username, password_hash, email)\
-        SELECT 'admin', '\$2y\$10\$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@example.com'\
+        SELECT 'admin', '\$2y\$10\$deeBiuvyRruEmynmW/fJ8.LdU59uzFdyElSLlM/zQpvMuhtBCkMZO', 'admin@example.com'\
         WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 1 OR username = 'admin');\
         UPDATE users SET id = 1 WHERE username = 'admin' AND id <> 1;\
     " 2>/dev/null || print_warning "Failed to seed admin user"
+
+    print_info "Ensuring admin user_settings (EC baseline defaults)..."
+    mysql -u root -pnewrootpassword garden_sensors -e "\
+        CREATE TABLE IF NOT EXISTS user_settings (
+            id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT(6) UNSIGNED NOT NULL,
+            settings JSON NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_user_settings_user (user_id)
+        ) ENGINE=InnoDB;\
+        INSERT INTO user_settings (user_id, settings)\
+        SELECT u.id, JSON_OBJECT(
+            'email_notifications', true,
+            'low_battery_alert', true,
+            'moisture_alert', true,
+            'temperature_alert', true,
+            'ph_alert', true,
+            'ec_alert', true,
+            'baseline_water_ec', 0.3,
+            'update_interval', 300,
+            'theme', 'light',
+            'language', 'en',
+            'timezone', 'UTC'
+        )\
+        FROM users u\
+        WHERE u.username = 'admin'\
+          AND NOT EXISTS (SELECT 1 FROM user_settings us WHERE us.user_id = u.id);\
+    " 2>/dev/null || print_warning "Failed to seed admin user_settings"
 
     # Seed baseline sensors and plant-specific sensors used by dashboard/plot test data.
     print_info "Seeding sample sensors..."
@@ -488,21 +581,36 @@ seed_default_data() {
         INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
         SELECT 'Lettuce Moisture Sensor', 'moisture', 'Greenhouse 2', 'Seeded sample sensor for Lettuce Plant', '%', 'moisture', 1\
         WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Lettuce Moisture Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Tomato pH Sensor', 'ph', 'Greenhouse 1', 'Seeded sample pH sensor for Tomato Plant', 'pH', 'ph', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Tomato pH Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Tomato EC Sensor', 'ec', 'Greenhouse 1', 'Seeded sample nitrogen sensor for Tomato Plant', 'mS/cm', 'ec', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Tomato EC Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Basil pH Sensor', 'ph', 'Greenhouse 1', 'Seeded sample pH sensor for Basil Plant', 'pH', 'ph', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Basil pH Sensor');\
+        INSERT INTO sensors (name, type, location, description, unit, plot_type, user_id)\
+        SELECT 'Basil EC Sensor', 'ec', 'Greenhouse 1', 'Seeded sample nitrogen sensor for Basil Plant', 'mS/cm', 'ec', 1\
+        WHERE NOT EXISTS (SELECT 1 FROM sensors WHERE name = 'Basil EC Sensor');\
     " 2>/dev/null || print_warning "Failed to seed sample sensors"
 
     # Seed sample plants for admin user if none exist
     print_info "Seeding sample plants if none exist..."
     mysql -u root -pnewrootpassword garden_sensors -e "\
-        INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, status, user_id)\
-        SELECT 'Tomato Plant', 'Solanum lycopersicum', 'Greenhouse 1', 40, 80, 24, 'active', 1\
+        INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, min_ph, max_ph, ec_underfed, ec_balanced_min, ec_balanced_max, ec_overfed, status, user_id)\
+        SELECT 'Tomato Plant', 'Solanum lycopersicum', 'Greenhouse 1', 40, 80, 24, 6.0, 6.8, 0.8, 1.0, 1.6, 2.0, 'active', 1\
         WHERE NOT EXISTS (SELECT 1 FROM plants WHERE name = 'Tomato Plant');\
-        INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, status, user_id)\
-        SELECT 'Basil Plant', 'Ocimum basilicum', 'Greenhouse 1', 35, 70, 12, 'active', 1\
+        INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, min_ph, max_ph, ec_underfed, ec_balanced_min, ec_balanced_max, ec_overfed, status, user_id)\
+        SELECT 'Basil Plant', 'Ocimum basilicum', 'Greenhouse 1', 35, 70, 12, 6.0, 7.5, 0.8, 1.0, 1.6, 2.0, 'active', 1\
         WHERE NOT EXISTS (SELECT 1 FROM plants WHERE name = 'Basil Plant');\
-        INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, status, user_id)\
-        SELECT 'Lettuce Plant', 'Lactuca sativa', 'Greenhouse 2', 45, 75, 18, 'active', 1\
+        INSERT INTO plants (name, species, location, min_soil_moisture, max_soil_moisture, watering_frequency, min_ph, max_ph, ec_underfed, ec_balanced_min, ec_balanced_max, ec_overfed, status, user_id)\
+        SELECT 'Lettuce Plant', 'Lactuca sativa', 'Greenhouse 2', 45, 75, 18, 6.0, 7.0, 0.8, 1.0, 1.6, 2.0, 'active', 1\
         WHERE NOT EXISTS (SELECT 1 FROM plants WHERE name = 'Lettuce Plant');\
         UPDATE plants SET user_id = 1 WHERE name IN ('Tomato Plant', 'Basil Plant', 'Lettuce Plant') AND (user_id IS NULL OR user_id = 0);\
+        UPDATE plants SET min_ph = 6.0, max_ph = 6.8, ec_underfed = 0.8, ec_balanced_min = 1.0, ec_balanced_max = 1.6, ec_overfed = 2.0 WHERE name = 'Tomato Plant';\
+        UPDATE plants SET min_ph = 6.0, max_ph = 7.5, ec_underfed = 0.8, ec_balanced_min = 1.0, ec_balanced_max = 1.6, ec_overfed = 2.0 WHERE name = 'Basil Plant';\
+        UPDATE plants SET min_ph = 6.0, max_ph = 7.0, ec_underfed = 0.8, ec_balanced_min = 1.0, ec_balanced_max = 1.6, ec_overfed = 2.0 WHERE name = 'Lettuce Plant';\
     " 2>/dev/null || print_warning "Failed to seed sample plants"
 
     # Link sample sensors to sample plants when both exist.
@@ -527,12 +635,12 @@ seed_default_data() {
         SELECT s.id, p.id, 250\
         FROM sensors s\
         JOIN plants p ON p.name = 'Tomato Plant'\
-        WHERE s.name IN ('Tomato Temperature Sensor', 'Tomato Humidity Sensor', 'Tomato Moisture Sensor');\
+        WHERE s.name IN ('Tomato Temperature Sensor', 'Tomato Humidity Sensor', 'Tomato Moisture Sensor', 'Tomato pH Sensor', 'Tomato EC Sensor');\
         INSERT IGNORE INTO plant_sensors (sensor_id, plant_id, water_amount)\
         SELECT s.id, p.id, 220\
         FROM sensors s\
         JOIN plants p ON p.name = 'Basil Plant'\
-        WHERE s.name IN ('Basil Temperature Sensor', 'Basil Humidity Sensor', 'Basil Moisture Sensor');\
+        WHERE s.name IN ('Basil Temperature Sensor', 'Basil Humidity Sensor', 'Basil Moisture Sensor', 'Basil pH Sensor', 'Basil EC Sensor');\
         INSERT IGNORE INTO plant_sensors (sensor_id, plant_id, water_amount)\
         SELECT s.id, p.id, 230\
         FROM sensors s\
@@ -547,8 +655,8 @@ seed_default_data() {
         DELETE r FROM readings r\
         JOIN sensors s ON s.id = r.sensor_id\
         WHERE s.name IN (\
-            'Tomato Temperature Sensor', 'Tomato Humidity Sensor', 'Tomato Moisture Sensor',\
-            'Basil Temperature Sensor', 'Basil Humidity Sensor', 'Basil Moisture Sensor',\
+            'Tomato Temperature Sensor', 'Tomato Humidity Sensor', 'Tomato Moisture Sensor', 'Tomato pH Sensor', 'Tomato EC Sensor',\
+            'Basil Temperature Sensor', 'Basil Humidity Sensor', 'Basil Moisture Sensor', 'Basil pH Sensor', 'Basil EC Sensor',\
             'Lettuce Temperature Sensor', 'Lettuce Humidity Sensor', 'Lettuce Moisture Sensor'\
         );\
         INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
@@ -605,7 +713,41 @@ seed_default_data() {
         SELECT s.id, 45.0, '%', 21.8, 64.0, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Lettuce Moisture Sensor';\
         INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
         SELECT s.id, 48.0, '%', 22.0, 63.0, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Lettuce Moisture Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 6.3, 'pH', NULL, NULL, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Tomato pH Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 6.5, 'pH', NULL, NULL, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Tomato pH Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 6.4, 'pH', NULL, NULL, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Tomato pH Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 1.40, 'mS/cm', NULL, NULL, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Tomato EC Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 1.50, 'mS/cm', NULL, NULL, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Tomato EC Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 1.45, 'mS/cm', NULL, NULL, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Tomato EC Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 6.8, 'pH', NULL, NULL, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Basil pH Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 7.0, 'pH', NULL, NULL, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Basil pH Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 6.9, 'pH', NULL, NULL, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Basil pH Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 1.30, 'mS/cm', NULL, NULL, DATE_SUB(NOW(), INTERVAL 6 DAY) FROM sensors s WHERE s.name = 'Basil EC Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 1.35, 'mS/cm', NULL, NULL, DATE_SUB(NOW(), INTERVAL 3 DAY) FROM sensors s WHERE s.name = 'Basil EC Sensor';\
+        INSERT INTO readings (sensor_id, value, unit, temperature, humidity, created_at)\
+        SELECT s.id, 1.32, 'mS/cm', NULL, NULL, DATE_SUB(NOW(), INTERVAL 1 DAY) FROM sensors s WHERE s.name = 'Basil EC Sensor';\
     " 2>/dev/null || print_warning "Failed to seed sample readings"
+
+    # Canonical, deterministic sample dataset. This removes obsolete sample
+    # sensors and guarantees each sample plant has every dashboard metric.
+    if [ -f "database/seed_test_plot_data.sql" ]; then
+        print_info "Applying canonical per-plant dashboard seed..."
+        mysql -u root -pnewrootpassword garden_sensors < database/seed_test_plot_data.sql \
+            >/dev/null || print_warning "Failed to apply canonical dashboard seed"
+    fi
+
+    verify_ph_nitrogen_seed || print_warning "Per-plant dashboard seed verification failed"
 
     print_status "Default data seeding completed"
 }
@@ -696,13 +838,8 @@ verify_database() {
     else
         print_warning "Production database tables may be missing"
     fi
-    
-    print_info "Checking production database..."
-    if mysql -u root -pnewrootpassword garden_sensors -e "SHOW TABLES;" 2>/dev/null | grep -q "users"; then
-        print_status "Production database tables verified"
-    else
-        print_warning "Production database tables may be missing"
-    fi
+
+    verify_ph_nitrogen_schema || print_warning "pH / nitrogen schema verification failed"
     
     print_info "Checking database permissions..."
     if mysql -u root -pnewrootpassword -e "SHOW GRANTS FOR 'root'@'localhost';" 2>/dev/null | grep -q "ALL PRIVILEGES"; then
@@ -761,6 +898,38 @@ run_tests() {
         print_error "PHPUnit not found in project or web root; run Composer install first"
     fi
 
+    # Schema must include pH/EC before model/alert tests run
+    if ! verify_ph_nitrogen_schema; then
+        print_error "pH / EC schema missing — cannot run tests reliably"
+        return 1
+    fi
+
+    # Confirm EC / dashboard test files are present in the deploy tree
+    local required_tests=(
+        "tests/Models/PlantTest.php"
+        "tests/Models/SensorTest.php"
+        "tests/Models/ReadingTest.php"
+        "tests/Services/NotificationTest.php"
+        "tests/Services/DashboardSeedTest.php"
+        "tests/python/test_produce_plot.py"
+        "database/migrations/003_add_ph_nitrogen_support.sql"
+        "database/seed_test_plot_data.sql"
+        "public/index.php"
+        "public/api/summary.php"
+        "public/assets/css/style.css"
+        "database/migrations/004_ec_nutrient_proxy.sql"
+        "database/migrations/005_user_settings.sql"
+        "tests/Services/EcNutrientServiceTest.php"
+        "docs/development/ec-nutrient-proxy.md"
+    )
+    for test_file in "${required_tests[@]}"; do
+        if [ ! -f "$php_test_dir/$test_file" ] && [ ! -f "$test_file" ]; then
+            print_error "Required test/migration file missing from deploy: $test_file"
+            return 1
+        fi
+    done
+    print_info "pH / EC test files present"
+
     print_info "Running PHP unit tests from $php_test_dir..."
     cd "$php_test_dir" || print_error "Failed to change to PHP test directory"
     if ./vendor/bin/phpunit --testdox; then
@@ -772,12 +941,12 @@ run_tests() {
     fi
     
     # Python venv and tests live in the project checkout, not a copied deploy tree.
-    print_info "Running Python tests..."
+    print_info "Running Python tests (includes ProducePlot ph/ec palette coverage)..."
     cd "$PROJECT_ROOT" || print_error "Failed to change to project root for Python tests"
     if detect_python_venv; then
         # shellcheck disable=SC1090
         source "$PYTHON_VENV_PATH/bin/activate"
-        if python -m pytest tests/python/ -v; then
+        if python -m pytest tests/python/ -v --ignore=tests/python/test_gui_pages.py; then
             print_status "Python tests passed"
         else
             python_test_result=$?

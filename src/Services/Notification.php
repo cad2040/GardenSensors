@@ -111,4 +111,117 @@ class Notification {
 
         return $notifications;
     }
+
+    public function checkAlerts(array $settings = null): void {
+        if ($settings === null) {
+            $settings = [
+                'low_battery_alert' => true,
+                'moisture_alert' => true,
+                'temperature_alert' => true,
+                'ph_alert' => true,
+                'ec_alert' => true,
+            ];
+        }
+
+        if (!empty($settings['ph_alert'])) {
+            $this->checkPhAlerts();
+        }
+        if (!empty($settings['ec_alert']) || !empty($settings['nitrogen_alert'])) {
+            $this->checkEcAlerts();
+        }
+    }
+
+    public function checkPhAlerts(): void {
+        $rows = $this->db->query(
+            "SELECT s.id, s.name, s.last_reading, p.name as plant_name, p.min_ph, p.max_ph
+             FROM sensors s
+             JOIN plant_sensors ps ON s.id = ps.sensor_id
+             JOIN plants p ON ps.plant_id = p.id
+             WHERE s.user_id = ? AND s.type = 'ph' AND s.last_reading IS NOT NULL
+             AND p.min_ph IS NOT NULL AND p.max_ph IS NOT NULL
+             AND (s.last_reading < p.min_ph OR s.last_reading > p.max_ph)
+             AND s.id NOT IN (
+                SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.sensor_id')) AS UNSIGNED)
+                FROM notifications
+                WHERE user_id = ? AND type = 'ph'
+                AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)
+             )",
+            [$this->userId, $this->userId]
+        );
+
+        foreach ($rows as $sensor) {
+            $high = $sensor['last_reading'] > $sensor['max_ph'];
+            $message = $high
+                ? "Soil pH high for sensor {$sensor['name']} on plant {$sensor['plant_name']} — consider an amendment to lower pH"
+                : "Soil pH low for sensor {$sensor['name']} on plant {$sensor['plant_name']} — consider an amendment to raise pH";
+            $this->create('ph', $message, [
+                'sensor_id' => (int)$sensor['id'],
+                'reading' => $sensor['last_reading'],
+                'min' => $sensor['min_ph'],
+                'max' => $sensor['max_ph'],
+                'status' => $high ? 'high' : 'low'
+            ]);
+        }
+    }
+
+    public function checkEcAlerts(): void {
+        $settingsRow = $this->db->query(
+            'SELECT settings FROM user_settings WHERE user_id = ?',
+            [$this->userId]
+        );
+        $baseline = 0.3;
+        if (!empty($settingsRow[0]['settings'])) {
+            $decoded = json_decode($settingsRow[0]['settings'], true) ?: [];
+            if (isset($decoded['baseline_water_ec'])) {
+                $baseline = (float)$decoded['baseline_water_ec'];
+            }
+        }
+
+        $ecService = new EcNutrientService($this->db);
+        $rows = $this->db->query(
+            "SELECT s.id, s.name, s.last_reading, p.name as plant_name,
+                    p.ec_underfed, p.ec_balanced_min, p.ec_balanced_max, p.ec_overfed
+             FROM sensors s
+             JOIN plant_sensors ps ON s.id = ps.sensor_id
+             JOIN plants p ON ps.plant_id = p.id
+             WHERE s.user_id = ? AND s.type = 'ec' AND s.last_reading IS NOT NULL
+             AND s.id NOT IN (
+                SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.sensor_id')) AS UNSIGNED)
+                FROM notifications
+                WHERE user_id = ? AND type = 'ec'
+                AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)
+             )",
+            [$this->userId, $this->userId]
+        );
+
+        foreach ($rows as $sensor) {
+            $zones = [
+                'ec_underfed' => (float)$sensor['ec_underfed'],
+                'ec_balanced_min' => (float)$sensor['ec_balanced_min'],
+                'ec_balanced_max' => (float)$sensor['ec_balanced_max'],
+                'ec_overfed' => (float)$sensor['ec_overfed'],
+            ];
+            $eval = $ecService->evaluateSensor(
+                (int)$sensor['id'],
+                (float)$sensor['last_reading'],
+                $baseline,
+                $zones
+            );
+            if ($eval['state'] === EcNutrientService::STATE_BALANCED) {
+                continue;
+            }
+            $message = $ecService->alertMessage(
+                $eval['state'],
+                $sensor['plant_name'],
+                !empty($eval['trend_driven'])
+            );
+            $this->create('ec', $message, [
+                'sensor_id' => (int)$sensor['id'],
+                'soil_ec' => $eval['soil_ec'],
+                'available_ec' => $eval['available_ec'],
+                'state' => $eval['state'],
+                'slope' => $eval['slope'],
+            ]);
+        }
+    }
 } 

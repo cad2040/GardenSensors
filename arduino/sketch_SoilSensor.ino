@@ -5,6 +5,7 @@
 #include <EEPROM.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
+#include <SoftwareSerial.h>
 
 // EEPROM configuration
 #define EEPROM_SIZE 512
@@ -12,6 +13,11 @@
 
 // LED pin for status indication
 const int LED_PIN = 2;  // Built-in LED on most ESP8266 boards
+
+// RS485 / MAX485 pins (NodeMCU)
+const int RS485_RX_PIN = 13;  // D7
+const int RS485_TX_PIN = 12;  // D6
+const int RS485_DE_PIN = 14;  // D5 (RE+DE tied)
 
 // Watchdog timeout (8 seconds)
 const unsigned long WATCHDOG_TIMEOUT = 8000000;
@@ -29,14 +35,19 @@ IPAddress server_addr(192,168,1,xx); // IP of the MySQL server here
 char user[] = "Enter MySQL Uname"; // MySQL user login username
 char pass[] = "Enter MySQL Password"; // MySQL user login password
 
-//Query to insert readings into MySQL, update value 1 to sensor id
-char INSERT_SQL_FORMAT[] = "INSERT INTO SoilSensors.Readings (sensor_id, reading) VALUES (1, %f)";
-char query[128];
+// Insert into garden_sensors.readings (sensor_id, value, unit)
+char INSERT_SQL_FORMAT[] = "INSERT INTO garden_sensors.readings (sensor_id, value, unit) VALUES (%u, %f, '%s')";
+char query[160];
 MySQL_Connection conn((Client *)&client);
+SoftwareSerial rs485(RS485_RX_PIN, RS485_TX_PIN);
  
 // global variables
 const char host[] = "Sector01Sensor"; // update for each sensor
 float moisture = 0;
+float soilPh = 0;
+float soilEc = 0;
+bool havePh = false;
+bool haveEc = false;
 const unsigned reading_count = 10; // Take 10 readings to get an average
 unsigned int analogVals[reading_count];
 unsigned int counter = 0;
@@ -63,6 +74,16 @@ struct Config {
   float min_valid_moisture;
   float max_valid_moisture;
   unsigned long min_reading_interval_ms;
+  unsigned int moisture_sensor_id;
+  unsigned int ph_sensor_id;
+  unsigned int ec_sensor_id;
+  unsigned int modbus_address;
+  unsigned int modbus_baud;
+  unsigned int probe_settle_ms;
+  float min_valid_ph;
+  float max_valid_ph;
+  float min_valid_ec;
+  float max_valid_ec;
 };
 
 // Default configuration
@@ -77,12 +98,22 @@ Config config = {
   10,   // reading_count
   270,  // moisture_min (dry soil)
   732,  // moisture_max (wet soil)
-  "INSERT INTO SoilSensors.Readings (sensor_id, reading) VALUES (1, %f)",
+  "INSERT INTO garden_sensors.readings (sensor_id, value, unit) VALUES (%u, %f, '%s')",
   60*60*1000UL,  // sleep_duration_ms (1 hour)
   30000,         // connection_timeout_ms (30 seconds)
   0.0,           // min_valid_moisture
   100.0,         // max_valid_moisture
-  5*60*1000UL    // min_reading_interval_ms (5 minutes)
+  5*60*1000UL,   // min_reading_interval_ms (5 minutes)
+  1,             // moisture_sensor_id
+  2,             // ph_sensor_id
+  3,             // ec_sensor_id
+  1,             // modbus_address
+  4800,          // modbus_baud (common default; use 9600 if required by probe)
+  8000,          // probe_settle_ms
+  3.0,           // min_valid_ph
+  9.0,           // max_valid_ph
+  0.0,           // min_valid_ec (mS/cm)
+  5.0            // max_valid_ec (mS/cm)
 };
 
 // Error handling function with LED indication
@@ -134,7 +165,9 @@ void handleRoot() {
   String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
   html += "<style>body{font-family:Arial;margin:20px;}</style></head><body>";
   html += "<h1>Soil Sensor Status</h1>";
-  html += "<p>Last Reading: " + String(moisture, 2) + "%</p>";
+  html += "<p>Last Moisture: " + String(moisture, 2) + "%</p>";
+  html += "<p>Last pH: " + (havePh ? String(soilPh, 2) : String("n/a")) + "</p>";
+  html += "<p>Last soil EC: " + (haveEc ? String(soilEc, 2) + " mS/cm" : String("n/a")) + "</p>";
   html += "<p>Last Reading Time: " + String(last_reading_time) + "</p>";
   html += "<p>WiFi Signal Strength: " + String(WiFi.RSSI()) + " dBm</p>";
   html += "<p>Device Uptime: " + String(millis() / 1000) + " seconds</p>";
@@ -216,6 +249,108 @@ void loadConfig() {
   EEPROM.get(EEPROM_START_ADDR, config);
 }
 
+// Modbus RTU CRC16
+uint16_t modbusCrc16(const uint8_t* data, uint8_t len) {
+  uint16_t crc = 0xFFFF;
+  for (uint8_t pos = 0; pos < len; pos++) {
+    crc ^= data[pos];
+    for (uint8_t i = 0; i < 8; i++) {
+      if (crc & 0x0001) {
+        crc >>= 1;
+        crc ^= 0xA001;
+      } else {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc;
+}
+
+void rs485SetTransmit(bool enable) {
+  digitalWrite(RS485_DE_PIN, enable ? HIGH : LOW);
+}
+
+// Read a single holding register (function 0x03). Returns true on success.
+bool modbusReadHolding(uint16_t regAddr, uint16_t& valueOut) {
+  uint8_t request[8];
+  request[0] = (uint8_t)config.modbus_address;
+  request[1] = 0x03;
+  request[2] = highByte(regAddr);
+  request[3] = lowByte(regAddr);
+  request[4] = 0x00;
+  request[5] = 0x01;
+  uint16_t crc = modbusCrc16(request, 6);
+  request[6] = lowByte(crc);
+  request[7] = highByte(crc);
+
+  while (rs485.available()) {
+    rs485.read();
+  }
+
+  rs485SetTransmit(true);
+  delay(2);
+  rs485.write(request, sizeof(request));
+  rs485.flush();
+  delay(2);
+  rs485SetTransmit(false);
+
+  uint8_t response[7];
+  uint8_t got = 0;
+  unsigned long start = millis();
+  while (got < sizeof(response) && millis() - start < 1500) {
+    if (rs485.available()) {
+      response[got++] = rs485.read();
+    }
+  }
+
+  if (got < sizeof(response)) {
+    return false;
+  }
+  if (response[0] != request[0] || response[1] != 0x03 || response[2] != 0x02) {
+    return false;
+  }
+  uint16_t respCrc = modbusCrc16(response, 5);
+  if (lowByte(respCrc) != response[5] || highByte(respCrc) != response[6]) {
+    return false;
+  }
+
+  valueOut = word(response[3], response[4]);
+  return true;
+}
+
+// 0x0000 moisture*0.1, 0x0001 temp*0.1, 0x0002 EC*0.01 mS/cm, 0x0003 pH*0.1
+bool readSoilPhAndEc() {
+  havePh = false;
+  haveEc = false;
+
+  delay(config.probe_settle_ms);
+
+  uint16_t rawPh = 0;
+  uint16_t rawEc = 0;
+  if (modbusReadHolding(0x0003, rawPh)) {
+    soilPh = rawPh * 0.1f;
+    havePh = (soilPh >= config.min_valid_ph && soilPh <= config.max_valid_ph);
+  }
+  if (modbusReadHolding(0x0002, rawEc)) {
+    soilEc = rawEc * 0.01f;
+    haveEc = (soilEc >= config.min_valid_ec && soilEc <= config.max_valid_ec);
+  }
+  return havePh || haveEc;
+}
+
+bool insertReading(unsigned int sensorId, float value, const char* unit) {
+  MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
+  snprintf(query, sizeof(query), config.insert_query_format, sensorId, value, unit);
+  bool ok = cur_mem->execute(query);
+  if (!ok) {
+    handleError("Failed to execute MySQL query");
+  } else {
+    Serial.printf("Recorded sensor %u: %.2f %s\n", sensorId, value, unit);
+  }
+  delete cur_mem;
+  return ok;
+}
+
 void loop() {
   // Reset watchdog timer
   ESP.wdtReset();
@@ -261,19 +396,23 @@ void loop() {
   
   // Update last reading time
   last_reading_time = millis();
-  
-  // Create cursor to execute SQL query
-  MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
-  
-  // Parse and execute query with enhanced error handling
-  sprintf(query, config.insert_query_format, moisture);
-  if (!cur_mem->execute(query)) {
-    handleError("Failed to execute MySQL query");
+
+  // Record moisture (A0) plus optional RS485 pH / soil EC
+  insertReading(config.moisture_sensor_id, moisture, "%");
+  if (readSoilPhAndEc()) {
+    if (havePh) {
+      insertReading(config.ph_sensor_id, soilPh, "pH");
+    } else {
+      handleError("Invalid or missing pH reading");
+    }
+    if (haveEc) {
+      insertReading(config.ec_sensor_id, soilEc, "mS/cm");
+    } else {
+      handleError("Invalid or missing soil EC reading");
+    }
   } else {
-    Serial.printf("Successfully recorded moisture reading: %.2f%%\n", moisture);
+    Serial.println("RS485 probe unavailable; moisture-only cycle");
   }
-  
-  delete cur_mem;
   
   // Check WiFi connection
   if (WiFi.status() != WL_CONNECTED) {
@@ -309,6 +448,11 @@ void setup() {
   // Initialize LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);  // LED off initially
+
+  // Initialize RS485
+  pinMode(RS485_DE_PIN, OUTPUT);
+  rs485SetTransmit(false);
+  rs485.begin(config.modbus_baud);
   
   // Initialize web server
   webServer.on("/", handleRoot);

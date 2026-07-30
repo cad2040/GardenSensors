@@ -15,6 +15,7 @@ CREATE DATABASE IF NOT EXISTS $DB_NAME CHARACTER SET utf8mb4 COLLATE utf8mb4_uni
 USE $DB_NAME;
 source $SCRIPT_DIR/schema.sql;
 source $SCRIPT_DIR/migrations/001_fix_test_tables.sql;
+source $SCRIPT_DIR/migrations/003_add_ph_nitrogen_support.sql;
 EOF
 
 # Create test user with necessary permissions

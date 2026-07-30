@@ -45,6 +45,9 @@ class SettingsController extends ApiController {
             'low_battery_alert' => 'boolean',
             'moisture_alert' => 'boolean',
             'temperature_alert' => 'boolean',
+            'ph_alert' => 'boolean',
+            'ec_alert' => 'boolean',
+            'baseline_water_ec' => 'numeric',
             'update_interval' => 'numeric',
             'theme' => 'max:20',
             'language' => 'max:10',
@@ -56,6 +59,9 @@ class SettingsController extends ApiController {
             'low_battery_alert' => $_POST['low_battery_alert'] ?? false,
             'moisture_alert' => $_POST['moisture_alert'] ?? false,
             'temperature_alert' => $_POST['temperature_alert'] ?? false,
+            'ph_alert' => $_POST['ph_alert'] ?? false,
+            'ec_alert' => $_POST['ec_alert'] ?? ($_POST['nitrogen_alert'] ?? false),
+            'baseline_water_ec' => $_POST['baseline_water_ec'] ?? 0.3,
             'update_interval' => $_POST['update_interval'] ?? 300,
             'theme' => $_POST['theme'] ?? 'light',
             'language' => $_POST['language'] ?? 'en',
@@ -65,6 +71,10 @@ class SettingsController extends ApiController {
         // Validate update interval
         if ($settings['update_interval'] < 60 || $settings['update_interval'] > 3600) {
             $this->sendError('Update interval must be between 60 and 3600 seconds');
+        }
+
+        if ($settings['baseline_water_ec'] < 0 || $settings['baseline_water_ec'] > 5) {
+            $this->sendError('Tap water EC baseline must be between 0 and 5 mS/cm');
         }
 
         // Validate timezone
@@ -106,6 +116,9 @@ class SettingsController extends ApiController {
             'low_battery_alert' => true,
             'moisture_alert' => true,
             'temperature_alert' => true,
+            'ph_alert' => true,
+            'ec_alert' => true,
+            'baseline_water_ec' => 0.3,
             'update_interval' => 300,
             'theme' => 'light',
             'language' => 'en',
@@ -130,4 +143,4 @@ class SettingsController extends ApiController {
 
 // Handle the request
 $controller = new SettingsController();
-$controller->handleRequest(); 
+$controller->handleRequest();

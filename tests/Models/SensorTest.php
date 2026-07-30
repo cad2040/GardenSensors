@@ -65,4 +65,22 @@ class SensorTest extends TestCase
         $this->assertEquals($newReading, $this->sensor->getLastReading());
         $this->assertEquals($newTime, $this->sensor->getLastReadingTime());
     }
+
+    public function testPhAndEcSensorPlotTypesPersist()
+    {
+        $uniqueId = uniqid();
+        $this->db->exec("
+            INSERT INTO sensors (name, type, location, description, plot_type, unit, status, created_at, updated_at)
+            VALUES
+            ('pH Sensor {$uniqueId}', 'ph', 'Bed 1', 'pH probe', 'ph', 'pH', 'active', NOW(), NOW()),
+            ('EC Sensor {$uniqueId}', 'ec', 'Bed 1', 'EC probe', 'ec', 'mS/cm', 'active', NOW(), NOW())
+        ");
+
+        $ph = $this->db->query("SELECT type, plot_type, unit FROM sensors WHERE name = 'pH Sensor {$uniqueId}'");
+        $ec = $this->db->query("SELECT type, plot_type, unit FROM sensors WHERE name = 'EC Sensor {$uniqueId}'");
+
+        $this->assertEquals('ph', $ph[0]['type']);
+        $this->assertEquals('ec', $ec[0]['type']);
+        $this->assertEquals('mS/cm', $ec[0]['unit']);
+    }
 } 

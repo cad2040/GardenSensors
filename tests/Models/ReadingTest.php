@@ -196,4 +196,35 @@ class ReadingTest extends TestCase
         $this->assertCount(1, $allReadings);
         $this->assertEquals(55, $allReadings[0]->getValue());
     }
+
+    public function testPhAndEcReadingsPersist()
+    {
+        $uniqueId = uniqid();
+        $this->db->exec("
+            INSERT INTO sensors (name, type, plot_type, unit, status, created_at, updated_at)
+            VALUES
+            ('pH Read Sensor {$uniqueId}', 'ph', 'ph', 'pH', 'active', NOW(), NOW()),
+            ('EC Read Sensor {$uniqueId}', 'ec', 'ec', 'mS/cm', 'active', NOW(), NOW())
+        ");
+        $phId = $this->db->query("SELECT id FROM sensors WHERE name = 'pH Read Sensor {$uniqueId}'")[0]['id'];
+        $ecId = $this->db->query("SELECT id FROM sensors WHERE name = 'EC Read Sensor {$uniqueId}'")[0]['id'];
+
+        $phReading = new Reading([
+            'sensor_id' => $phId,
+            'value' => 6.4,
+            'unit' => 'pH',
+        ]);
+        $ecReading = new Reading([
+            'sensor_id' => $ecId,
+            'value' => 1.35,
+            'unit' => 'mS/cm',
+        ]);
+        $phReading->save();
+        $ecReading->save();
+
+        $this->assertEquals(6.4, $phReading->getValue());
+        $this->assertEquals('pH', $phReading->getUnit());
+        $this->assertEquals(1.35, $ecReading->getValue());
+        $this->assertEquals('mS/cm', $ecReading->getUnit());
+    }
 } 

@@ -99,5 +99,19 @@ class TestPlotGenerator(unittest.TestCase):
         self.plotter.cleanup()
         self.mock_db.disconnect.assert_called_once()
 
+    def test_ph_and_ec_color_palettes_defined(self):
+        """Ensure pH and EC sensor types have plot color mappings."""
+        plot_path = os.path.join(
+            os.path.dirname(__file__),
+            '..',
+            '..',
+            'python',
+            'ProducePlot.py',
+        )
+        with open(os.path.abspath(plot_path), encoding='utf-8') as handle:
+            source = handle.read()
+        self.assertIn("'ph':", source)
+        self.assertIn("'ec':", source)
+
 if __name__ == '__main__':
     unittest.main() 
