@@ -1,35 +1,51 @@
 # GardenSensors Development Session Summary
 
-**Last updated:** 2026-07-30
+**Last updated:** 2026-07-31
 
-## Current status: EC nutrient proxy ready to push; local deploy torn down
+## Current status: Outdoor pot-node hardware + weatherproof enclosure ready to push
 
-Stage-1 horticultural framing is in place: soil **EC as nutrient proxy** (not fake nitrate), per-plant dashboard tiles, side-panel plot legend, and deploy/test wiring. Work is rebased onto current `origin/master` (Docker Compose path + plant catalog already upstream). Local Apache/MySQL deployment was torn down after validation.
+Locked **V1.0 PoC BOM** (NodeMCU + CWT/JXCT 4-in-1 RS485 + XY-017 + TP4056/18650/MT3608) and **V1.1 weatherproof enclosure** CAD (flange screws outside seal, TPU gasket, no USB sidewall hole). Docs and OpenSCAD are in-repo; print/hose-test still pending. Software Priority A (alerts/SMTP/cron) unchanged.
 
 Default admin after seed: **`admin` / `admin123`**.
 
 ---
 
-## Completed this session (2026-07-30)
+## Completed this session (2026-07-31)
 
-### EC nutrient proxy (nitrogen → EC)
+### Hardware BOM (V1.0 PoC)
 
-- Available nutrient EC = `max(0, soil_ec − baseline_water_ec)` + rolling trend → `underfed` | `balanced` | `overfed`
-- `src/Services/EcNutrientService.php`
-- Migrations `004_ec_nutrient_proxy.sql`, `005_user_settings.sql`
-- Plant EC zones; user `baseline_water_ec` + `ec_alert`
-- Firmware posts Modbus EC mS/cm; docs: `docs/development/ec-nutrient-proxy.md`, `docs/setup/README.md`
-- Dashboard tiles + summary API; seed `database/seed_test_plot_data.sql`
-- Tests/CI/setup/sync updated; plot legend in Bokeh right panel + `stretch_width`
+- [`docs/setup/HARDWARE_BOM.md`](docs/setup/HARDWARE_BOM.md) — locked parts, footprints, vendor notes
+- Wiring/power updated in [`docs/setup/README.md`](docs/setup/README.md) + root README / installation pointers
+- Stack: NodeMCU VIN from **MT3608 @ 5.0 V**; probe on same 5 V rail; XY-017 **auto-flow** (no DE); D0↔RST deep sleep
 
-### Deploy notes discovered
+### Enclosure CAD (V1.1 weatherproof seal)
 
-- Fresh deploy needed `user_settings` (added); plant tiles failed without it
-- Alert email path is **not** production-ready yet (see Priority A below)
+- [`hardware/enclosure/pot_node_enclosure_v1.scad`](hardware/enclosure/pot_node_enclosure_v1.scad) + [`hardware/enclosure/README.md`](hardware/enclosure/README.md)
+- Continuous gasket + lid tongue; **M3 screws on outer flange** (outside seal path)
+- `usb_c_port = false` by default — charge TP4056 with **lid open indoors**
+- Zip-tie slots on external pot clip; bottom **M12** gland only cable entry
+- Aim: rain/splash resistant with good assembly — not certified IP67 until hose-tested
+
+### Charge model
+
+Rechargeable via TP4056 USB-C; sealed enclosure requires opening the lid (service charge), not an outdoor sidewall USB hole.
+
+---
+
+## Earlier (2026-07-30) — already on origin
+
+EC nutrient proxy, plant catalog, Docker path — see `da0a2a0` / `6c10fc4` / `84cde88`.
 
 ---
 
 ## Next steps
+
+### Hardware follow-ups
+
+1. Print body/lid (PETG/ASA) + TPU gasket; heat-set M3 inserts in flange
+2. Hose / rain test assembly with sealed M12 gland
+3. Optional: export STLs from OpenSCAD CLI or Playground
+4. Optional later: sealed USB cover if outdoor plug-in is required (`usb_c_port = true`)
 
 ### Priority A — Stage 1: reliable alerts + email (1–2 pots, notify only)
 
@@ -75,8 +91,8 @@ sudo ./setup.sh local
 
 ## Repository status
 
-- Branch: `master` (aligned with `origin/master` + EC commit pending)
-- Local deploy: **torn down**
-- Ready to push after commit
+- Branch: `master`
+- Local deploy: **torn down** (last noted)
+- Today’s push: hardware BOM + enclosure V1.1 + docs/session summary
 
-**Next session focus:** Priority A (notifications + settings + SMTP + cron), then stage-1 pot notify; Priority B when watering hardware starts.
+**Next session focus:** print/test enclosure **or** Priority A (notifications + settings + SMTP + cron).

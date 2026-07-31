@@ -30,20 +30,20 @@ ESP8266 (NodeMCU) Pinout:
                     |                 |
                     |_________________|
 
-Connections:
-1. Soil Moisture Sensor (analog, existing):
+Connections (locked outdoor PoC — see [HARDWARE_BOM.md](HARDWARE_BOM.md)):
+1. Soil Moisture Sensor (analog, optional / legacy):
    - VCC → 3V3
    - GND → GND
    - AOUT → A0
 
-2. RS485 soil probe(s) (pH / EC nutrient proxy) via MAX485:
-   - Probe VCC → **5 V** from USB / solar power bank (same rail as NodeMCU VIN/USB)
-   - Probe GND → common GND with ESP + MAX485 + bank
-   - Probe A / B → MAX485 A / B
-   - MAX485 VCC → 3V3 (or 5 V if the module requires it; level-shift if needed)
-   - MAX485 RO → ESP **D7** (GPIO13) RX
-   - MAX485 DI → ESP **D6** (GPIO12) TX
-   - MAX485 RE + DE (tied together) → ESP **D5** (GPIO14) direction control
+2. RS485 soil probe (CWT/JXCT 4-in-1) via XY-017 / SP3485 auto-flow:
+   - Probe VCC → **5.0 V** MT3608 rail (same as NodeMCU VIN)
+   - Probe GND → common GND (boost, charger, ESP, transceiver)
+   - Probe A / B → XY-017 A / B
+   - XY-017 VCC → 3V3 (confirm module rating)
+   - XY-017 RO/RX → ESP **D7** (GPIO13)
+   - XY-017 DI/TX → ESP **D6** (GPIO12)
+   - Direction: **auto-flow** (no RE/DE wire; leave firmware D5 unused)
 
 3. LED Indicator (Built-in):
    - Connected to D2 (GPIO2)
@@ -53,10 +53,12 @@ Connections:
    - Connect D0 (GPIO16) to RST
    - This enables automatic wake-up from deep sleep
 
-5. Power (5 V USB / solar bank):
-   - VIN / USB → 5 V from always-on USB power bank
-   - Probe VCC → same 5 V rail (not ESP 3V3)
+5. Power (V1.0 always-on 18650 stack):
+   - TP4056 Type-C + DW01A → 18650 → MT3608 boost trimmed to **5.0 V**
+   - NodeMCU **VIN** → MT3608 5.0 V
+   - Probe VCC → same 5.0 V rail (**not** ESP 3V3)
    - GND → GND (common)
+   - Calibrate MT3608 to 5.0 V with a meter **before** connecting VIN / probe
 
 Note: The built-in LED on most ESP8266 boards is connected to GPIO2 (D2) and is active LOW.
 This means the LED turns ON when the pin is LOW and OFF when the pin is HIGH.
@@ -64,35 +66,37 @@ This means the LED turns ON when the pin is LOW and OFF when the pin is HIGH.
 
 ## Recommended hardware (sensor build)
 
-### Soil probes (must be DC 5–30 V for USB banks)
+**Locked PoC stack (V1.0):** see **[HARDWARE_BOM.md](HARDWARE_BOM.md)** (vendor links + footprints) and the printable case in **[`hardware/enclosure/`](../../hardware/enclosure/)**.
+
+
+### Soil probes (must be DC 5–30 V)
 
 | Role | Recommendation | Notes |
 |------|----------------|-------|
-| pH (+ moisture/temp/EC) | [DFRobot SEN0604](https://wiki.dfrobot.com/sen0604/) RS485 4-in-1 | Rated **5–30 V**; Modbus RTU; IP68 burial probe |
-| EC (nutrient / salt proxy) | Same RS485 probe (7-in-1 or SEN0604) | Soil EC in **mS/cm**; dashboard uses **available EC** = soil EC − your tap-water baseline (set in Settings) |
-| Optional NPK probe | [DFRobot SEN0605](https://wiki.dfrobot.com/sen0605/) RS485 NPK | Not used by GardenSensors firmware; EC trend is the fertilizer signal instead of N mg/kg |
-| Combined alternative | Generic “7-in-1” RS485 Modbus soil probe (5–30 V) | One probe for moisture/temp/EC/pH/NPK; verify datasheet minimum is **5 V**, not 9–24 V only |
-| Existing moisture | Capacitive soil moisture (A0) | Keep as today; 3V3 analog |
+| **PoC locked** | ComWinTop (CWT) / JXCT **4-in-1** RS485 | Moisture / temp / EC / pH; regs `0x0000`–`0x0003`; **5–30 V** |
+| Premium alternative | [DFRobot SEN0604](https://wiki.dfrobot.com/sen0604/) RS485 4-in-1 | Same class; usually above PoC budget |
+| Optional NPK probe | [DFRobot SEN0605](https://wiki.dfrobot.com/sen0605/) or 7-in-1 clones | Firmware uses **EC** as nutrient proxy, not NPK mg/kg |
+| Existing moisture | Capacitive soil moisture (A0) | Optional legacy path; 3V3 analog |
 
 **Modbus EC register (firmware):** holding register `0x0002`, scale ×0.01 → mS/cm (verify on your probe datasheet). Calibrate **baseline_water_ec** by measuring a cup of tap water and entering that value in Settings.
 
-**RS485 adapter:** MAX485 / TTL-to-RS485 breakout (one bus per probe address).
+**RS485 adapter (V1.0):** XY-017 / SP3485 **auto-flow** (3.3 V logic). Classic MAX485 with RE/DE on **D5** remains a firmware-compatible alternative.
 
 Typical Modbus defaults: device address `0x01`, baud **4800** or **9600** (check the probe datasheet). Allow **5–10 seconds** after power-on for pH readings to settle before sampling.
 
-### Power banks (solar-chargeable USB, 5 V)
+### Power (V1.0 PoC vs premium)
 
-| Recommendation | Why |
-|----------------|-----|
-| [Voltaic Systems](https://voltaicsystems.com/always-on-batteries/) V25 / V50 / V75 (or V88 with Always On mode) | Designed for IoT; **no low-current auto-off**; pairs with Voltaic 6 V solar panels |
-| Any bank marketed **“always on” / “no auto-off” / “router / IoT mode”** | Required for ESP deep sleep — most phone banks shut off under microamp loads |
-| Avoid | Generic phone power banks without always-on — they cut 5 V while the NodeMCU sleeps |
+| Path | Recommendation | Notes |
+|------|----------------|-------|
+| **PoC locked** | TP4056 (Type-C + DW01A) → 18650 → **MT3608 @ 5.0 V** | Always-on boost; no phone-bank auto-off; fits printed pot case |
+| Premium / field | [Voltaic](https://voltaicsystems.com/always-on-batteries/) V25 / V50 / V75 (Always On) | Higher cost; pairs with Voltaic solar |
+| Avoid | Generic phone banks; 18650 Battery Shield V3 as system PSU | Cut off on deep sleep or high idle drain |
 
 **Power notes:**
 
-- Share the bank’s **5 V USB** with NodeMCU VIN/USB and probe VCC; use a common GND.
+- Share the regulated **5.0 V** rail with NodeMCU **VIN** and probe VCC; use a common GND.
 - Do **not** power RS485 probes from ESP **3V3**.
-- If stuck with a normal bank, a pulsed keep-alive load can prevent cutoff but wastes energy — prefer a true always-on pack for solar.
+- Trim MT3608 to **5.0 V** before connecting loads.
 - Budget wake time for probe settle plus WiFi/MySQL before deep sleep.
 
 ## Features

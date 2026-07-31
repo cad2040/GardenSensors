@@ -193,7 +193,7 @@ sudo tail -f /var/www/html/garden-sensors/logs/app.log
 
 ## Next Steps
 
-1. Configure your ESP8266 devices according to the README.md instructions
+1. Configure your ESP8266 devices per [`docs/setup/README.md`](README.md) and the locked BOM in [`docs/setup/HARDWARE_BOM.md`](HARDWARE_BOM.md)
 2. Update the email settings in the configuration if you want to receive alerts
 3. Add your plants and sensors through the web interface
 4. Monitor the system through the dashboard 

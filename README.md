@@ -25,7 +25,10 @@ A comprehensive garden monitoring system that tracks soil moisture, temperature,
 - MySQL 8.0 or later
 - Apache 2.4 or later
 - PHP 7.4 or later
-- Arduino (for sensor deployment)
+- Arduino / ESP8266 (for sensor deployment)
+
+**Outdoor pot node hardware (locked V1.0 BOM):** see [`docs/setup/HARDWARE_BOM.md`](docs/setup/HARDWARE_BOM.md).  
+**3D-printed enclosure (OpenSCAD):** [`hardware/enclosure/`](hardware/enclosure/) — body, lid, and TPU gasket for the pot-rim case.
 
 ## Quick Start
 
