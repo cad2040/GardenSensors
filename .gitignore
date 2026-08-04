@@ -126,3 +126,8 @@ composer.phar
 .env
 .env.backup
 .phpunit.result.cache 
+# Setup / installer
+/storage/setup.lock
+docker-compose.override.yml
+docker/first-run/
+

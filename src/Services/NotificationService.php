@@ -185,6 +185,20 @@ class NotificationService {
     }
 
     private function checkLowBatteryAlerts(): void {
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sensors' AND COLUMN_NAME = 'battery_level'"
+            );
+            $stmt->execute();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (empty($row['c'])) {
+                return;
+            }
+        } catch (\Throwable $e) {
+            return;
+        }
+
         $sql = "SELECT s.*, p.name as plant_name
                 FROM sensors s
                 JOIN plant_sensors ps ON s.id = ps.sensor_id

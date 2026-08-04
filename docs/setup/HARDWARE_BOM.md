@@ -12,7 +12,7 @@ Firmware: [`arduino/sketch_SoilSensor.ino`](../../arduino/sketch_SoilSensor.ino)
 ## Architecture (V1.0)
 
 ```
-[TP4056 Type-C + DW01A] ← USB charge (side window or open lid)
+[TP4056 Type-C + DW01A] ← USB charge (sealed sidewall + cap)
          │
     [1× 18650 3.7 V in Switch Electronics 1× holder]
          │
@@ -99,7 +99,7 @@ Leave firmware **D5** unwired when using XY-017 auto-flow.
 - [ ] XY-017 A/B match probe  
 - [ ] Cable through **M12** gland; nut sealed  
 - [ ] Flash / WiFi config before final lid torque  
-- [ ] USB-C window plugged when outdoors (if cutout enabled)
+- [ ] USB-C sealed cap seated when outdoors
 
 ---
 
@@ -107,13 +107,13 @@ Leave firmware **D5** unwired when using XY-017 auto-flow.
 
 | Item | Spec |
 |------|------|
-| Source | [`hardware/enclosure/pot_node_enclosure_v1.scad`](../../hardware/enclosure/pot_node_enclosure_v1.scad) (**v1.1 weatherproof seal**) |
+| Source | [`hardware/enclosure/pot_node_enclosure_v1.scad`](../../hardware/enclosure/pot_node_enclosure_v1.scad) (**v1.3 sealed USB-C + snap-fit mounts**) |
 | Sealed cavity | **54 × 44 × 90 mm** |
 | Walls | **2.4 mm** |
 | Seal | Continuous gasket groove on sealed rim; lid tongue compresses **1.5 mm** TPU/silicone |
 | Fasteners | 4× **M3** heat-set inserts on an **outer flange** (screws **outside** the seal — do not pierce the dry volume) |
 | Gland | **Ø12 mm** on **bottom** only; use IP68 gland + thread sealant / PTFE |
-| USB | **No sidewall USB hole by default** — charge indoors with lid open (`usb_c_port = false`) |
+| USB | **Sealable USB-C sidewall** (`usb_c_port = true`) — charge without removing lid; keep TPU/PETG **usb_cap** seated outdoors |
 | Mount | Rear rim clip (15–25 mm) + zip-tie slots on the **clip plate** (not through the cavity wall) |
 
 Print / export: [`hardware/enclosure/README.md`](../../hardware/enclosure/README.md).
@@ -122,8 +122,8 @@ Print / export: [`hardware/enclosure/README.md`](../../hardware/enclosure/README
 
 | Zone | Contents |
 |------|----------|
-| −X bay | 18650 holder **vertical** (78 mm along height) |
-| +X bay | NodeMCU, XY-017, MT3608, TP4056 |
+| −X bay | 18650 holder **vertical** in tall cradle with retention lips |
+| +X bay | Snap-fit clip bays: NodeMCU (floor), XY-017 (raised), MT3608 (upper); TP4056 in USB-wall edge pocket |
 | −Y | Pot rim clip + zip-tie slots (outside sealed volume) |
 | Bottom | M12 gland (probe cable down into soil) |
 
@@ -136,7 +136,7 @@ Screws through a lid into cavity bosses create a water path along the threads. T
 1. Print gasket in TPU (or use a cut silicone cord in the groove).  
 2. Seat gasket fully before placing lid; torque M3 screws evenly (don’t crush one corner).  
 3. Install M12 gland with rubber washer inside; PTFE tape or silicone on threads.  
-4. Keep `usb_c_port = false` for outdoor use.  
+4. Keep the USB cap seated outdoors; pull only to charge.  
 5. Expect **weather-resistant / splash / rain** performance with good assembly — not a lab-certified IP67 without testing.
 
 

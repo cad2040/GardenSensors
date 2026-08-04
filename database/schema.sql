@@ -220,6 +220,24 @@ CREATE TABLE IF NOT EXISTS pins (
     INDEX idx_status (status)
 ) ENGINE=InnoDB;
 
+-- Per-user alert / notification inbox (cron + dashboard)
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT(6) UNSIGNED NOT NULL,
+    type VARCHAR(50) NOT NULL COMMENT 'moisture|temperature|ph|ec|battery|system',
+    message TEXT NOT NULL,
+    data JSON NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP NULL DEFAULT NULL,
+    CONSTRAINT fk_notifications_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+    INDEX idx_notifications_user_created (user_id, created_at),
+    INDEX idx_notifications_user_unread (user_id, read_at),
+    INDEX idx_notifications_type (type)
+) ENGINE=InnoDB;
+
 
 
 -- Create Rate Limits table
@@ -281,6 +299,8 @@ GRANT SELECT ON garden_sensors.plant_sensors TO 'garden_user'@'localhost';
 GRANT SELECT ON garden_sensors.pins TO 'garden_user'@'localhost';
 GRANT SELECT, INSERT ON garden_sensors.system_log TO 'garden_user'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON garden_sensors.settings TO 'garden_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON garden_sensors.notifications TO 'garden_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON garden_sensors.user_settings TO 'garden_user'@'localhost';
 
 FLUSH PRIVILEGES;
 

@@ -123,11 +123,88 @@ class Notification {
             ];
         }
 
+        if (!empty($settings['moisture_alert'])) {
+            $this->checkMoistureAlerts();
+        }
+        if (!empty($settings['temperature_alert'])) {
+            $this->checkTemperatureAlerts();
+        }
         if (!empty($settings['ph_alert'])) {
             $this->checkPhAlerts();
         }
         if (!empty($settings['ec_alert']) || !empty($settings['nitrogen_alert'])) {
             $this->checkEcAlerts();
+        }
+    }
+
+    public function checkMoistureAlerts(): void {
+        $rows = $this->db->query(
+            "SELECT s.id, s.name, s.last_reading, p.name as plant_name, p.min_soil_moisture, p.max_soil_moisture
+             FROM sensors s
+             JOIN plant_sensors ps ON s.id = ps.sensor_id
+             JOIN plants p ON ps.plant_id = p.id
+             WHERE s.user_id = ? AND s.type = 'moisture' AND s.last_reading IS NOT NULL
+             AND (s.last_reading < p.min_soil_moisture OR s.last_reading > p.max_soil_moisture)
+             AND s.id NOT IN (
+                SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.sensor_id')) AS UNSIGNED)
+                FROM notifications
+                WHERE user_id = ? AND type = 'moisture'
+                AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)
+             )",
+            [$this->userId, $this->userId]
+        );
+
+        foreach ($rows as $sensor) {
+            $status = $sensor['last_reading'] < $sensor['min_soil_moisture'] ? 'low' : 'high';
+            $hint = $status === 'low' ? ' — plant may need water' : ' — soil may be too wet';
+            $this->create(
+                'moisture',
+                "Moisture {$status} for sensor {$sensor['name']} on plant {$sensor['plant_name']}{$hint}",
+                [
+                    'sensor_id' => (int)$sensor['id'],
+                    'reading' => $sensor['last_reading'],
+                    'min' => $sensor['min_soil_moisture'],
+                    'max' => $sensor['max_soil_moisture'],
+                    'status' => $status,
+                ]
+            );
+        }
+    }
+
+    public function checkTemperatureAlerts(): void {
+        $rows = $this->db->query(
+            "SELECT s.id, s.name, s.last_reading, p.name as plant_name, p.min_temperature, p.max_temperature
+             FROM sensors s
+             JOIN plant_sensors ps ON s.id = ps.sensor_id
+             JOIN plants p ON ps.plant_id = p.id
+             WHERE s.user_id = ? AND s.type = 'temperature' AND s.last_reading IS NOT NULL
+             AND (
+                (p.min_temperature IS NOT NULL AND s.last_reading < p.min_temperature)
+                OR (p.max_temperature IS NOT NULL AND s.last_reading > p.max_temperature)
+                OR (p.min_temperature IS NULL AND p.max_temperature IS NULL AND (s.last_reading < 10 OR s.last_reading > 35))
+             )
+             AND s.id NOT IN (
+                SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.sensor_id')) AS UNSIGNED)
+                FROM notifications
+                WHERE user_id = ? AND type = 'temperature'
+                AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)
+             )",
+            [$this->userId, $this->userId]
+        );
+
+        foreach ($rows as $sensor) {
+            $min = $sensor['min_temperature'] ?? 10;
+            $status = $sensor['last_reading'] < $min ? 'low' : 'high';
+            $hint = $status === 'low' ? ' — plant may need warmth' : ' — soil may be too hot';
+            $this->create(
+                'temperature',
+                "Temperature {$status} for sensor {$sensor['name']} on plant {$sensor['plant_name']}{$hint}",
+                [
+                    'sensor_id' => (int)$sensor['id'],
+                    'reading' => $sensor['last_reading'],
+                    'status' => $status,
+                ]
+            );
         }
     }
 

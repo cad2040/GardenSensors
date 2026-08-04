@@ -1,21 +1,25 @@
-// GardenSensors — Outdoor plant-pot IoT node enclosure (V1.1 — weatherproof seal)
-// OpenSCAD parametric model for PETG / ASA (+ TPU gasket)
+// GardenSensors — Outdoor plant-pot IoT node enclosure (V1.3 — sealed USB-C + secure mounts)
+// OpenSCAD parametric model for PETG / ASA (+ TPU gasket / USB cap)
 //
 // Seal strategy (IP-minded):
 //   • Continuous gasket groove on the sealed rim
 //   • Lid tongue compresses the gasket
 //   • M3 screws sit on an OUTER flange — they never pierce the wet→dry path
-//   • No USB sidewall hole by default (charge indoors with lid open)
+//   • USB-C sidewall with recessed seal face + press-in cap (charge without opening lid)
 //   • Zip-tie slots are on the EXTERNAL clip, not through the cavity wall
-//   • Bottom M12 gland + thread sealant is the only cable penetration
+//   • Bottom M12 gland + thread sealant is the only cable penetration when USB capped
+//
+// Mounts (V1.3):
+//   • Tall 18650 cradle with retention lips
+//   • Snap-fit clip bays for NodeMCU, XY-017, TP4056, MT3608 (friction + overhang lips)
 //
 // Units: mm
-// part = "body" | "lid" | "gasket" | "preview"
+// part = "body" | "lid" | "gasket" | "usb_cap" | "preview"
 //
 // Docs: docs/setup/HARDWARE_BOM.md
 
 /* [Which part] */
-part = "preview"; // ["body", "lid", "gasket", "preview"]
+part = "preview"; // ["body", "lid", "gasket", "usb_cap", "preview"]
 
 /* [Sealed internal cavity] */
 inner_w = 54.0;
@@ -26,6 +30,10 @@ inner_h = 90.0;
 wall = 2.4;
 corner_r = 3.0;
 flange = 9.0;          // outer clamp flange (screws live here)
+
+/* [Appearance — Customizer / preview only] */
+body_color = [0.06, 0.28, 0.12];   // dark green
+lid_color  = [0.08, 0.32, 0.14];
 
 /* [Seal — tongue compresses 1.5 mm TPU / silicone] */
 gasket_h = 1.5;
@@ -50,11 +58,23 @@ gland_hole_d = 12.0;
 gland_boss_od = 18.0;
 gland_boss_h = 3.5;
 
-/* [USB-C sidewall — OFF for weatherproof PoC; charge with lid open] */
-usb_c_port = false;
+/* [USB-C sealed charge port — ON; use printed/TPU cap when outdoors] */
+usb_c_port = true;
 usb_c_w = 9.2;
 usb_c_h = 3.6;
 usb_c_z = 18.0;
+usb_seal_pad = 2.4;      // sealing face around hole (cap flange seats here)
+usb_recess_depth = 1.2;  // shallow pocket on outer wall for cap flange
+usb_cap_plug_extra = 0.6; // plug extends into wall hole
+usb_cap_tab = 6.0;       // pull tab length
+usb_fit_clear = 0.3;     // print clearance on plug vs hole
+
+/* [Internal mounts] */
+mount_clear = 0.45;      // board fit clearance (PETG shrink / warpage)
+clip_lip = 1.15;         // overhang that retains board edge
+clip_rail_t = 1.8;       // rail thickness
+batt_rail_h = 10.0;      // tall cradle walls
+batt_lip = 1.4;          // inward lip at top of cradle
 
 /* [Pot rim clip — entirely outside sealed volume] */
 clip_gap_min = 15.0;
@@ -72,15 +92,17 @@ ziptie_z0 = 14.0;
 
 /* [Preview] */
 show_components = true;
+show_usb_cap = true;
 
 $fn = 64;
 eps = 0.08;
 
-batt_l = 78.0; batt_w = 21.0; batt_h = 20.0;
-mcu_l  = 48.0; mcu_w  = 25.0; mcu_h  = 13.0;
-rs_l   = 43.0; rs_w   = 15.0; rs_h   = 12.0;
-chg_l  = 26.0; chg_w  = 17.0; chg_h  = 4.5;
-bst_l  = 36.0; bst_w  = 17.0; bst_h  = 14.0;
+// BOM footprints (L×W×H) — see docs/setup/HARDWARE_BOM.md
+batt_l = 78.0; batt_w = 21.0; batt_h = 20.0;   // 18650 holder (vertical: L along Z)
+mcu_l  = 48.0; mcu_w  = 25.0; mcu_h  = 13.0;   // NodeMCU
+rs_l   = 43.0; rs_w   = 15.0; rs_h   = 12.0;   // XY-017
+chg_l  = 26.0; chg_w  = 17.0; chg_h  = 4.5;    // TP4056
+bst_l  = 36.0; bst_w  = 17.0; bst_h  = 14.0;   // MT3608
 
 // Sealed outer shell (cavity + walls)
 sealed_w = inner_w + 2 * wall;
@@ -96,12 +118,31 @@ outer_h = sealed_h;
 sealed_x0 = flange;
 sealed_y0 = flange;
 
+// Interior floor origin (inner cavity)
+ix0 = sealed_x0 + wall;
+iy0 = sealed_y0 + wall;
+iz0 = wall;
+
+// Layout anchors (−X battery bay, +X electronics bay)
+batt_x = ix0 + 1.5;
+batt_y = iy0 + (inner_d - batt_h) / 2;
+elec_x = batt_x + batt_w + 3.5;
+
 function screw_xy() = [
   [ flange_screw_inset,                 flange_screw_inset ],
   [ outer_w - flange_screw_inset,       flange_screw_inset ],
   [ flange_screw_inset,                 outer_d - flange_screw_inset ],
   [ outer_w - flange_screw_inset,       outer_d - flange_screw_inset ]
 ];
+
+function usb_hole_origin() = [
+  sealed_x0 + sealed_w - wall - eps,
+  sealed_y0 + (sealed_d - usb_c_w) / 2,
+  usb_c_z - usb_c_h / 2
+];
+
+function usb_pad_w() = usb_c_w + 2 * usb_seal_pad;
+function usb_pad_h() = usb_c_h + 2 * usb_seal_pad;
 
 module rounded_box(size, r) {
   w = size[0]; d = size[1]; h = size[2];
@@ -111,10 +152,107 @@ module rounded_box(size, r) {
 }
 
 // ---------------------------------------------------------------------------
+// Snap-fit board bay: floor pad + side rails with retaining lips.
+// Board lies in XY; thickness is along Z. Origin = corner of board footprint.
+module board_clip_bay(bw, bd, bh, z0 = 0) {
+  c = mount_clear;
+  rt = clip_rail_t;
+  lip = clip_lip;
+  pad = 1.2;
+  rail_h = max(bh + 1.5, 5.0);
+
+  translate([0, 0, z0]) {
+    // Floor pad under board
+    translate([-0.5, -0.5, 0])
+      cube([bw + 1.0, bd + 1.0, pad]);
+
+    // Left / right rails with overhang lips
+    for (side = [0, 1]) {
+      x = side == 0 ? -rt : bw + c;
+      translate([x, -0.3, 0]) {
+        cube([rt, bd + 0.6 + c, rail_h]);
+        // Inward lip near top
+        translate([side == 0 ? rt - 0.05 : -lip + 0.05, 0, rail_h - 1.4])
+          cube([lip, bd + 0.6 + c, 1.4]);
+      }
+    }
+
+    // Front / rear end stops (lower, leave top open for insertion)
+    stop_h = min(rail_h * 0.55, bh + 0.8);
+    translate([-0.2, -rt, 0])
+      cube([bw + c + 0.4, rt, stop_h]);
+    translate([-0.2, bd + c, 0])
+      cube([bw + c + 0.4, rt, stop_h]);
+  }
+}
+
+// Vertical pocket: board stands on edge (thickness along Y), length along Z.
+// Useful for modules mounted against a sidewall (TP4056 at USB).
+module board_edge_pocket(bw, bt, bl, z0 = 0) {
+  c = mount_clear;
+  rt = clip_rail_t;
+  lip = clip_lip;
+  pad = 1.2;
+
+  translate([0, 0, z0]) {
+    translate([-0.4, -0.4, 0])
+      cube([bw + 0.8, bt + c + 0.8, pad]);
+
+    // Side walls along length (Z)
+    for (side = [0, 1]) {
+      y = side == 0 ? -rt : bt + c;
+      translate([-0.2, y, 0]) {
+        cube([bw + 0.4, rt, bl * 0.92]);
+        translate([0, side == 0 ? rt - 0.05 : -lip + 0.05, bl * 0.55])
+          cube([bw + 0.4, lip, 2.0]);
+      }
+    }
+
+    // Bottom stop
+    translate([-0.2, -0.2, 0])
+      cube([bw + 0.4, bt + c + 0.4, 1.6]);
+  }
+}
+
+module usb_c_cutouts() {
+  o = usb_hole_origin();
+  // Through-wall USB-C aperture
+  translate(o)
+    cube([wall + 2 * eps, usb_c_w, usb_c_h]);
+  // Outer seal recess (cap flange seats flush / slightly proud)
+  translate([
+    sealed_x0 + sealed_w - usb_recess_depth,
+    sealed_y0 + (sealed_d - usb_pad_w()) / 2,
+    usb_c_z - usb_pad_h() / 2
+  ])
+    cube([usb_recess_depth + eps, usb_pad_w(), usb_pad_h()]);
+}
+
+module usb_cap() {
+  // Print in TPU 95A for best seal, or PETG + thin silicone pad on flange face
+  plug_w = usb_c_w - usb_fit_clear;
+  plug_h = usb_c_h - usb_fit_clear;
+  flange_w = usb_pad_w() - 0.4;
+  flange_h = usb_pad_h() - 0.4;
+  plug_len = wall + usb_cap_plug_extra;
+
+  // Local origin: outer face of flange at x=0, plug grows +X into the wall
+  union() {
+    // Sealing flange (fills outer recess)
+    translate([0, -flange_w / 2, -flange_h / 2])
+      cube([usb_recess_depth + 0.4, flange_w, flange_h]);
+    // Plug into USB aperture
+    translate([usb_recess_depth - 0.1, -plug_w / 2, -plug_h / 2])
+      cube([plug_len, plug_w, plug_h]);
+    // Pull tab
+    translate([-usb_cap_tab, -3.0, -1.2])
+      cube([usb_cap_tab + 0.2, 6.0, 2.4]);
+  }
+}
+
 module body() {
   difference() {
     union() {
-      // Outer flange slab (full height would be heavy — use rim flange + sealed box)
       // Sealed box
       translate([sealed_x0, sealed_y0, 0])
         rounded_box([sealed_w, sealed_d, sealed_h], corner_r);
@@ -151,14 +289,9 @@ module body() {
     translate([sealed_x0 + sealed_w / 2, sealed_y0 + sealed_d / 2, -gland_boss_h - 1])
       cylinder(h = wall + gland_boss_h + 2, d = gland_hole_d);
 
-    // Optional USB (breaks weather seal — off by default)
+    // Sealed USB-C charge port (cap when outdoors)
     if (usb_c_port)
-      translate([
-        sealed_x0 + sealed_w - wall - eps,
-        sealed_y0 + (sealed_d - usb_c_w) / 2,
-        usb_c_z - usb_c_h / 2
-      ])
-        cube([wall + 2 * eps, usb_c_w, usb_c_h]);
+      usb_c_cutouts();
   }
 
   // Flange insert bosses (solid cylinders with bore)
@@ -170,8 +303,7 @@ module body() {
           cylinder(h = insert_depth + 1, d = insert_od);
       }
 
-  battery_cradle();
-  pcb_shelf();
+  electronics_mounts();
 }
 
 module seal_groove() {
@@ -192,21 +324,74 @@ module seal_groove() {
 }
 
 module battery_cradle() {
-  rail = 2.0;
-  zh = 3.0;
-  x0 = sealed_x0 + wall + 2;
-  y0 = sealed_y0 + wall + (inner_d - batt_h) / 2;
-  translate([x0 - rail, y0 - rail, wall]) cube([rail, batt_h + 2 * rail, zh]);
-  translate([x0 + batt_w, y0 - rail, wall]) cube([rail, batt_h + 2 * rail, zh]);
-  translate([x0, y0 - rail, wall]) cube([batt_w, rail, zh]);
-  translate([x0, y0 + batt_h, wall]) cube([batt_w, rail, zh]);
+  // Tall rails + inward lips so the 18650 holder cannot rattle out
+  x0 = batt_x;
+  y0 = batt_y;
+  zh = batt_rail_h;
+  rt = 2.2;
+
+  // Floor pad
+  translate([x0 - 0.5, y0 - 0.5, iz0])
+    cube([batt_w + 1.0, batt_h + 1.0, 1.4]);
+
+  // Four walls
+  translate([x0 - rt, y0 - rt, iz0])
+    cube([rt, batt_h + 2 * rt, zh]);
+  translate([x0 + batt_w, y0 - rt, iz0])
+    cube([rt, batt_h + 2 * rt, zh]);
+  translate([x0 - rt, y0 - rt, iz0])
+    cube([batt_w + 2 * rt, rt, zh]);
+  translate([x0 - rt, y0 + batt_h, iz0])
+    cube([batt_w + 2 * rt, rt, zh]);
+
+  // Inward retention lips (top of long sides)
+  translate([x0 - rt, y0 - rt, iz0 + zh - 1.6])
+    cube([rt + batt_lip, batt_h + 2 * rt, 1.6]);
+  translate([x0 + batt_w - batt_lip, y0 - rt, iz0 + zh - 1.6])
+    cube([rt + batt_lip, batt_h + 2 * rt, 1.6]);
+
+  // Mid-height retention fingers (press-over)
+  for (z = [iz0 + 28, iz0 + 55]) {
+    translate([x0 - rt, y0 + batt_h / 2 - 3, z])
+      cube([rt + 1.0, 6, 2.2]);
+    translate([x0 + batt_w - 1.0, y0 + batt_h / 2 - 3, z])
+      cube([rt + 1.0, 6, 2.2]);
+  }
 }
 
-module pcb_shelf() {
-  shelf_z = 2.0;
-  x0 = sealed_x0 + wall + batt_w + 6;
-  translate([x0, sealed_y0 + wall + 2, wall])
-    cube([inner_w - (x0 - sealed_x0 - wall) - 2, inner_d - 4, shelf_z]);
+module electronics_mounts() {
+  battery_cradle();
+
+  // TP4056 — against +X wall, USB aligned with sidewall port
+  chg_y = iy0 + (inner_d - chg_w) / 2;
+  chg_z = usb_c_z - chg_l / 2;
+  chg_x = sealed_x0 + sealed_w - wall - chg_h - mount_clear;
+  translate([chg_x, chg_y, chg_z])
+    board_edge_pocket(chg_w, chg_h, chg_l, 0);
+
+  // NodeMCU — flat on electronics bay floor
+  mcu_y = iy0 + 2.0;
+  mcu_z = iz0;
+  translate([elec_x, mcu_y, mcu_z])
+    board_clip_bay(mcu_w, mcu_l, mcu_h, 0);
+
+  // XY-017 RS485 — stacked above NodeMCU on short pillars
+  rs_z = iz0 + mcu_h + 6.0;
+  translate([elec_x + 1.0, mcu_y + 2.0, rs_z])
+    board_clip_bay(rs_w, rs_l, rs_h, 0);
+
+  // Support pillars under RS485 bay (bridge over NodeMCU)
+  translate([elec_x + 1.0, mcu_y + 2.0, iz0 + mcu_h + 1.0]) {
+    cube([3.0, 3.0, 5.0]);
+    translate([rs_w - 3.0, 0, 0]) cube([3.0, 3.0, 5.0]);
+    translate([0, rs_l - 3.0, 0]) cube([3.0, 3.0, 5.0]);
+    translate([rs_w - 3.0, rs_l - 3.0, 0]) cube([3.0, 3.0, 5.0]);
+  }
+
+  // MT3608 boost — upper electronics bay
+  bst_z = iz0 + 58.0;
+  translate([elec_x + 0.5, iy0 + (inner_d - bst_l) / 2, bst_z])
+    board_clip_bay(bst_w, bst_l, bst_h, 0);
 }
 
 module pot_clip() {
@@ -307,38 +492,58 @@ module gasket() {
 
 module component_ghosts() {
   if (show_components) {
-    color("SteelBlue", 0.4)
-      translate([sealed_x0 + wall + 2, sealed_y0 + wall + (inner_d - batt_h) / 2, wall])
+    // 18650 holder (vertical)
+    color("SteelBlue", 0.45)
+      translate([batt_x, batt_y, iz0 + 1.4])
         cube([batt_w, batt_h, batt_l]);
-    color("ForestGreen", 0.4)
-      translate([sealed_x0 + wall + batt_w + 5, sealed_y0 + wall + 4, wall + 8])
-        cube([mcu_w, mcu_h, mcu_l]);
-    color("DarkOrange", 0.4)
-      translate([sealed_x0 + wall + batt_w + 5, sealed_y0 + wall + 20, wall + 8])
-        cube([rs_w, rs_h, rs_l]);
-    color("Crimson", 0.45)
+
+    // NodeMCU
+    color("ForestGreen", 0.45)
+      translate([elec_x, iy0 + 2.0, iz0 + 1.2])
+        cube([mcu_w, mcu_l, mcu_h]);
+
+    // XY-017
+    color("DarkOrange", 0.45)
+      translate([elec_x + 1.0, iy0 + 4.0, iz0 + mcu_h + 6.0 + 1.2])
+        cube([rs_w, rs_l, rs_h]);
+
+    // TP4056 at USB wall
+    color("Crimson", 0.5)
       translate([
-        sealed_x0 + wall + batt_w + 8,
-        sealed_y0 + wall + inner_d - chg_w - 4,
-        wall + 6
+        sealed_x0 + sealed_w - wall - chg_h,
+        iy0 + (inner_d - chg_w) / 2,
+        usb_c_z - chg_l / 2
       ])
-        cube([chg_h + 2, chg_w, chg_l]);
-    color("Gold", 0.4)
-      translate([sealed_x0 + wall + batt_w + 8, sealed_y0 + wall + 22, wall + 55])
-        cube([bst_w, bst_h, bst_l]);
+        cube([chg_h, chg_w, chg_l]);
+
+    // MT3608
+    color("Gold", 0.45)
+      translate([elec_x + 0.5, iy0 + (inner_d - bst_l) / 2, iz0 + 58.0 + 1.2])
+        cube([bst_w, bst_l, bst_h]);
   }
 }
 
 module preview_assembly() {
-  body();
+  color(body_color, 0.92)
+    body();
   color("Black", 0.6)
     translate([0, 0, sealed_h - gasket_h]) gasket();
-  color("LightGray", 0.88)
+  color(lid_color, 0.9)
     translate([0, 0, sealed_h + 0.35]) lid();
+  if (usb_c_port && show_usb_cap) {
+    color([0.12, 0.12, 0.12], 0.9)
+      translate([
+        sealed_x0 + sealed_w - usb_recess_depth,
+        sealed_y0 + sealed_d / 2,
+        usb_c_z
+      ])
+        usb_cap();
+  }
   component_ghosts();
 }
 
 if (part == "body") body();
 else if (part == "lid") lid();
 else if (part == "gasket") gasket();
+else if (part == "usb_cap") usb_cap();
 else preview_assembly();

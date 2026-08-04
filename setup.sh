@@ -1125,6 +1125,20 @@ setup_local() {
     print_info "Application is deployed at /var/www/html/garden-sensors"
     print_info "Database has been tested and cleaned - ready for production use"
     print_info "You can access the web interface at http://localhost/garden-sensors"
+
+    # Install alert cron if possible (user crontab)
+    local cron_line="*/5 * * * * php /var/www/html/garden-sensors/public/cron/check_alerts.php >> /var/www/html/garden-sensors/public/logs/cron_alerts.log 2>&1"
+    if command -v crontab >/dev/null 2>&1; then
+        if crontab -l 2>/dev/null | grep -Fq "check_alerts.php"; then
+            print_info "Alert cron already installed"
+        else
+            (crontab -l 2>/dev/null; echo "$cron_line") | crontab - 2>/dev/null \
+                && print_status "Installed alert cron (every 5 minutes)" \
+                || print_warning "Could not install crontab entry — add manually: $cron_line"
+        fi
+    else
+        print_warning "crontab not available — add alert cron manually"
+    fi
 }
 
 compose_cmd() {
