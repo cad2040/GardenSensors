@@ -5,7 +5,8 @@
 
 Canonical wiring: [`docs/setup/README.md`](README.md)  
 Firmware: [`arduino/sketch_SoilSensor.ino`](../../arduino/sketch_SoilSensor.ino)  
-**3D-printed enclosure:** [`hardware/enclosure/`](../../hardware/enclosure/) (`pot_node_enclosure_v1.scad`)
+**3D-printed enclosure:** [`hardware/enclosure/`](../../hardware/enclosure/) (`pot_node_enclosure_v1.scad`)  
+**Build guide (wiring + install order):** [`docs/setup/POT_NODE_ASSEMBLY.md`](../../docs/setup/POT_NODE_ASSEMBLY.md)
 
 ---
 
@@ -107,25 +108,31 @@ Leave firmware **D5** unwired when using XY-017 auto-flow.
 
 | Item | Spec |
 |------|------|
-| Source | [`hardware/enclosure/pot_node_enclosure_v1.scad`](../../hardware/enclosure/pot_node_enclosure_v1.scad) (**v1.3 sealed USB-C + snap-fit mounts**) |
-| Sealed cavity | **54 × 44 × 90 mm** |
+| Source | [`hardware/enclosure/pot_node_enclosure_v1.scad`](../../hardware/enclosure/pot_node_enclosure_v1.scad) (**v1.5 BOM USB-C + installable mounts**) |
+| Sealed cavity | **80 × 70 × 96 mm** (outer flange footprint ~**102.8 × 92.8 mm**) |
 | Walls | **2.4 mm** |
 | Seal | Continuous gasket groove on sealed rim; lid tongue compresses **1.5 mm** TPU/silicone |
 | Fasteners | 4× **M3** heat-set inserts on an **outer flange** (screws **outside** the seal — do not pierce the dry volume) |
-| Gland | **Ø12 mm** on **bottom** only; use IP68 gland + thread sealant / PTFE |
-| USB | **Sealable USB-C sidewall** (`usb_c_port = true`) — charge without removing lid; keep TPU/PETG **usb_cap** seated outdoors |
+| Gland | **Ø12 mm** on **bottom**, offset into **+Y service strip** (clear of MCU); use IP68 gland + thread sealant / PTFE |
+| USB | **Sealable USB-C sidewall** — pocket matches BOM **TP4056 short-edge** Type-C; keep **usb_cap** seated outdoors |
 | Mount | Rear rim clip (15–25 mm) + zip-tie slots on the **clip plate** (not through the cavity wall) |
 
-Print / export: [`hardware/enclosure/README.md`](../../hardware/enclosure/README.md).
+Print / export: [`hardware/enclosure/README.md`](../../hardware/enclosure/README.md) — **pre-exported `.stl` files** included for Bambu/slicer handoff.
 
 ### Internal layout
 
 | Zone | Contents |
 |------|----------|
-| −X bay | 18650 holder **vertical** in tall cradle with retention lips |
-| +X bay | Snap-fit clip bays: NodeMCU (floor), XY-017 (raised), MT3608 (upper); TP4056 in USB-wall edge pocket |
-| −Y | Pot rim clip + zip-tie slots (outside sealed volume) |
-| Bottom | M12 gland (probe cable down into soil) |
+| −X / −Y floor | 18650 holder **vertical** in tall cradle |
+| Mid −Y floor | NodeMCU (48 mm along X) + XY-017 beside it (+Y) — **open tops, not stacked** |
+| +Y wall | MT3608 pocket (install after floor boards) |
+| +X elevated | TP4056 short-edge USB shelf (install **last**) |
+| −Y exterior | Pot rim clip + zip-tie slots (outside sealed volume) |
+| Bottom +Y | M12 gland (probe cable) |
+
+**Install order:** battery → NodeMCU → XY-017 → wire UART → MT3608 → TP4056 → gland/lid.
+
+**Full wiring + solder vs Dupont guide:** [`docs/setup/POT_NODE_ASSEMBLY.md`](../../docs/setup/POT_NODE_ASSEMBLY.md)
 
 ### Why this seals better than a screw-through lid
 

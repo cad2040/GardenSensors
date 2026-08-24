@@ -66,7 +66,7 @@ This means the LED turns ON when the pin is LOW and OFF when the pin is HIGH.
 
 ## Recommended hardware (sensor build)
 
-**Locked PoC stack (V1.0):** see **[HARDWARE_BOM.md](HARDWARE_BOM.md)** (vendor links + footprints) and the printable case in **[`hardware/enclosure/`](../../hardware/enclosure/)**.
+**Locked PoC stack (V1.0):** see **[HARDWARE_BOM.md](HARDWARE_BOM.md)** (vendor links + footprints), the printable case in **[`hardware/enclosure/`](../../hardware/enclosure/)**, and the step-by-step **[POT_NODE_ASSEMBLY.md](POT_NODE_ASSEMBLY.md)** (wiring order + enclosure install).
 
 
 ### Soil probes (must be DC 5–30 V)

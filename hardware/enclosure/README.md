@@ -1,45 +1,86 @@
-# Pot-node enclosure (V1.3 — sealed USB-C + secure mounts)
+# Pot-node enclosure (V1.5 — BOM USB-C + installable mounts)
 
 OpenSCAD model for the outdoor plant-pot IoT housing. Matches [`docs/setup/HARDWARE_BOM.md`](../../docs/setup/HARDWARE_BOM.md).
+
+**Assembly & wiring (solder vs Dupont, step order):** [`docs/setup/POT_NODE_ASSEMBLY.md`](../../docs/setup/POT_NODE_ASSEMBLY.md)
 
 ## Seal architecture
 
 ```
 ┌──────── flange (M3 screws / inserts) ────────┐
 │  ┌──── sealed rim + gasket + lid tongue ───┐ │
-│  │  [18650 cradle]  [clip bays: MCU/RS/…]  │ │
-│  │    [USB-C] ← recessed face + press-in  │ │
-│  │              sealed cap (TPU)           │ │
+│  │  floor: [18650] [NodeMCU] [XY-017]      │ │
+│  │  +Y wall: [MT3608]   +X shelf: [TP4056] │ │
+│  │  USB-C ← short-edge (BOM) + TPU cap     │ │
 │  └─────────────────────────────────────────┘ │
 └──────────────────────────────────────────────┘
-              ↓ bottom M12 gland
+         ↓ M12 gland (+Y service strip)
 ```
 
 - **Screws outside the gasket** — no thread path into the dry volume  
-- **USB-C sidewall with sealable cap** (`usb_c_port = true`) — charge without removing the lid; keep the cap seated outdoors  
+- **USB-C sidewall with sealable cap** — matches BOM TP4056 (**USB on short edge**)  
 - **Zip-tie slots on the pot clip**, not through the cavity wall  
-- **Gland** = primary cable penetration (use IP68 gland + sealant)  
-- **Preview colour** — dark green body/lid (`body_color` / `lid_color`)
+- **Gland** offset into the +Y strip (not under the MCU)  
+- **Preview colour** — dark green body/lid
 
-## Internal mounts (V1.3)
+## Sizing (V1.5)
 
-| Part | Mount |
-|------|--------|
-| **18650 holder** | Tall cradle + inward lips + mid-height retention fingers |
-| **NodeMCU** | Snap-fit clip bay (side rails + overhang lips + end stops) |
-| **XY-017 RS485** | Clip bay on pillars above the NodeMCU |
-| **TP4056** | Edge pocket against the USB sidewall (aligns with port) |
-| **MT3608** | Clip bay in the upper electronics bay |
+| | V1.4 | **V1.5** |
+|--|------|----------|
+| Sealed cavity | 64 × 58 × 92 mm | **80 × 70 × 96 mm** |
+| Outer flange footprint | ~86.8 × 80.8 mm | **~102.8 × 92.8 mm** |
 
-Boards **press in** from above (or slide into the TP4056 edge pocket). Fit clearance is `mount_clear` (default **0.45 mm**) — increase if your PETG prints tight.
+## Why the mounts changed
+
+V1.4 stacked XY-017 **above** the NodeMCU, so the raised bay blocked dropping the MCU in. V1.5 puts **all floor boards side-by-side with open tops**, MT3608 on the **+Y wall**, and TP4056 on an **elevated +X shelf** (install last).
+
+## Internal mounts
+
+| Part | Mount | Insert |
+|------|--------|--------|
+| **18650 holder** | Tall cradle + lips + mid fingers | From above |
+| **NodeMCU** | Floor clip bay (48 mm along X) | From above |
+| **XY-017** | Floor clip bay beside MCU (+Y), **not stacked** | From above |
+| **MT3608** | +Y wall pocket (components face into cavity) | After floor boards |
+| **TP4056** | Elevated short-edge USB shelf → sidewall hole | **Last** (slide toward +X) |
+
+Fit clearance: `mount_clear` = **0.45 mm** (increase if PETG prints tight).
+
+Wiring gaps: **5 mm** battery↔MCU, **6 mm** MCU↔XY (UART), **~23 mm** under TP4056 shelf for harness.
+
+## Install order (required)
+
+1. Seat **18650 holder** in the −X cradle.  
+2. Snap **NodeMCU** into its floor bay; dress antenna/USB away from rails.  
+3. Snap **XY-017** into the adjacent floor bay; wire UART (**D6/D7**) and 3.3 V/GND while access is open.  
+4. Snap **MT3608** into the +Y wall pocket; set **5.00 V** before connecting loads.  
+5. Wire battery → TP4056 pads / MT3608 input as needed, then slide **TP4056** onto the +X shelf until Type-C meets the wall hole.  
+6. Route probe cable through the **M12 gland** (+Y strip); fit gasket + lid; seat USB cap outdoors.
+
+Do **not** install TP4056 or MT3608 before the floor boards — you need that access for wiring.
+
+See **[POT_NODE_ASSEMBLY.md](../../docs/setup/POT_NODE_ASSEMBLY.md)** for the full wiring order, bench-test steps, and what to solder vs plug in.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `pot_node_enclosure_v1.scad` | Body, lid, gasket, USB cap, preview |
+| `pot_node_enclosure_v1.scad` | Parametric source (body, lid, gasket, USB cap, preview) |
+| `pot_node_body_v1.stl` | **Ready to print** — body (PETG/ASA) |
+| `pot_node_lid_v1.stl` | **Ready to print** — lid (PETG/ASA) |
+| `pot_node_gasket_v1.stl` | **Ready to print** — lid gasket (TPU 95A) |
+| `pot_node_usb_cap_v1.stl` | **Ready to print** — USB sidewall cap (TPU 95A) |
 
-## Export STLs
+**Bambu / slicer handoff:** import the four `.stl` files into Bambu Studio (or any slicer). No OpenSCAD required for printing.
+
+Regenerate STLs after editing the `.scad`:
+
+```bash
+cd hardware/enclosure
+./export_stls.sh
+```
+
+Or manually:
 
 ```bash
 cd hardware/enclosure
@@ -49,7 +90,7 @@ openscad -D 'part="gasket"'  -o pot_node_gasket_v1.stl  pot_node_enclosure_v1.sc
 openscad -D 'part="usb_cap"' -o pot_node_usb_cap_v1.stl pot_node_enclosure_v1.scad
 ```
 
-Or use [OpenSCAD Playground](https://ochafik.com/openscad2) — paste the file, set `part`, render.
+Or use [OpenSCAD Playground](https://ochafik.com/openscad2) — paste the `.scad`, set `part`, render.
 
 ## Print guidance
 
@@ -60,18 +101,9 @@ Or use [OpenSCAD Playground](https://ochafik.com/openscad2) — paste the file, 
 | USB cap | TPU 95A (preferred) | Press into sidewall recess |
 | Inserts | M3×5–6 mm brass heat-set | 4× in **flange** bosses only |
 
-## Assembly order (electronics)
-
-1. Seat **18650 holder** in the −X cradle (press past mid fingers).  
-2. Snap **NodeMCU** into the floor clip bay.  
-3. Snap **XY-017** into the raised bay above it.  
-4. Slide **TP4056** into the USB-wall pocket so Type-C lines up with the cutout.  
-5. Snap **MT3608** into the upper bay; trim to **5.00 V** before connecting loads.  
-6. Route probe cable through the M12 gland; fit lid gasket + lid; seat USB cap outdoors.
-
 ## USB-C use
 
-Keep the USB cap seated outdoors. Pull only to charge, then reseat. Cap off + rain = water path into the cavity.
+BOM TP4056 has Type-C on the **short edge** — the V1.5 shelf matches that. Keep the USB cap seated outdoors; pull only to charge.
 
 ## Honest rating
 

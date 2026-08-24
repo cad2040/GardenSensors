@@ -1,51 +1,50 @@
 # GardenSensors Development Session Summary
 
-**Last updated:** 2026-08-04 (session closed)
+**Last updated:** 2026-08-24 (session closed)
 
-## Current status: Session work pushed; local deploy torn down
+## Current status: Enclosure V1.5 print-ready + assembly docs pushed
 
-Morning plan delivered: **enclosure V1.3**, **Priority A alerts/email**, **Docker thin installer**. Local Apache/MySQL deploy and Docker volumes cleaned via `cleanup.sh`. Default seed admin when redeploying: **`admin` / `admin123`**.
+Local deploy remains torn down (2026-08-04). Hardware path is ready for a friend to **3D print from committed STLs** and for you to **wire on the bench** using the new assembly guide.
+
+Default seed admin when redeploying: **`admin` / `admin123`**.
 
 ---
 
-## Completed (2026-08-04)
+## Completed this session (2026-08-24)
 
-### Enclosure V1.3
+### Enclosure V1.5 — fit-checked, installable, BOM USB-C
 
-- Sealed **USB-C sidewall** (`usb_c_port = true`) + press-in **`usb_cap`** (TPU preferred)
-- Preview **dark green** body/lid colours
-- **Secure mounts:** tall 18650 cradle; snap-fit clips for NodeMCU, XY-017, MT3608; TP4056 edge pocket at USB wall
-- Docs: [`hardware/enclosure/README.md`](hardware/enclosure/README.md), [`docs/setup/HARDWARE_BOM.md`](docs/setup/HARDWARE_BOM.md)
+- **V1.3/V1.4 issues fixed:** cavity too small for NodeMCU; XY-017 stacked above MCU blocked insertion; TP4056 pocket wrong for BOM short-edge USB
+- Cavity **80 × 70 × 96 mm**; outer flange **~102.8 × 92.8 mm** (~111.6 mm depth with pot clip)
+- Layout: floor **18650 | NodeMCU | XY-017** (side-by-side, open tops); **MT3608** on +Y wall; **TP4056** on elevated +X shelf (short-edge USB → sidewall hole)
+- Geometry audit: all BOM parts fit, no overlaps, install order preserves wiring access
 
-### Priority A — alerts / email (stage 1)
+### Print files for Bambu / slicer
 
-- `notifications` table in schema + [`database/migrations/006_notifications.sql`](database/migrations/006_notifications.sql)
-- Settings UI → **`user_settings` JSON** (moisture / temp / pH / EC / battery, baseline EC, notification email, test email)
-- [`src/Services/MailService.php`](src/Services/MailService.php) — SMTP via `MAIL_*` env, `mail()` fallback
-- Cron [`public/cron/check_alerts.php`](public/cron/check_alerts.php) uses MailService; moisture + temperature + pH + EC checks
-- `setup.sh local` installs `*/5` crontab for `check_alerts.php` when possible
-- Verified during session: cron wrote EC “needs food” notification for Lettuce
+- Committed STLs in [`hardware/enclosure/`](hardware/enclosure/):
+  - `pot_node_body_v1.stl`, `pot_node_lid_v1.stl`, `pot_node_gasket_v1.stl`, `pot_node_usb_cap_v1.stl`
+- [`hardware/enclosure/export_stls.sh`](hardware/enclosure/export_stls.sh) — regenerate from `.scad` after edits
 
-### Docker thin installer
+### Assembly & wiring guide
 
-- [`scripts/docker-install.sh`](scripts/docker-install.sh)
-- First-run: [`public/setup/index.php`](public/setup/index.php), [`public/setup/first_run.php`](public/setup/first_run.php)
-- Docs: [`docs/setup/DOCKER_INSTALLER.md`](docs/setup/DOCKER_INSTALLER.md)
+- [`docs/setup/POT_NODE_ASSEMBLY.md`](docs/setup/POT_NODE_ASSEMBLY.md) — bench vs in-box steps, **solder vs Dupont** table, wiring order, pre-close checklist
+- Linked from BOM, enclosure README, and [`docs/setup/README.md`](docs/setup/README.md)
 
-### Teardown (end of session)
+---
 
-- `sudo CONFIRM=y ./cleanup.sh local` — Apache site, `/var/www/html/garden-sensors`, DB `garden_sensors`, vendor/venv/.env removed
-- `CONFIRM=y ./cleanup.sh docker` — compose network/volumes cleared (nothing running)
+## Completed earlier (on origin)
+
+- **2026-08-04:** Priority A alerts/email, Docker thin installer, enclosure V1.3 USB-C + mounts; local teardown + push (`a5df8bd`)
+- EC nutrient proxy, plant catalog, Docker Compose path (prior commits)
 
 ---
 
 ## Still open / follow-ups
 
-1. **Hose-test** enclosure with USB cap seated; print dark-green PETG + TPU gasket/cap
-2. Ensure **`sensors.last_reading`** is updated on every ingest (alerts read this column)
-3. Wire SMTP in `.env` and confirm inbox delivery
-4. Docker installer polish: compose cron sidecar; publish images without bind-mounting source
-5. Priority B auto-watering — still deferred
+1. Friend prints V1.5 STLs (dark-green PETG + TPU gasket/cap); hose-test with USB cap seated  
+2. Build node on bench per **POT_NODE_ASSEMBLY.md**; flash firmware before final lid torque  
+3. Wire SMTP; keep `sensors.last_reading` fresh on ingest  
+4. Docker installer polish; Priority B auto-watering — deferred  
 
 ---
 
@@ -53,21 +52,18 @@ Morning plan delivered: **enclosure V1.3**, **Priority A alerts/email**, **Docke
 
 ```bash
 sudo ./setup.sh local
-# if DB already existed without migration 006:
+# if DB predates migration 006:
 mysql … < database/migrations/006_notifications.sql
 ```
 
-Settings: enable alerts + email → **Send test email** (needs `MAIL_*`).
-
-Docker path: `./scripts/docker-install.sh` → open `/setup/` if needed.
+Docker: `./scripts/docker-install.sh` → `/setup/` if needed.
 
 ---
 
 ## Next session focus
 
-1. SMTP end-to-end with a real mailbox
-2. Firmware/API: keep `last_reading` fresh
-3. Print/hose-test V1.3 enclosure
-4. Optional: Docker cron sidecar + image publish for the thin wizard
+1. Physical build + bench test after prints arrive  
+2. SMTP end-to-end  
+3. Optional: commit/tag a “builder handoff” release note for your friend  
 
-**Out of scope still:** native Win/Mac MSI/DMG; auto-watering (Priority B).
+**Out of scope still:** native Win/Mac installers; auto-watering (Priority B).
