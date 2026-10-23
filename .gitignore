@@ -131,3 +131,7 @@ composer.phar
 docker-compose.override.yml
 docker/first-run/
 
+# Local Spec Kit / Continue tooling (keep feature docs under specs/ only)
+.specify/
+.clinerules/
+
