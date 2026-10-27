@@ -51,6 +51,7 @@ ADMIN_EMAIL=${ADMIN_EMAIL}
 ADMIN_PASS=${ADMIN_PASS}
 APP_URL=http://localhost:${HTTP_PORT}
 EOF
+chmod 600 docker/first-run/answers.env
 
 # Patch published web port in a local override (does not modify committed compose)
 cat > docker-compose.override.yml <<EOF
@@ -70,13 +71,14 @@ for i in $(seq 1 40); do
   if curl -fsS "http://127.0.0.1:${HTTP_PORT}/login.php" >/dev/null 2>&1; then
     break
   fi
+  if [ $i -eq 40 ]; then
+    echo "Health check failed after 40 attempts. Exiting with code 1."
+    exit 1
+  fi
   sleep 3
 done
 
 echo "Applying first-run admin (if needed)..."
-php -r "
-require '$ROOT/vendor/autoload.php';
-" >/dev/null 2>&1 || true
 
 # Prefer HTTP first-run endpoint inside the stack
 if curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/setup/first_run.php" \
@@ -93,3 +95,4 @@ echo
 echo "Dashboard: http://localhost:${HTTP_PORT}/"
 echo "Login with the admin account you just set."
 echo "Configure SMTP in .env (MAIL_*) then Settings → Send test email."
+
