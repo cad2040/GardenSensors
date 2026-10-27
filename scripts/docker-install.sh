@@ -96,3 +96,4 @@ echo "Dashboard: http://localhost:${HTTP_PORT}/"
 echo "Login with the admin account you just set."
 echo "Configure SMTP in .env (MAIL_*) then Settings → Send test email."
 
+
