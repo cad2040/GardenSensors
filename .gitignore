@@ -131,7 +131,12 @@ composer.phar
 docker-compose.override.yml
 docker/first-run/
 
-# Local Spec Kit / Continue tooling (keep feature docs under specs/ only)
+# Local Spec Kit tooling state (templates/scripts stay on disk; feature docs under specs/)
 .specify/
+# Legacy Cline Spec Kit install — do not reintroduce
 .clinerules/
+# Continue: commit .continue/prompts/ (Spec Kit slash commands); ignore local noise
+.continue/*
+!.continue/prompts/
+!.continue/prompts/**
 
