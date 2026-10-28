@@ -1,4 +1,4 @@
-# Tasks: 010-pot-node-enclosure-v15
+﻿# Tasks: 010-pot-node-enclosure-v15
 
 **Input**: `/specs/010-pot-node-enclosure-v15/`  
 **Status**: Delivered — all tasks complete (retrospective)
@@ -25,4 +25,4 @@
 ## Notes
 
 Backfilled from `702a2dc`, enclosure portions of `a5df8bd`, and `ccd38d7`.  
-Physical print → flash → first HTTP ingest continues in `011-pot-node-v15-bringup`.
+Physical print → flash → first HTTP ingest continues in `012-pot-node-v15-bringup`.

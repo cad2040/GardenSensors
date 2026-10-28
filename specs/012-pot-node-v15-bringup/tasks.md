@@ -1,6 +1,6 @@
-# Tasks: 011-pot-node-v15-bringup
+﻿# Tasks: 012-pot-node-v15-bringup
 
-**Input**: Design documents from `/specs/011-pot-node-v15-bringup/`  
+**Input**: Design documents from `/specs/012-pot-node-v15-bringup/`  
 **Prerequisites**: `plan.md`, `spec.md`  
 **Status**: Planned  
 **Tests**: Manual hardware verification required; PHPUnit only for new PHP ingest code.
@@ -19,7 +19,7 @@
 
 **Purpose**: Confirm artifacts and active feature before spending filament or BOM.
 
-- [ ] T001 Confirm active Spec Kit feature points at `specs/011-pot-node-v15-bringup` (`.specify/feature.json`)
+- [ ] T001 Confirm active Spec Kit feature points at `specs/012-pot-node-v15-bringup` (`.specify/feature.json`)
 - [ ] T002 [P] Inventory committed STLs in `hardware/enclosure/` (body, lid, gasket, USB cap)
 - [ ] T003 [P] Review `docs/setup/HARDWARE_BOM.md` and `docs/setup/POT_NODE_ASSEMBLY.md` against parts on hand
 - [ ] T004 [P] Confirm garden stack can be brought up on LAN (`sudo ./setup.sh local` or Compose) for later US3

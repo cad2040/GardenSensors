@@ -1,6 +1,6 @@
-# Tasks: 012-rpi-controller-node
+﻿# Tasks: 011-rpi-controller-node
 
-**Input**: Design documents from `/specs/012-rpi-controller-node/`  
+**Input**: Design documents from `/specs/011-rpi-controller-node/`  
 **Status**: Planned
 
 # Raspberry Pi Controller Node Implementation

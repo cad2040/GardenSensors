@@ -1,9 +1,15 @@
-# Feature Specification: Pot-Node V1.5 Hardware Bring-Up
+﻿# Feature Specification: Pot-Node V1.5 Hardware Bring-Up
 
-**Feature Branch**: `011-pot-node-v15-bringup`  
+**Feature Branch**: `012-pot-node-v15-bringup`  
 **Created**: 2026-10-23  
-**Status**: Planned  
+**Status**: Planned (deferred behind RPi host)  
+**Renumbered**: 2026-10-28 (was `011-pot-node-v15-bringup`; RPi host took `011`)  
+**Depends on**: `011-rpi-controller-node` for LAN ingest URL + GUI surface (US3 / SC-003)  
 **Input**: Physical bring-up of the first V1.5 outdoor pot-node from committed STLs through first successful HTTP sensor ingest.
+
+## Ordering note
+
+Print / hose-test / bench Modbus can run without the Pi. **Do not treat first HTTP ingest or dashboard visibility as done** until `011-rpi-controller-node` is up on the LAN and the contract URL points at that host.
 
 ## User Scenarios & Testing *(mandatory)*
 

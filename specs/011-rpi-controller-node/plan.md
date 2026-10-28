@@ -1,6 +1,7 @@
-# Implementation Plan: 012-rpi-controller-node
+﻿# Implementation Plan: 011-rpi-controller-node
 
-**Branch**: `012-rpi-controller-node` | **Spec**: [spec.md](./spec.md)  
+**Branch**: `011-rpi-controller-node` | **Spec**: [spec.md](./spec.md)  
+**Priority**: Ahead of `012-pot-node-v15-bringup` (this host is the ingest + GUI target)  
 **Status**: Planned
 
 # Architecture & Implementation How: Raspberry Pi Controller Node Integration

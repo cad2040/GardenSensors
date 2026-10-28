@@ -1,9 +1,14 @@
-# Feature Specification: Raspberry Pi Controller Node Integration
+﻿# Feature Specification: Raspberry Pi Controller Node Integration
 
-**Feature Branch**: `012-rpi-controller-node`  
-**Status**: Planned (not yet delivered)  
+**Feature Branch**: `011-rpi-controller-node`  
+**Status**: Planned (docs incomplete — active Spec Kit feature; implement before pot-node bring-up)  
 **Created**: 2026-10-28  
-**Renumbered**: 2026-10-28 (was `002-rpi-controller-node`; delivered history backfilled as `001`–`010`)
+**Renumbered**: 2026-10-28 (was `002-rpi-controller-node`, then briefly `012`; swapped ahead of pot bring-up)  
+**Blocks**: `012-pot-node-v15-bringup` (pot HTTP ingest + GUI need this LAN host)
+
+## Ordering note
+
+Ship this **before** outdoor pot-node bring-up (`012`). The Pi is the LAN stack the node POSTs into and the surface for the garden GUI. Mechanical print/hose-test in `012` can proceed in parallel offline, but **US3 first HTTP ingest / dashboard proof waits on this feature**.
 
 ## 1. Core Objectives
 - **Secure LAN Integration**: The RPi node must join the existing estate network with strict LAN-only routing, adhering to UFW firewall policies and Docker port binding rules. Services should publish on LAN subnets (e.g., `192.168.x.x`) where needed for dashboard access; internal bindings (`127.0.0.1`) are optional if external LAN reachability is required.

@@ -1,8 +1,8 @@
-# Implementation Plan: 011-pot-node-v15-bringup
+﻿# Implementation Plan: 012-pot-node-v15-bringup
 
-**Branch**: `011-pot-node-v15-bringup` | **Date**: 2026-10-28 | **Spec**: [spec.md](./spec.md)  
-**Status**: Planned  
-**Input**: Feature specification from `/specs/011-pot-node-v15-bringup/spec.md`
+**Branch**: `012-pot-node-v15-bringup` | **Date**: 2026-10-28 | **Spec**: [spec.md](./spec.md)  
+**Status**: Planned — **depends on `011-rpi-controller-node`** for LAN ingest/GUI (US3)  
+**Input**: Feature specification from `/specs/012-pot-node-v15-bringup/spec.md`
 
 ## Summary
 
@@ -50,7 +50,7 @@ The following FR distinctions from `spec.md` must be reflected in implementation
 ### Documentation (this feature)
 
 ```text
-specs/011-pot-node-v15-bringup/
+specs/012-pot-node-v15-bringup/
 ├── plan.md              # This file
 ├── spec.md              # Refined specification
 └── tasks.md             # Phased human + software tasks

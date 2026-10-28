@@ -1,4 +1,4 @@
-# Feature Specification: Pot-Node BOM & Enclosure V1.5
+﻿# Feature Specification: Pot-Node BOM & Enclosure V1.5
 
 **Feature Branch**: `010-pot-node-enclosure-v15`  
 **Created**: 2026-07–2026-08 (retrospective)  
@@ -55,7 +55,7 @@ Builder follows `POT_NODE_ASSEMBLY.md` for wiring order, solder vs Dupont choice
 
 ## Assumptions
 
-- Physical print/hose-test/first ingest are a separate planned feature (`011-pot-node-v15-bringup`).
+- Physical print/hose-test/first ingest are a separate planned feature (`012-pot-node-v15-bringup`).
 - Materials: dark-green PETG + TPU gasket/cap as recommended in session notes.
 
 ## Out of Scope

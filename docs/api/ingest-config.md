@@ -1,8 +1,8 @@
-# Ingest Configuration Propagation Notes: Pot-Node V1.5
+﻿# Ingest Configuration Propagation Notes: Pot-Node V1.5
 
 **Location**: `docs/api/ingest-config.md`  
 **Status**: Draft (T013b)  
-**Branch**: `011-pot-node-v15-bringup`  
+**Branch**: `012-pot-node-v15-bringup`  
 
 ## Purpose
 
