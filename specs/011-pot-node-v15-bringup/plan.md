@@ -1,4 +1,7 @@
-# 001-pot-node-v1.5-bringup
+# Implementation Plan: 011-pot-node-v15-bringup
+
+**Branch**: `011-pot-node-v15-bringup` | **Spec**: [spec.md](./spec.md)  
+**Status**: Planned
 
 ## Print Path
 - Use the committed STLs for the pot-node enclosure.
@@ -19,7 +22,7 @@
 - Flash the firmware to the NodeMCU **before** the final lid torque.
 
 ## Firmware
-- Sketches live in the `arduino\sketch_SoilSensor.ino` directory.
+- Sketches live in the `arduino/sketch_SoilSensor.ino` directory.
 - Flash the target NodeMCU.
 - Configuration needed for WiFi/HTTP ingest (do not commit secrets).
 
@@ -45,55 +48,3 @@
   - Check the enclosure for leaks.
   - Verify the NodeMCU firmware is flashed correctly.
   - Confirm the HTTP ingest is successful.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

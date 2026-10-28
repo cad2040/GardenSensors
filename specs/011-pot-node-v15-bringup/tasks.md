@@ -1,4 +1,7 @@
-# Tasks for Pot Node Hardware Bring-Up (v1.5)
+# Tasks: 011-pot-node-v15-bringup
+
+**Input**: Design documents from `/specs/011-pot-node-v15-bringup/`  
+**Status**: Planned — tasks unchecked until physical bring-up completes
 
 ## Phase 1: Print STLs
 - [ ] T001: Print pot node body (`hardware/enclosure/pot_node_body_v1.stl`) in PETG  

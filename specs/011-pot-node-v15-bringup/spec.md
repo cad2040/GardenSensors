@@ -1,4 +1,9 @@
-# 001-pot-node-v15-bringup
+# 011-pot-node-v15-bringup
+
+**Feature Branch**: `011-pot-node-v15-bringup`  
+**Status**: Planned (not yet delivered)  
+**Created**: 2026-10-23  
+**Renumbered**: 2026-10-28 (was `001-pot-node-v15-bringup`; delivered history backfilled as `001`–`010`)
 
 ## Goal
 The goal of this feature is to bring up the first V1.5 outdoor pot-node, from the committed STLs through the first successful HTTP sensor ingest. This includes assembly, firmware flashing, and initial HTTP ingest verification.
